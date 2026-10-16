@@ -1,6 +1,14 @@
 name: Analysis model tests
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'web/**'
+      - 'tests/**'
+      - 'CMakeLists.txt'
+      - '.github/workflows/model-tests.yml'
   pull_request:
     branches: [main]
     paths:
@@ -47,3 +55,4 @@ jobs:
           build/browser-env/bin/python tests/test_browser.py --fixtures build/test-fixtures
           build/browser-env/bin/python tests/test_data_browser.py build/windows-exe-analyzer --fixtures build/test-fixtures
           build/browser-env/bin/python tests/test_model_browser.py --fixtures build/test-fixtures
+          build/browser-env/bin/python tests/test_exception_browser.py build/windows-exe-analyzer

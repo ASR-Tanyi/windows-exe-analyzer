@@ -1,11 +1,13 @@
 #pragma once
 #include "model.hpp"
+#include "exception_directory.hpp"
 class PE {
 public:
     std::vector<u8> data;std::vector<Section> sections;std::map<u32,Import> imports;
     std::vector<Export> exports;std::vector<std::string> warnings;
     bool is64=false,dll=false;u64 imageBase=0;u32 entryRva=0,headersSize=0,imageSize=0;
     wea::DiagnosticLog diagnostics;
+    wea::ExceptionDirectory exceptionDirectory;
     std::optional<wea::FileOffset> entryFieldOffset;
     std::string moduleId;std::vector<std::pair<u32,u32>> directories;
     explicit PE(const std::string& path) {
@@ -18,6 +20,10 @@ public:
         moduleId="m_"+hex(hash).substr(2);parse();
         try{parseImports();}catch(const std::exception&e){warn(wea::DiagnosticCode::InvalidMetadata,"imports",std::string("Import parsing incomplete: ")+e.what());}
         try{parseExports();}catch(const std::exception&e){warn(wea::DiagnosticCode::InvalidMetadata,"exports",std::string("Export parsing incomplete: ")+e.what());}
+        const auto diagnosticStart=diagnostics.items().size();
+        exceptionDirectory=wea::parseExceptionDirectory(*this,diagnostics);
+        for(size_t k=diagnosticStart;k<diagnostics.items().size();++k)
+            warnings.push_back(diagnostics.items()[k].message);
         if(directories.size()>13&&directories[13].first)warn(wea::DiagnosticCode::UnsupportedFeature,"delay_imports","Delay-import resolution is not implemented.");
         if(directories.size()>9&&directories[9].first)warn(wea::DiagnosticCode::UnsupportedFeature,"tls","TLS callback discovery is not implemented; callbacks may run before the PE entry point.");
         if(directories.size()>14&&directories[14].first)warn(wea::DiagnosticCode::UnsupportedFeature,"clr","CLR metadata is present. Managed IL is not decoded by this native-code analyzer.");

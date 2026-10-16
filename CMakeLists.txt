@@ -11,6 +11,10 @@ string(REPLACE "</body>" "<script>\n${ANALYSIS_MODEL_SCRIPT}\n</script></body>" 
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_SOURCE_DIR}/web/viewer.html"
   "${CMAKE_CURRENT_SOURCE_DIR}/web/analysis-model.js")
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/web/exception-directory.js" EXCEPTION_DIRECTORY_SCRIPT)
+string(REPLACE "</body>" "<script>\n${EXCEPTION_DIRECTORY_SCRIPT}\n</script></body>" VIEWER_TEMPLATE "${VIEWER_TEMPLATE}")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/web/exception-directory.js")
 configure_file(src/viewer_embedded.hpp.in "${CMAKE_CURRENT_BINARY_DIR}/viewer_embedded.hpp" @ONLY)
 add_executable(windows-exe-analyzer src/main.cpp src/decoder.cpp src/report.cpp)
 target_include_directories(windows-exe-analyzer PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
@@ -76,6 +80,13 @@ if(BUILD_TESTING)
       "$<TARGET_FILE:windows-exe-analyzer>" ${WEA_MODEL_FIXTURE_ARGS})
     if(WEA_CLANG AND WEA_LLD_LINK)
       set_tests_properties(analysis_model_regression PROPERTIES FIXTURES_REQUIRED pe_fixtures)
+    endif()
+    add_test(NAME exception_directory_regression COMMAND "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_exception_directory.py"
+      "$<TARGET_FILE:windows-exe-analyzer>" ${WEA_MODEL_FIXTURE_ARGS})
+    set_tests_properties(exception_directory_regression PROPERTIES TIMEOUT 90)
+    if(WEA_CLANG AND WEA_LLD_LINK)
+      set_tests_properties(exception_directory_regression PROPERTIES FIXTURES_REQUIRED pe_fixtures)
     endif()
     add_test(NAME static_data_regression COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_static_data.py"
       "$<TARGET_FILE:windows-exe-analyzer>")
