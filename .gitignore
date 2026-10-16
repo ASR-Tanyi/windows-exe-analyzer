@@ -96,3 +96,10 @@ CMakeUserPresets.json
 !.env.example
 *.pem
 *.key
+
+# demo_exe only: curated, checksummed showcase package.
+!/demo/
+/demo/*
+!/demo/README.md
+!/demo/SHA256SUMS
+!/demo/windows-exe-analyzer-demo.tar.xz
