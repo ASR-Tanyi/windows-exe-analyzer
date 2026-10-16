@@ -33,8 +33,10 @@ def main():
     # Evaluation metadata stays outside the analyzer's inputs. These two tools
     # create the fixtures; no generated EXE/DLL is ever executed here.
     def version(tool):
+        # Hosted runners may page in a large compiler on its first invocation.
+        # Keep the probe bounded without treating a cold start as a test failure.
         return subprocess.run([str(tool), '--version'], check=True,
-                              capture_output=True, text=True, timeout=10).stdout.strip()
+                              capture_output=True, text=True, timeout=60).stdout.strip()
 
     corpus = {'schema': 1, 'generator': 'tests/build_fixtures.py',
               'generatorSha256': digest(Path(__file__)),
