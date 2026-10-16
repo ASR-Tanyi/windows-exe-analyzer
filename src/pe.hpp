@@ -5,6 +5,8 @@ public:
     std::vector<u8> data;std::vector<Section> sections;std::map<u32,Import> imports;
     std::vector<Export> exports;std::vector<std::string> warnings;
     bool is64=false,dll=false;u64 imageBase=0;u32 entryRva=0,headersSize=0,imageSize=0;
+    wea::DiagnosticLog diagnostics;
+    std::optional<wea::FileOffset> entryFieldOffset;
     std::string moduleId;std::vector<std::pair<u32,u32>> directories;
     explicit PE(const std::string& path) {
         std::ifstream f(path,std::ios::binary|std::ios::ate);
@@ -14,11 +16,11 @@ public:
         if(!f.read(reinterpret_cast<char*>(data.data()),static_cast<std::streamsize>(n)))throw std::runtime_error("Input read failed");
         u64 hash=14695981039346656037ull;for(u8 b:data){hash^=b;hash*=1099511628211ull;}
         moduleId="m_"+hex(hash).substr(2);parse();
-        try{parseImports();}catch(const std::exception&e){warnings.push_back(std::string("Import parsing incomplete: ")+e.what());}
-        try{parseExports();}catch(const std::exception&e){warnings.push_back(std::string("Export parsing incomplete: ")+e.what());}
-        if(directories.size()>13&&directories[13].first)warnings.push_back("Delay-import resolution is not implemented.");
-        if(directories.size()>9&&directories[9].first)warnings.push_back("TLS callback discovery is not implemented; callbacks may run before the PE entry point.");
-        if(directories.size()>14&&directories[14].first)warnings.push_back("CLR metadata is present. Managed IL is not decoded by this native-code analyzer.");
+        try{parseImports();}catch(const std::exception&e){warn(wea::DiagnosticCode::InvalidMetadata,"imports",std::string("Import parsing incomplete: ")+e.what());}
+        try{parseExports();}catch(const std::exception&e){warn(wea::DiagnosticCode::InvalidMetadata,"exports",std::string("Export parsing incomplete: ")+e.what());}
+        if(directories.size()>13&&directories[13].first)warn(wea::DiagnosticCode::UnsupportedFeature,"delay_imports","Delay-import resolution is not implemented.");
+        if(directories.size()>9&&directories[9].first)warn(wea::DiagnosticCode::UnsupportedFeature,"tls","TLS callback discovery is not implemented; callbacks may run before the PE entry point.");
+        if(directories.size()>14&&directories[14].first)warn(wea::DiagnosticCode::UnsupportedFeature,"clr","CLR metadata is present. Managed IL is not decoded by this native-code analyzer.");
     }
     void require(size_t p,size_t n)const{if(p>data.size()||n>data.size()-p)throw std::runtime_error("Truncated/out-of-range PE data");}
     u16 rd16(size_t p)const{require(p,2);return u16(data[p])|u16(u16(data[p+1])<<8);}
@@ -49,6 +51,9 @@ public:
     }
     std::optional<u32> rvaOf(u64 va)const{if(va<imageBase||va-imageBase>UINT32_MAX)return {};return u32(va-imageBase);}
 private:
+    void warn(wea::DiagnosticCode code,const std::string& phase,const std::string& message){
+        diagnostics.add(code,phase,message);warnings.push_back(message);
+    }
     static u32 plus(u32 a,u64 b){if(u64(a)+b>UINT32_MAX)throw std::runtime_error("RVA overflow");return u32(u64(a)+b);}
     void parse(){
         if(rd16(0)!=0x5a4d)throw std::runtime_error("Missing MZ signature");
@@ -58,7 +63,7 @@ private:
         u16 magic=rd16(o);is64=machine==0x8664&&magic==0x20b;
         if(!is64&&!(machine==0x14c&&magic==0x10b))throw std::runtime_error("Only native x86 PE32 / x64 PE32+ supported");
         size_t d=is64?112:96;if(optSize<d)throw std::runtime_error("Short optional header");
-        entryRva=rd32(o+16);imageBase=is64?rd64(o+24):rd32(o+28);imageSize=rd32(o+56);headersSize=rd32(o+60);
+        entryFieldOffset=wea::FileOffset(o+16);entryRva=rd32(o+16);imageBase=is64?rd64(o+24):rd32(o+28);imageSize=rd32(o+56);headersSize=rd32(o+60);
         if(imageBase>UINT64_MAX-UINT32_MAX)throw std::runtime_error("Image address overflow");
         size_t n=rd32(o+(is64?108:92));if(n>(optSize-d)/8)throw std::runtime_error("Data directories exceed optional header");
         for(size_t i=0;i<std::min<size_t>(n,16);i++)directories.emplace_back(rd32(o+d+8*i),rd32(o+d+8*i+4));
@@ -103,7 +108,7 @@ private:
         for(u32 i=0;i<nn;i++){u16 ordinal=rd16(offset(plus(ao,u64(i)*2),2));if(ordinal>=nf)throw std::runtime_error("Invalid export ordinal");
             std::string n=str(r32(plus(an,u64(i)*4)));if(names.contains(ordinal))names[ordinal]+=" | "+n;else names[ordinal]=n;}
         for(u32 i=0;i<nf;i++){u32 target=r32(plus(af,u64(i)*4));if(!target)continue;
-            Export e{target,names.contains(i)?names[i]:"ordinal_"+std::to_string(u64(base)+i),""};
+            Export e{target,names.contains(i)?names[i]:"ordinal_"+std::to_string(u64(base)+i),"",plus(af,u64(i)*4)};
             if(target>=rva&&u64(target)<u64(rva)+size)e.forwarder=str(target);
             exports.push_back(e);}
     }
