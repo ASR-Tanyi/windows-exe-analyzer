@@ -1,38 +1,77 @@
 #pragma once
 #include "decoder.hpp"
 inline Analysis analyze(const PE&pe,size_t limit,std::optional<u32> mainRva,const std::map<u32,std::string>&names){
-    Analysis a;a.mainRva=mainRva;a.names=names;a.warnings=pe.warnings;Decoder decoder(pe.is64);std::queue<u32> todo;
-    auto warn=[&](const std::string&s){if(a.warnings.size()<100)a.warnings.push_back(s);};
-    auto root=[&](u32 rva,std::string name,std::string evidence){
-        if(!pe.available(rva,true)){warn("Cannot decode function seed "+hex(rva));return;}
-        if(!a.functions.contains(rva))a.functions[rva]={rva,std::move(name),std::move(evidence)};
-        todo.push(rva);
+    using wea::DiagnosticCode;
+    Analysis a;a.mainRva=mainRva;a.names=names;a.warnings=pe.warnings;
+    a.diagnostics=pe.diagnostics;Decoder decoder(pe.is64);std::queue<u32> todo;
+    auto location=[&](u32 r){return wea::Location{pe.moduleId,wea::Address(wea::Rva(r))};};
+    auto warn=[&](DiagnosticCode code,const std::string& message,
+                  std::optional<wea::Location> at=std::nullopt){
+        a.diagnostics.add(code,"discovery",message,std::move(at));
+        if(a.warnings.size()<a.diagnostics.limit())a.warnings.push_back(message);
     };
-    if(pe.entryRva)root(pe.entryRva,"pe_entry","PE AddressOfEntryPoint; not automatically main()");
-    for(const auto&e:pe.exports)if(e.forwarder.empty()&&pe.available(e.rva,true))root(e.rva,e.name,"Export name; executable function candidate");
-    if(mainRva){root(*mainRva,"main","Analyst-supplied main RVA; not auto-detected");if(a.functions.contains(*mainRva)){a.functions[*mainRva].name="main";a.functions[*mainRva].evidence="Analyst-supplied main RVA; not auto-detected";}}
+    auto recordFunction=[&](u32 rva,std::string name,std::string legacy,wea::Evidence fact){
+        auto [it,inserted]=a.functions.try_emplace(rva);
+        if(inserted){it->second.rva=rva;it->second.name=std::move(name);it->second.evidence=std::move(legacy);}
+        it->second.evidenceRecords.insert(std::move(fact));
+    };
+    auto root=[&](u32 rva,std::string name,std::string legacy,wea::Evidence fact){
+        if(!pe.available(rva,true)){
+            warn(DiagnosticCode::UnmappedTarget,"Cannot decode function seed "+hex(rva),location(rva));return;
+        }
+        recordFunction(rva,std::move(name),std::move(legacy),std::move(fact));todo.push(rva);
+    };
+    if(pe.entryRva)root(pe.entryRva,"pe_entry","PE AddressOfEntryPoint; not automatically main()",
+        {wea::EvidenceOrigin::PeHeader,"image_entry",wea::Resolution::Encoded,
+         wea::EvidenceStatus::Confirmed,"pe.entry",1,
+         pe.entryFieldOffset?std::optional<wea::Location>{{pe.moduleId,wea::Address(*pe.entryFieldOffset)}}:std::nullopt,
+         "PE AddressOfEntryPoint",{"The image entry is not necessarily a source-level function or main()."}});
+    for(const auto&e:pe.exports)if(e.forwarder.empty()&&pe.available(e.rva,true))
+        root(e.rva,e.name,"Export name; executable function candidate",
+            {wea::EvidenceOrigin::ExportTable,"function_entry",wea::Resolution::Encoded,
+             wea::EvidenceStatus::Candidate,"pe.executable_export",1,
+             e.tableEntryRva?std::optional<wea::Location>{location(*e.tableEntryRva)}:std::nullopt,
+             e.name,{"An executable export is a function candidate, not a complete boundary."}});
+    if(mainRva){
+        root(*mainRva,"main","Analyst-supplied main RVA; not auto-detected",
+            {wea::EvidenceOrigin::Analyst,"application_entry",wea::Resolution::Supplied,
+             wea::EvidenceStatus::Assertion,"cli.main_rva",1,std::nullopt,"--main-rva",
+             {"This role was supplied by the analyst; startup has not been recognized."}});
+        if(a.functions.contains(*mainRva)){a.functions[*mainRva].name="main";a.functions[*mainRva].evidence="Analyst-supplied main RVA; not auto-detected";}
+    }
     std::set<u32> attempted;
-    while(!todo.empty()&&a.instructions.size()<limit){u32 pc=todo.front();todo.pop();
-        while(a.instructions.size()<limit&&!attempted.contains(pc)){
-            attempted.insert(pc);if(!pe.available(pc,true))break;
+    bool budgetHit=false;
+    while(!todo.empty()&&!budgetHit){u32 pc=todo.front();todo.pop();
+        while(!attempted.contains(pc)){
+            if(!pe.available(pc,true)){
+                warn(DiagnosticCode::UnmappedTarget,"Traversal reached non-file-backed code: "+hex(pc),location(pc));break;
+            }
+            // Only report exhaustion if there really is more unvisited code.
+            // A return at exactly the limit is not a truncated traversal.
+            if(a.instructions.size()>=limit){budgetHit=true;break;}
+            attempted.insert(pc);
             auto upper=a.instructions.upper_bound(pc);
-            if(upper!=a.instructions.begin()){const auto&prev=std::prev(upper)->second;if(u64(prev.rva)+prev.size>pc){warn("Overlapping instruction target rejected: "+hex(pc));break;}}
-            auto maybe=decoder.decode(pe,pc);if(!maybe){warn("Undecodable bytes at "+hex(pc));break;}Instruction i=*maybe;
-            if(upper!=a.instructions.end()&&u64(pc)+i.size>upper->first){warn("Overlapping instruction stream rejected: "+hex(pc));break;}
+            if(upper!=a.instructions.begin()){const auto&prev=std::prev(upper)->second;if(u64(prev.rva)+prev.size>pc){warn(DiagnosticCode::OverlappingDecode,"Overlapping instruction target rejected: "+hex(pc),location(pc));break;}}
+            auto maybe=decoder.decode(pe,pc);if(!maybe){warn(DiagnosticCode::DecodeFailed,"Undecodable bytes at "+hex(pc),location(pc));break;}Instruction i=*maybe;
+            if(upper!=a.instructions.end()&&u64(pc)+i.size>upper->first){warn(DiagnosticCode::OverlappingDecode,"Overlapping instruction stream rejected: "+hex(pc),location(pc));break;}
             a.instructions[pc]=i;
             if((i.call||i.jump)&&i.targetVA){auto t=pe.rvaOf(*i.targetVA);if(t&&pe.available(*t,true)){
-                if(i.call&&!a.functions.contains(*t))a.functions[*t]={*t,"sub_"+hex(*t).substr(2),"Direct-call target; inferred function boundary"};
+                if(i.call)recordFunction(*t,"sub_"+hex(*t).substr(2),"Direct-call target; inferred function boundary",
+                    {wea::EvidenceOrigin::DecodedInstruction,"function_entry",wea::Resolution::Encoded,
+                     wea::EvidenceStatus::Candidate,"cfg.direct_call",1,location(i.rva),
+                     "Direct-call destination",{"A call destination is not proof of a source-level function boundary."}});
                 todo.push(*t);
-            }}
+            }else warn(DiagnosticCode::UnmappedTarget,"Direct control-flow target is not file-backed executable code: "+hex(*i.targetVA),
+                       wea::Location{pe.moduleId,wea::Address(wea::PreferredVa(*i.targetVA))});}
             if(i.stop||(i.jump&&!i.conditional))break;
             u64 next=u64(pc)+i.size;if(next>UINT32_MAX)break;pc=u32(next);
         }
     }
-    a.truncated=a.instructions.size()>=limit;if(a.truncated)warn("Instruction limit reached; report is partial.");
-    for(auto it=a.functions.begin();it!=a.functions.end();){if(!a.instructions.contains(it->first)){warn("Unresolved function seed: "+hex(it->first));it=a.functions.erase(it);}else ++it;}
+    a.truncated=budgetHit;if(a.truncated)warn(DiagnosticCode::BudgetExhausted,"Instruction limit reached; report is partial.");
+    for(auto it=a.functions.begin();it!=a.functions.end();){if(!a.instructions.contains(it->first)){warn(DiagnosticCode::UnresolvedSeed,"Unresolved function seed: "+hex(it->first),location(it->first));it=a.functions.erase(it);}else ++it;}
     std::set<u32> leaders;for(const auto&[r,f]:a.functions){(void)f;leaders.insert(r);}
     if(!a.instructions.empty())leaders.insert(a.instructions.begin()->first);
-    for(const auto&[r,n]:names){(void)n;if(a.instructions.contains(r))leaders.insert(r);else warn("Name ignored: RVA not decoded: "+hex(r));}
+    for(const auto&[r,n]:names){(void)n;if(a.instructions.contains(r))leaders.insert(r);else warn(DiagnosticCode::IgnoredAnnotation,"Name ignored: RVA not decoded: "+hex(r),location(r));}
     for(const auto&[r,i]:a.instructions){
         if((i.jump||i.call)&&i.targetVA){auto t=pe.rvaOf(*i.targetVA);if(t&&a.instructions.contains(*t))leaders.insert(*t);}
         u64 next=u64(r)+i.size;
@@ -69,7 +108,7 @@ inline Analysis analyze(const PE&pe,size_t limit,std::optional<u32> mainRva,cons
             for(size_t k:outgoing[b]){const auto&e=a.edges[k];if(e.to&&e.kind!="call")q.push(*e.to);}
         }
     }
-    if(ownershipWork>=2000000)warn("Function-membership work limit reached; some owners omitted.");
+    if(ownershipWork>=2000000)warn(DiagnosticCode::BudgetExhausted,"Function-membership work limit reached; some owners omitted.");
     std::set<u32> backwardTargets;
     for(const auto&e:a.edges)if(e.to&&*e.to<=e.from&&e.kind!="call"&&e.kind!="continuation")backwardTargets.insert(*e.to);
     for(auto&[r,b]:a.blocks){
@@ -82,7 +121,26 @@ inline Analysis analyze(const PE&pe,size_t limit,std::optional<u32> mainRva,cons
         else {b.role="straight-line block";b.name="block_"+suffix;b.summary="Sequential instructions up to another block boundary or analysis boundary.";}
         if(backwardTargets.contains(r)){b.role+=" / backward target";b.summary+=" A backward edge targets this block; this is a loop clue, not proof of a natural loop.";}
         if(a.functions.contains(r)){const auto&f=a.functions.at(r);b.name=f.name;b.evidence=f.evidence;b.role="function entry / "+b.role;}
-        if(names.contains(r)){b.name=names.at(r);b.evidence="Analyst-supplied label";if(a.functions.contains(r)){a.functions[r].name=b.name;a.functions[r].evidence=b.evidence;}}
+        b.evidenceRecords.insert({wea::EvidenceOrigin::AnalysisRule,"block_role",wea::Resolution::Inferred,
+            wea::EvidenceStatus::Heuristic,"cfg.block_role",1,location(i.rva),b.role,
+            {"Based on a partial static CFG; not recovered source meaning."}});
+        if(names.contains(r)){
+            b.name=names.at(r);b.evidence="Analyst-supplied label";
+            wea::Evidence label{wea::EvidenceOrigin::Analyst,"display_name",wea::Resolution::Supplied,
+                wea::EvidenceStatus::Assertion,"cli.name",1,std::nullopt,b.name,{}};
+            b.evidenceRecords.insert(label);
+            if(a.functions.contains(r)){
+                auto& f=a.functions[r];f.name=b.name;f.evidence=b.evidence;f.evidenceRecords.insert(label);
+            }
+        }
+        if(a.functions.contains(r)){
+            const auto& facts=a.functions.at(r).evidenceRecords;
+            b.evidenceRecords.insert(facts.begin(),facts.end());
+        }
+        b.decodedRange=wea::CodeRange(wea::Rva(r),u64(i.rva)+i.size);
+        for(u32 owner:b.owners)wea::appendDecodedRange(a.functions.at(owner).decodedRanges,*b.decodedRange);
+        if(b.owners.size()>1)warn(DiagnosticCode::AmbiguousOwner,
+            "Block has multiple inferred function owners: "+hex(r),location(r));
         if(r==pe.entryRva)b.summary="PE entry RVA from the image header. This is not automatically main(), and TLS initialization may precede it. "+b.summary;
         if(mainRva&&r==*mainRva)b.summary="Marked as main by the analyst; no automatic CRT-to-main recovery. "+b.summary;
     }
