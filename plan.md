@@ -2,7 +2,7 @@
 
 > Direction: a trustworthy, navigable reverse-engineering workspace for native Windows x86/x64 binaries, progressing from disassembly to evidence-backed low-level code recovery.
 >
-> Planning baseline: [`f789c59`](https://github.com/ASR-Tanyi/windows-exe-analyzer/tree/f789c59b590588426a64aa8c13c378865ab34996), reviewed on 2026-10-16. This document describes proposed work, not a claim that the features below are implemented. Unchecked tasks are pending. Milestones express dependency order, not delivery-date commitments.
+> Planning baseline: [`f789c59`](https://github.com/ASR-Tanyi/windows-exe-analyzer/tree/f789c59b590588426a64aa8c13c378865ab34996), reviewed on 2026-10-16. The baseline section is historical; the checklists below track subsequent implementation. Checked items link to their implementation and supported scope; unchecked items are pending or explicitly partial. Milestones express dependency order, not delivery-date commitments.
 
 ## Contents
 
@@ -150,17 +150,17 @@ Preserve source instruction IDs through analysis and simplification. HTML, IR, p
 
 **Likely files:** `src/model.hpp`, `src/report.cpp`, `tests/`, `CMakeLists.txt`, and workflow configuration. New file paths mentioned throughout this plan are proposals, not claims they exist.
 
-- [ ] **M0.1** Define address/range types, structured evidence, and typed diagnostics; add serialization round-trip tests.
-- [ ] **M0.2** Record schema version, analyzer revision, decoder version/capabilities, effective limits, and enabled passes in report metadata.
-- [ ] **M0.3** Add a small corpus manifest with fixture source, compiler/linker identity, flags, architecture, input hash, and expected discoveries. Keep compiler-generated ground truth outside the analyzer's input in blind-discovery tests.
-- [ ] **M0.4** Add independent build/regression CI for Linux and Windows, then macOS. Test both decoder adapters; distinguish backend-unavailable skips from passing tests.
-- [ ] **M0.5** Add schema/annotation compatibility fixtures and a regression proving labels survive a viewer update for the same binary.
-- [ ] **M0.6** Add parser sanitizers and bounded malformed-input checks. Expand fuzzing incrementally as metadata parsers are added.
-- [ ] **M0.7** Validate hosted demo deployment and the custom-input container separately, using only public-safe source-known inputs. Record run links instead of copying old test counts into new claims.
+- [x] **M0.1** Define address/range types, structured evidence, and typed diagnostics; add serialization round-trip tests. Completed in [`9299868`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/9299868a6ccecc181ffd1dddf0a8f431faeb4fd7); [scope and tests](docs/m0-foundation.md). New analysis facts are typed; migrating every legacy integer API is not claimed.
+- [ ] **M0.2** Record schema version, analyzer revision, decoder version/capabilities, effective limits, and enabled passes in report metadata. **Partial:** schema/model versions and selected limits exist; complete revision/capability/pass metadata remains pending.
+- [x] **M0.3** Add a small corpus manifest with fixture source, compiler/linker identity, flags, architecture, input hash, and expected discoveries. Keep compiler-generated ground truth outside the analyzer's input in blind-discovery tests. Completed in [`9299868`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/9299868a6ccecc181ffd1dddf0a8f431faeb4fd7); see [fixture generator](tests/build_fixtures.py) and [blind-discovery tests](tests/test_analysis_model.py).
+- [ ] **M0.4** Add independent build/regression CI for Linux and Windows, then macOS. Test both decoder adapters; distinguish backend-unavailable skips from passing tests. **Partial:** Linux/LLVM regression CI runs on main and PRs; the Windows/macOS and Capstone matrix remains pending.
+- [x] **M0.5** Add schema/annotation compatibility fixtures and a regression proving labels survive a viewer update for the same binary. Completed in [`9299868`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/9299868a6ccecc181ffd1dddf0a8f431faeb4fd7); [browser compatibility tests](tests/test_model_browser.py) and [hosted regression evidence](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/38923497939).
+- [ ] **M0.6** Add parser sanitizers and bounded malformed-input checks. Expand fuzzing incrementally as metadata parsers are added. **Partial:** bounded malformed-input tests and local sanitizer validation exist; persistent sanitizer/fuzz automation and broader coverage remain pending.
+- [ ] **M0.7** Validate hosted demo deployment and the custom-input container separately, using only public-safe source-known inputs. Record run links instead of copying old test counts into new claims. **Partial:** [demo build/deployment succeeded](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/38929245698); the separate custom-input container validation is not yet recorded.
 
 **Acceptance:** current navigation and fixture tests remain passing; repeated analysis has stable semantic output after documented volatile metadata is normalized; supported backend/OS combinations are explicit. CLI success alone is insufficient if discovery is partial.
 
-**Boundary:** M0 establishes contracts and a minimal test matrix, not a full plugin framework or a guarantee that the parser is hardened against hostile files.
+**Boundary:** M0 establishes contracts and a minimal test matrix, not a full plugin framework or a guarantee that the parser is hardened against hostile files. The checked foundation items do not mean the entire M0 milestone is complete.
 
 ### M1. Function discovery and startup evidence
 
@@ -172,10 +172,10 @@ Preserve source instruction IDs through analysis and simplification. HTML, IR, p
 
 The AMD64 exception mechanism supplies image-relative runtime-function ranges and unwind information; some leaf code lacks entries, and chained information can describe portions of a procedure [R2]. Use this as evidence, not a universal source-function list.
 
-- [ ] **M1.1** Locate the exception directory from the PE data directories, independent of the section's display name. Gate AMD64 record interpretation on the machine type.
-- [ ] **M1.2** Parse bounded runtime-function records; validate record sizes, arithmetic, readable table extents, executable start locations, and half-open ranges. Preserve malformed-record diagnostics without silently accepting unsafe ranges.
-- [ ] **M1.3** Preserve unwind RVAs, supported versions, chained associations, and handler candidates. Cap traversal and detect cycles; retain unknown versions without interpreting them as a known layout.
-- [ ] **M1.4** Seed valid range starts, merge duplicate evidence by location, and show metadata ranges separately from discovered instruction coverage. Do not linearly decode every byte inside a range as code.
+- [x] **M1.1** Locate the exception directory from the PE data directories, independent of the section's display name. Gate AMD64 record interpretation on the machine type. Completed in [`b47cf34`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/b47cf34f5ae23b3472d20d240c52686b48ea03e3); [parser contract and tests](docs/m1-exception-directory.md).
+- [x] **M1.2** Parse bounded runtime-function records; validate record sizes, arithmetic, readable table extents, executable start locations, and half-open ranges. Preserve malformed-record diagnostics without silently accepting unsafe ranges. Completed in [`b47cf34`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/b47cf34f5ae23b3472d20d240c52686b48ea03e3) under the documented conservative file-backed policy; [hosted regression evidence](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/38929245712).
+- [x] **M1.3** Preserve unwind RVAs, supported versions, chained associations, and handler candidates. Cap traversal and detect cycles; retain unknown versions without interpreting them as a known layout. Completed for the [documented structural version-1 subset](docs/m1-unwind-discovery.md) in [`7e85a68`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/7e85a68a872d0a2a8334a1f6f43aa3090fae91bb). Unknown versions stay opaque; runtime stack unwinding, actual prolog verification, and language-specific handler decoding are not claimed.
+- [x] **M1.4** Seed valid range starts, merge duplicate evidence by location, and show metadata ranges separately from discovered instruction coverage. Do not linearly decode every byte inside a range as code. Completed for eligible supported records in [`7e85a68`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/7e85a68a872d0a2a8334a1f6f43aa3090fae91bb); [discovery/negative tests](tests/test_unwind_info.py), [budget/cache tests](tests/test_unwind_limits.cpp), and [navigation tests](tests/test_unwind_browser.py). Chained entries retain fragment/primary associations, not a proven source-function ownership merge.
 
 #### M1B. TLS, x86 seeds, and startup roles
 
@@ -184,14 +184,14 @@ The TLS directory includes address-bearing fields and a callback array; use the 
 - [ ] **M1.5** Parse PE32 and PE32+ TLS callback arrays with checked VA-to-RVA conversion, element widths, null termination, count caps, and readable storage checks.
 - [ ] **M1.6** Add independent callback roots without creating a fake direct call from the PE entry point. Preserve possible initialization relationships separately from normal CFG edges.
 - [ ] **M1.7** Add an explicit arbitrary function-seed input distinct from `--main-rva`; retain existing exports and call targets. Keep prologue-pattern scanning optional and label it heuristic.
-- [ ] **M1.8** Treat x86 discovery separately: do not apply the AMD64 unwind-table format to x86. Use decoded calls, exports, analyst seeds, and later matched symbols/validated pointers.
+- [ ] **M1.8** Treat x86 discovery separately: do not apply the AMD64 unwind-table format to x86. Use decoded calls, exports, analyst seeds, and later matched symbols/validated pointers. **Partial:** architecture gating and existing direct/export discovery are in place; arbitrary seeds and later symbol/pointer-based discovery remain pending.
 - [ ] **M1.9** Introduce entry-role records for PE entry, TLS callback, runtime startup candidate, application-entry candidate, and DLL initialization. Retain all alternatives and analyst overrides.
 
 The Microsoft runtime entry varies with console, GUI, and DLL linkage [R3]. At this phase, recognize only tested startup profiles or explicit symbols. Do not rename the first call target to `main`, infer `main` from the subsystem alone, or require every program to have `main`. General argument-aware recognition is M7 work.
 
 **Acceptance fixtures:** nonleaf functions reachable only indirectly but described by metadata; a leaf without metadata; renamed metadata sections; duplicate and malformed entries; chained/cyclic records; a DLL without a PE entry; x86/x64 TLS callbacks; a custom no-CRT entry; a real CRT-linked console fixture. Compiler maps are evaluation oracles, not hidden analyzer inputs.
 
-**Exit gate:** every supported valid metadata seed appears with provenance; negative fixtures produce no extra high-confidence function claim; all ownership conflicts and missed/invalid seeds remain inspectable. Coverage is reported for the declared fixture subset, not as a percentage of unknown real-binary functions.
+**Exit gate:** every supported valid metadata seed appears with provenance; negative fixtures produce no extra high-confidence function claim; all ownership conflicts and missed/invalid seeds remain inspectable. Coverage is reported for the declared fixture subset, not as a percentage of unknown real-binary functions. M1B and the broader compiler/startup corpus are still pending; M1A completion is limited to the linked support contract.
 
 ### M2. Whole-function explorer and control-flow graphs
 
@@ -340,18 +340,18 @@ Do not use source-language undefined behavior to approximate machine wraparound.
 
 ## 6. First implementation queue
 
-Keep the first changes small enough to review independently. Suggested commit titles below are future work items, not commits already created.
+Keep changes small enough to review independently. The first three items now have implementation links; suggested commit titles for the remaining items describe future work.
 
-| Order | Work item | Suggested commit title | Completion evidence |
+| Order | Work item | Status / implementation or suggested commit | Completion evidence |
 | --- | --- | --- | --- |
-| 1 | Minimal M0 evidence/range model and baseline fixtures | `refactor: model discovery evidence and code ranges` | Serialization and current-report regressions |
-| 2 | M1A exception records without aggressive discovery | `feat: parse bounded x64 runtime function metadata` | Valid/malformed/renamed-section fixtures |
-| 3 | Integrate metadata seeds and ownership diagnostics | `feat: seed function discovery from unwind metadata` | Blind discovery compared with map oracle |
-| 4 | TLS roots for x86 and x64 | `feat: discover and display TLS callback entries` | Callback and invalid-array tests |
-| 5 | M2 whole-function assembly, before graph polish | `feat: add whole-function HTML navigation` | Exact call/data/back navigation tests |
-| 6 | M3 searchable strings with direct references | `feat: index static strings and code cross-references` | Unicode, interior-pointer, and no-xref cases |
-| 7 | M2 graph view and bounded graph analysis | `feat: visualize function control-flow graphs` | Nested/irreducible/incomplete CFG fixtures |
-| 8 | M4 common operand/capability model | `refactor: expose structured decoder operands` | Backend and register-width tests |
+| 1 | Minimal M0 evidence/range model and baseline fixtures | Done: [`9299868`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/9299868a6ccecc181ffd1dddf0a8f431faeb4fd7) | [Contracts and compatibility tests](docs/m0-foundation.md); not all M0 |
+| 2 | M1A exception records without aggressive discovery | Done: [`b47cf34`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/b47cf34f5ae23b3472d20d240c52686b48ea03e3) | [Bounded-parser contract and tests](docs/m1-exception-directory.md) |
+| 3 | Integrate metadata seeds and ownership diagnostics | Done for supported v1: [`7e85a68`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/7e85a68a872d0a2a8334a1f6f43aa3090fae91bb) | [Unwind/discovery scope and tests](docs/m1-unwind-discovery.md); fragment associations remain explicit |
+| 4 | TLS roots for x86 and x64 | Next: `feat: discover and display TLS callback entries` | Callback and invalid-array tests |
+| 5 | M2 whole-function assembly, before graph polish | Pending: `feat: add whole-function HTML navigation` | Exact call/data/back navigation tests |
+| 6 | M3 searchable strings with direct references | Pending: `feat: index static strings and code cross-references` | Unicode, interior-pointer, and no-xref cases |
+| 7 | M2 graph view and bounded graph analysis | Pending: `feat: visualize function control-flow graphs` | Nested/irreducible/incomplete CFG fixtures |
+| 8 | M4 common operand/capability model | Pending: `refactor: expose structured decoder operands` | Backend and register-width tests |
 
 Items 5 and 6 can proceed independently once the shared identities/reference contract is stable. Broader `main` recovery is deliberately not a prerequisite for discovering or browsing functions.
 
@@ -421,7 +421,7 @@ F01 and F11 can be pulled forward as narrow enhancements if they unlock a real a
 
 `main` contains authored source, tests, fixture generators, build/workflow configuration, and documentation. Generated EXEs/DLLs, downloaded inputs, reports, compiler intermediates, and dependencies remain ignored. `demo_exe` is only for deliberately curated showcase artifacts; routine Actions output remains in artifacts/Pages rather than commits.
 
-Use focused implementation branches and reviewable commits. A documentation request does not authorize implementing all roadmap items, creating every issue, changing repository settings, or rewriting history. Prefer additive commits; history rewriting needs a separate explicit request.
+Use focused, reviewable commits. For the current implementation work, commit directly to `main` as requested; a pull request is not required. A documentation request does not authorize implementing all roadmap items, creating every issue, changing repository settings, or rewriting history. Prefer additive commits; history rewriting needs a separate explicit request.
 
 For each milestone, record the implementation commits, relevant CI runs, supported cases, known limitations, and a source-known HTML demonstration. Keep an old capability clearly marked partial until its acceptance criteria are met.
 
@@ -446,7 +446,7 @@ Before the relevant implementation, record short architecture decisions for: mod
 
 ## 11. Definition of done and plan maintenance
 
-A task is complete only when its implementation, relevant tests, limitations, and report representation agree. A checked box should link to its implementing commit or pull request and acceptance evidence.
+A task is complete only when its implementation, relevant tests, limitations, and report representation agree. A checked box should link to its implementing commit or pull request and acceptance evidence. The following reusable review checklist is applied per change; it is not an additional set of completed project features.
 
 - [ ] Implementation is bounded, deterministic where expected, and handles malformed or unsupported cases explicitly.
 - [ ] Tests cover positive behavior, an important negative case, and affected legacy behavior.
@@ -459,11 +459,11 @@ A task is complete only when its implementation, relevant tests, limitations, an
 
 When priorities change, update this document and explain why. Keep completed evidence, split overly broad tasks, and move experiments to section 8 until there is a bounded implementation proposal. Owners, issue numbers, and dates should be added when actually assigned, not invented in advance.
 
-**Recommended next work:** M0.1/M0.3's minimal evidence and fixture contract, followed by M1A's bounded x64 exception-directory parser. Then ship whole-function navigation and image-wide strings before broad semantic naming.
+**Recommended next work:** bounded PE32/PE32+ TLS callback parsing and independent callback roots (M1.5/M1.6). The initial evidence/corpus contracts, exception-directory bounds parser, and supported-v1 metadata discovery are implemented as linked above. Then ship whole-function navigation and image-wide strings before broad semantic naming.
 
 ## 12. References
 
-Repository behavior is grounded in the [pinned planning baseline](https://github.com/ASR-Tanyi/windows-exe-analyzer/tree/f789c59b590588426a64aa8c13c378865ab34996), particularly its model, PE parser, discovery/decoder adapters, report generator, and workflow documentation. Technical references below guide implementation; they are not evidence that the corresponding roadmap feature is already complete.
+Repository behavior at the planning baseline is grounded in the [pinned revision](https://github.com/ASR-Tanyi/windows-exe-analyzer/tree/f789c59b590588426a64aa8c13c378865ab34996). Later completion evidence is linked beside each checked item. Technical references below guide implementation; they are not evidence that unimplemented roadmap features are already complete.
 
 - **R1:** Microsoft, [PE/COFF format](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format): address spaces, directories, imports/exports, TLS, and relocations.
 - **R2:** Microsoft, [x64 exception handling](https://learn.microsoft.com/en-us/cpp/build/exception-handling-x64): runtime-function ranges and unwind metadata.
