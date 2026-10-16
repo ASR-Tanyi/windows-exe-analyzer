@@ -5,6 +5,27 @@ Decode instructions, navigate named basic blocks, inspect imports/exports, and
 follow RIP-relative references into a self-contained HTML data viewer. The
 analyzer and report **never execute the input PE file**.
 
+## GitHub Actions: open reports in your browser
+
+Use [Actions > HTML reports > Run workflow](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/workflows/html-report.yml)
+on `main`. The default run builds x86/x64 demo EXEs and DLLs from test source,
+generates four reports, and publishes a clickable report index to GitHub Pages.
+The run summary contains the live links after deployment succeeds.
+
+**One-time setup:** [Settings > Pages](https://github.com/ASR-Tanyi/windows-exe-analyzer/settings/pages)
+> Build and deployment > Source > **GitHub Actions**. Until this is enabled,
+report artifacts are available but the Pages deployment cannot succeed.
+
+Manual runs can also select a published release asset, a direct public HTTPS
+EXE/DLL URL, or a file on another repository branch. Set `publish=false` for
+artifact-only output. Generated files are never committed to either branch.
+**Reports contain original bytes and strings; submit only public-safe inputs.**
+The Pages URL serves the latest successful deployment; run artifacts retain
+older reports for 30 days, subject to repository retention limits.
+
+See [the report workflow guide](docs/report-workflow.md) for input examples,
+Pages setup, download options, runtime restrictions, and troubleshooting.
+
 ## Repository layout and branches
 
 | Branch | Contents |

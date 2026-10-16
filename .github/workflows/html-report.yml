@@ -1,0 +1,171 @@
+name: HTML reports
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'web/**'
+      - 'tests/**'
+      - 'scripts/**'
+      - 'CMakeLists.txt'
+      - '.github/workflows/html-report.yml'
+  workflow_dispatch:
+    inputs:
+      source:
+        description: 'Input source (reports expose file bytes; public inputs only)'
+        type: choice
+        options: [demo, release, url, repository]
+        default: demo
+      target:
+        description: 'Release asset name, direct HTTPS file URL, or repository file path'
+        type: string
+        default: ''
+      release_tag:
+        description: 'Release tag in this repository (release mode only)'
+        type: string
+        default: latest
+      file_ref:
+        description: 'Branch, tag or SHA containing the file (repository mode only)'
+        type: string
+        default: demo_exe
+      sha256:
+        description: 'Optional expected SHA-256 of the custom input'
+        type: string
+        default: ''
+      publish:
+        description: 'Publish reports publicly to GitHub Pages (otherwise artifact only)'
+        type: boolean
+        default: true
+
+# Serialize site replacements. No generated commits and no PR-triggered publishing.
+concurrency:
+  group: html-report-pages
+  cancel-in-progress: false
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out analyzer source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build g++ python3 clang-18 lld-18 llvm-18-dev
+      - name: Build the LLVM analyzer
+        run: |
+          cmake -S . -B build -G Ninja -DWEA_DECODER=LLVM \
+            -DWEA_LLVM_LIBRARY=/usr/lib/llvm-18/lib/libLLVM.so \
+            -DWEA_CLANG=/usr/bin/clang-18 -DWEA_LLD_LINK=/usr/bin/lld-link-18 \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel 2
+      - name: Test and generate source-known demo reports
+        run: |
+          ctest --test-dir build --output-on-failure
+          python3 -m unittest discover -s tests -p 'test_report_site.py' -v
+      - name: Build restricted runtime for custom inputs
+        if: github.event_name == 'workflow_dispatch' && inputs.source != 'demo'
+        run: |
+          mkdir -p build/report-image
+          cp build/windows-exe-analyzer build/report-image/
+          docker build --file scripts/Dockerfile.report \
+            --tag windows-exe-analyzer:report build/report-image
+      - name: Generate report site
+        # Inputs are data, not interpolated shell source. No token is passed.
+        env:
+          REPORT_SOURCE: ${{ inputs.source || 'demo' }}
+          REPORT_TARGET: ${{ inputs.target }}
+          REPORT_RELEASE: ${{ inputs.release_tag || 'latest' }}
+          REPORT_FILE_REF: ${{ inputs.file_ref || 'demo_exe' }}
+          REPORT_SHA256: ${{ inputs.sha256 }}
+        run: |
+          sandbox=()
+          if [ "$REPORT_SOURCE" != demo ]; then
+            sandbox=(--sandbox-image windows-exe-analyzer:report)
+          fi
+          python3 scripts/report_site.py \
+            --analyzer build/windows-exe-analyzer --fixtures build/test-fixtures \
+            --output build/site --source "$REPORT_SOURCE" --target "$REPORT_TARGET" \
+            --repository "$GITHUB_REPOSITORY" --release-tag "$REPORT_RELEASE" \
+            --file-ref "$REPORT_FILE_REF" --sha256 "$REPORT_SHA256" "${sandbox[@]}"
+      - name: Save downloadable HTML and JSON reports
+        id: archive
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: html-reports-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build/site/
+          retention-days: 30
+          if-no-files-found: error
+      - name: Upload site for GitHub Pages
+        if: github.event_name != 'workflow_dispatch' || inputs.publish
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
+        with:
+          path: build/site
+          retention-days: 7
+      - name: Report artifact link
+        env:
+          ARTIFACT_URL: ${{ steps.archive.outputs.artifact-url }}
+        run: |
+          {
+            echo '## HTML reports generated'
+            printf '[Download this run\x27s HTML/JSON reports](%s)\n\n' "$ARTIFACT_URL"
+            echo 'For the directly browsable site, use the deploy job link after it succeeds.'
+            echo 'Artifact-only runs: extract the ZIP, then open index.html.'
+            echo 'Generated files are not committed to main or demo_exe.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    needs: build
+    if: github.event_name != 'workflow_dispatch' || inputs.publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Check one-time Pages setup
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh api "repos/$GITHUB_REPOSITORY/pages" --jq .build_type > "$RUNNER_TEMP/pages-type"; then
+            echo '::error::Enable Settings > Pages > Build and deployment > Source: GitHub Actions, then re-run failed jobs.'
+            printf 'Enable [Pages settings](https://github.com/%s/settings/pages), select **GitHub Actions**, then re-run failed jobs. Reports are already saved as artifacts.\n' "$GITHUB_REPOSITORY" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          if [ "$(cat "$RUNNER_TEMP/pages-type")" != workflow ]; then
+            echo '::error::Set the Pages publishing source to GitHub Actions, then re-run failed jobs.'
+            exit 1
+          fi
+      - name: Deploy directly browsable reports
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
+      - name: Open report links
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+          REPORT_SOURCE: ${{ inputs.source || 'demo' }}
+        run: |
+          base="${PAGE_URL%/}"
+          {
+            echo '## Reports are live'
+            printf '[Open all reports](%s/)\n\n' "$base"
+            printf '[Open x64 demo](%s/demo64.html) | [Open x86 demo](%s/demo32.html)\n\n' "$base" "$base"
+            if [ "$REPORT_SOURCE" != demo ]; then
+              printf '[Open your executable report](%s/sample.html)\n\n' "$base"
+            fi
+            echo 'This URL serves the latest successful deployment, not an immutable run snapshot.'
+          } >> "$GITHUB_STEP_SUMMARY"
