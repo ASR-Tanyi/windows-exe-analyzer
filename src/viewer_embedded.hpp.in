@@ -1,0 +1,2 @@
+#pragma once
+inline constexpr const char* VIEWER_TEMPLATE = R"PEVIEWER(@VIEWER_TEMPLATE@)PEVIEWER";
