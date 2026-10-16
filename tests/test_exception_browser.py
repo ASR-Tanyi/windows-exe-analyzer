@@ -29,10 +29,11 @@ def main():
         browser = pw.chromium.launch(executable_path=args.chromium, args=['--no-sandbox'])
         errors, network = [], []
 
+        # Preserve the bounds-only fixture scope; the new suite tests default seeding.
         def generate(name, **kwargs):
             path = root / (name + '.exe'); make_pe(path, **kwargs)
             output = path.with_suffix('.html')
-            subprocess.run([str(args.analyzer.resolve()), str(path), '--html', str(output)],
+            subprocess.run([str(args.analyzer.resolve()), str(path), '--html', str(output), '--no-unwind-seeds'],
                            check=True, capture_output=True, timeout=60)
             return output.read_text()
 

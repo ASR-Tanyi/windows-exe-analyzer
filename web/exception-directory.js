@@ -5,6 +5,8 @@
     if (!meta || meta.version !== 1) return;
     const prefix = D.module.id + '_exceptions';
     const pageSize = 100;
+    const unwindNodes = new Set((D.unwindInfo?.nodes || []).map(n => n.rva));
+    const unwindChecks = new Map((D.unwindInfo?.records || []).map(r => [r.recordIndex, r]));
     const pageId = page => page ? prefix + '_p' + page : prefix;
     const pageNumber = id => {
         if (id === prefix) return 0;
@@ -28,7 +30,7 @@
             '<div class="addressmeta">Directory RVA ' + dataLink(meta.directoryRva, id) +
             ' / ' + E(meta.directorySize) + ' bytes / status: ' + E(meta.status) + '</div></div>' +
             '<div class="summary">These encoded ranges are not decoded coverage or proven source-function boundaries. ' +
-            'Unwind semantics, chained records, and handlers are not decoded. No discovery seeds are added in this step.</div>' +
+            (D.unwindInfo ? 'Supported version-1 unwind structures are checked separately. ' + (D.unwindInfo.discoveryEnabled ? 'Only eligible records seed candidate entries. ' : 'No discovery seeds are added (disabled). ') + 'No runtime stack unwinding is performed.</div>' : 'Unwind semantics, chained records, and handlers are not decoded. No discovery seeds are added in this step.</div>') +
             '<div class="info">Read ' + E(meta.records.length) + ' of ' + E(meta.declaredRecords) +
             ' declared records; omitted: ' + E(meta.omittedRecords) + '. Record limit: ' + E(meta.recordLimit) +
             '. Trailing bytes: ' + E(meta.trailingBytes) + '.</div>';
@@ -46,7 +48,8 @@
                 '; unwind header address readable: ' + E(r.unwindAddressFileBacked) + '</span>' +
                 r.issues.map(x => '<br>' + E(x)).join('') +
                 (r.duplicateOf !== null ? '<br>Duplicate of #' + E(r.duplicateOf) : '') +
-                (r.overlapWith !== null ? '<br>Overlap witness #' + E(r.overlapWith) : '') + '</td></tr>';
+                (r.overlapWith !== null ? '<br>Overlap witness #' + E(r.overlapWith) : '') +
+                (unwindChecks.has(r.index) ? '<br>' + (unwindNodes.has(r.unwindRva) ? link(D.module.id + '_unwind_' + Number(r.unwindRva).toString(16), 'Unwind: ' + unwindChecks.get(r.index).status, id, 'unwind-link') : E('Unwind: ' + unwindChecks.get(r.index).status)) + '<br>Discovery: ' + E(unwindChecks.get(r.index).discovery) : '') + '</td></tr>';
         }
         h += '</tbody></table></div><div class="blockfoot"><span>' +
             E(first) + '-' + E(first + rows.length) + ' / ' + E(meta.records.length) +

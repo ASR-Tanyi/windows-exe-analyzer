@@ -15,6 +15,12 @@ file(READ "${CMAKE_CURRENT_SOURCE_DIR}/web/exception-directory.js" EXCEPTION_DIR
 string(REPLACE "</body>" "<script>\n${EXCEPTION_DIRECTORY_SCRIPT}\n</script></body>" VIEWER_TEMPLATE "${VIEWER_TEMPLATE}")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_SOURCE_DIR}/web/exception-directory.js")
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/web/unwind-info.js" UNWIND_INFO_SCRIPT)
+string(REPLACE "</body>" "<script>
+${UNWIND_INFO_SCRIPT}
+</script></body>" VIEWER_TEMPLATE "${VIEWER_TEMPLATE}")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/web/unwind-info.js")
 configure_file(src/viewer_embedded.hpp.in "${CMAKE_CURRENT_BINARY_DIR}/viewer_embedded.hpp" @ONLY)
 add_executable(windows-exe-analyzer src/main.cpp src/decoder.cpp src/report.cpp)
 target_include_directories(windows-exe-analyzer PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
@@ -53,6 +59,9 @@ if(BUILD_TESTING)
   add_executable(analysis_types_test tests/test_analysis_types.cpp)
   target_include_directories(analysis_types_test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
   add_test(NAME analysis_types COMMAND analysis_types_test)
+  add_executable(unwind_limits_test tests/test_unwind_limits.cpp)
+  target_include_directories(unwind_limits_test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  add_test(NAME unwind_limits COMMAND unwind_limits_test)
   find_package(Python3 QUIET COMPONENTS Interpreter)
   if(Python3_FOUND)
     find_program(WEA_CLANG NAMES clang)
@@ -87,6 +96,13 @@ if(BUILD_TESTING)
     set_tests_properties(exception_directory_regression PROPERTIES TIMEOUT 90)
     if(WEA_CLANG AND WEA_LLD_LINK)
       set_tests_properties(exception_directory_regression PROPERTIES FIXTURES_REQUIRED pe_fixtures)
+    endif()
+    add_test(NAME unwind_info_regression COMMAND "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_unwind_info.py"
+      "$<TARGET_FILE:windows-exe-analyzer>" ${WEA_MODEL_FIXTURE_ARGS})
+    set_tests_properties(unwind_info_regression PROPERTIES TIMEOUT 90)
+    if(WEA_CLANG AND WEA_LLD_LINK)
+      set_tests_properties(unwind_info_regression PROPERTIES FIXTURES_REQUIRED pe_fixtures)
     endif()
     add_test(NAME static_data_regression COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_static_data.py"
       "$<TARGET_FILE:windows-exe-analyzer>")

@@ -71,9 +71,10 @@ class ExceptionDirectoryTests(unittest.TestCase):
         return self.read()
 
     def read(self):
+        # Isolate raw-table behavior; test_unwind_info covers default discovery.
         output = self.root / 'report.json'
         p = subprocess.run([str(ANALYZER), str(self.pe), '--json', str(output),
-                            '--data-limit', '0'], capture_output=True, text=True, timeout=60)
+                            '--data-limit', '0', '--no-unwind-seeds'], capture_output=True, text=True, timeout=60)
         self.assertEqual(p.returncode, 0, p.stderr)
         return json.loads(output.read_text())
 
@@ -82,12 +83,12 @@ class ExceptionDirectoryTests(unittest.TestCase):
         struct.pack_into('<I', b, offset, value)
         self.pe.write_bytes(b)
 
-    def test_valid_record_is_metadata_not_a_new_function(self):
+    def test_bounds_inspection_mode_does_not_seed(self):
         d = self.analyze(); m = d['exceptionDirectory']; r = m['records'][0]
         self.assertEqual(m['status'], 'parsed')
         self.assertEqual((r['beginRva'], r['endRva'], r['unwindRva']), ('0x1010', '0x1011', '0x3000'))
         self.assertEqual(r['validation'], 'bounds_checked')
-        self.assertEqual(m['unwindSemantics'], 'not_decoded')
+        self.assertEqual(m['unwindSemantics'], 'structural_v1_only')
         self.assertFalse(m['discoverySeedsAdded'])
         self.assertEqual([f['rva'] for f in d['functions']], [0x1000])
         self.assertEqual(d['module']['instructionCount'], 1)
@@ -193,12 +194,12 @@ class ExceptionDirectoryTests(unittest.TestCase):
         _, info = make_pe(self.pe); self.mutate(info['section'] + 80 + 8, 3)
         self.assertIn('unwind_header_not_file_backed', self.read()['exceptionDirectory']['records'][0]['issues'])
 
-    def test_unwind_version_and_flags_are_not_interpreted(self):
+    def test_raw_table_facts_survive_unwind_assessment(self):
         for header in [b'\x07\xff\xff\xff', b'\x21\x00\x00\x00', b'\x00'*4]:
             with self.subTest(header=header):
                 b, info = make_pe(self.pe); b[info['unwind_raw']:info['unwind_raw']+4] = header
                 self.pe.write_bytes(b); m = self.read()['exceptionDirectory']
-                self.assertEqual(m['status'], 'parsed'); self.assertEqual(m['unwindSemantics'], 'not_decoded')
+                self.assertEqual(m['status'], 'parsed'); self.assertEqual(m['unwindSemantics'], 'structural_v1_only')
 
     def test_sorted_adjacent_ranges_do_not_overlap(self):
         m = self.analyze(records=[(0x1010, 0x1020, None), (0x1020, 0x1021, None)])['exceptionDirectory']
@@ -225,7 +226,7 @@ class ExceptionDirectoryTests(unittest.TestCase):
         self.assertTrue(all('overlapping_runtime_functions' in x['issues'] for x in m['records']))
 
     def test_same_range_different_unwind_is_conflict(self):
-        m = self.analyze(records=[(0x1010, 0x1020, 0x3000), (0x1010, 0x1020, 0x3004)])['exceptionDirectory']
+        m = self.analyze(records=[(0x1010, 0x1020, 0x3004), (0x1010, 0x1020, 0x3000)])['exceptionDirectory']
         self.assertIsNone(m['records'][1]['duplicateOf'])
         self.assertIn('overlapping_runtime_functions', m['records'][1]['issues'])
 

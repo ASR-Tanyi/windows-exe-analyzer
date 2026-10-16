@@ -41,14 +41,14 @@ static void diagnosticsJson(std::ostream& o,const wea::DiagnosticLog& d){
          <<(item.location?locationJson(*item.location):"null")<<"}";
     }o<<"]}";
 }
-static void exceptionDirectoryJson(std::ostream& o,const wea::ExceptionDirectory& d){
+static void exceptionDirectoryJson(std::ostream& o,const wea::ExceptionDirectory& d,bool seedsAdded){
     o<<"{\"version\":1,\"origin\":\"exception_directory\",\"status\":"<<quote(d.status)
      <<",\"directoryRva\":"<<quote(hex(d.rva))<<",\"directorySize\":"<<d.size
      <<",\"supported\":"<<(d.supported?"true":"false")
      <<",\"malformed\":"<<(d.malformed?"true":"false")<<",\"partial\":"<<(d.partial?"true":"false")
      <<",\"recordLimit\":"<<d.recordLimit<<",\"declaredRecords\":"<<d.declaredRecords
      <<",\"omittedRecords\":"<<(d.declaredRecords-d.records.size())<<",\"trailingBytes\":"<<d.trailingBytes
-     <<",\"unwindSemantics\":\"not_decoded\",\"discoverySeedsAdded\":false,\"issues\":[";
+     <<",\"unwindSemantics\":\"structural_v1_only\",\"discoverySeedsAdded\":"<<(seedsAdded?"true":"false")<<",\"issues\":[";
     bool comma=false;for(const auto& issue:d.issues){if(comma){o<<',';}comma=true;o<<quote(issue);}
     o<<"],\"records\":[";comma=false;
     for(const auto& r:d.records){
@@ -64,6 +64,7 @@ static void exceptionDirectoryJson(std::ostream& o,const wea::ExceptionDirectory
         bool sep=false;for(const auto& issue:r.issues){if(sep)o<<',';sep=true;o<<quote(issue);}o<<"]}";
     }o<<"]}";
 }
+#include "unwind_report.hpp"
 std::string reportJson(const PE&pe,const Analysis&a,const std::string&filename,size_t dataLimit,const std::map<u32,std::string>&dataNames){
     std::ostringstream o;auto q=[](const std::string&s){return quote(s);};
     auto blockId=[&](u32 r){return pe.moduleId+"_b_"+hex(r).substr(2);};
@@ -78,7 +79,8 @@ std::string reportJson(const PE&pe,const Analysis&a,const std::string&filename,s
         o<<"{\"rva\":"<<r<<",\"id\":"<<q(blockId(r))<<",\"name\":"<<q(f.name)<<",\"evidence\":"<<q(f.evidence)
          <<",\"location\":"<<locationJson({pe.moduleId,wea::Address(wea::Rva(r))})<<",\"evidenceRecords\":";
         evidenceJson(o,f.evidenceRecords);o<<",\"decodedRanges\":[";
-        bool sep=false;for(const auto& range:f.decodedRanges){if(sep)o<<',';sep=true;rangeJson(o,range);}o<<"]}";
+        bool sep=false;for(const auto& range:f.decodedRanges){if(sep)o<<',';sep=true;rangeJson(o,range);}o<<"],\"metadataRecords\":[";
+        sep=false;for(u32 index:f.metadataRecords){if(sep)o<<',';sep=true;o<<index;}o<<"]}";
     }
     o<<"],\"blocks\":[";comma=false;
     for(const auto&[r,b]:a.blocks){if(comma){o<<',';}comma=true;
@@ -124,7 +126,7 @@ std::string reportJson(const PE&pe,const Analysis&a,const std::string&filename,s
         if(dataNames.contains(target)){name=dataNames.at(target);evidence="Analyst-supplied data label";}
         o<<"{\"rva\":"<<target<<",\"id\":"<<q(dataId(target))<<",\"name\":"<<q(name)<<",\"evidence\":"<<q(evidence)<<"}";
     }
-    o<<"]},\"diagnostics\":";diagnosticsJson(o,a.diagnostics);o<<",\"exceptionDirectory\":";exceptionDirectoryJson(o,pe.exceptionDirectory);o<<",\"warnings\":[";comma=false;for(const auto&w:a.warnings){if(comma){o<<',';}comma=true;o<<q(w);}o<<"]}";return o.str();
+    o<<"]},\"diagnostics\":";diagnosticsJson(o,a.diagnostics);o<<",\"exceptionDirectory\":";exceptionDirectoryJson(o,pe.exceptionDirectory,!a.metadataSeedRvas.empty());o<<",\"unwindInfo\":";unwindInfoJson(o,pe,a);o<<",\"warnings\":[";comma=false;for(const auto&w:a.warnings){if(comma){o<<',';}comma=true;o<<q(w);}o<<"]}";return o.str();
 }
 void writeHtml(const std::string&path,const std::string&json){std::string html=VIEWER_TEMPLATE;auto pos=html.find("__REPORT_JSON__");if(pos==html.npos)throw std::runtime_error("HTML template missing data slot");html.replace(pos,15,json);
     std::ofstream f(path,std::ios::binary);if(!f||!f.write(html.data(),static_cast<std::streamsize>(html.size())))throw std::runtime_error("Cannot write HTML: "+path);

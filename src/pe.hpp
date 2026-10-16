@@ -1,6 +1,7 @@
 #pragma once
 #include "model.hpp"
 #include "exception_directory.hpp"
+#include "unwind_info.hpp"
 class PE {
 public:
     std::vector<u8> data;std::vector<Section> sections;std::map<u32,Import> imports;
@@ -8,6 +9,7 @@ public:
     bool is64=false,dll=false;u64 imageBase=0;u32 entryRva=0,headersSize=0,imageSize=0;
     wea::DiagnosticLog diagnostics;
     wea::ExceptionDirectory exceptionDirectory;
+    wea::UnwindCatalog unwindInfo;
     std::optional<wea::FileOffset> entryFieldOffset;
     std::string moduleId;std::vector<std::pair<u32,u32>> directories;
     explicit PE(const std::string& path) {
@@ -22,6 +24,7 @@ public:
         try{parseExports();}catch(const std::exception&e){warn(wea::DiagnosticCode::InvalidMetadata,"exports",std::string("Export parsing incomplete: ")+e.what());}
         const auto diagnosticStart=diagnostics.items().size();
         exceptionDirectory=wea::parseExceptionDirectory(*this,diagnostics);
+        unwindInfo=wea::parseUnwindInfo(*this,exceptionDirectory,diagnostics);
         for(size_t k=diagnosticStart;k<diagnostics.items().size();++k)
             warnings.push_back(diagnostics.items()[k].message);
         if(directories.size()>13&&directories[13].first)warn(wea::DiagnosticCode::UnsupportedFeature,"delay_imports","Delay-import resolution is not implemented.");

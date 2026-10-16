@@ -36,6 +36,7 @@ struct Function {
     u32 rva=0;std::string name,evidence;
     wea::EvidenceSet evidenceRecords;
     std::vector<wea::CodeRange> decodedRanges;
+    std::vector<u32> metadataRecords; // Indices, not decoded coverage or source-function extents.
 };
 struct Block {
     u32 rva=0;std::vector<u32> instructions,owners;std::string name,role,summary,evidence;
@@ -44,6 +45,8 @@ struct Block {
 };
 struct Analysis {
     wea::DiagnosticLog diagnostics;
+    bool metadataDiscovery = true;
+    std::set<u32> metadataSeedRvas;
     std::map<u32,Instruction> instructions;std::map<u32,Function> functions;
     std::map<u32,Block> blocks;std::vector<Edge> edges;std::vector<std::string> warnings;
     std::optional<u32> mainRva;std::map<u32,std::string> names;bool truncated=false;

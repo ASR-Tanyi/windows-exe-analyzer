@@ -1,8 +1,8 @@
 #pragma once
 #include "decoder.hpp"
-inline Analysis analyze(const PE&pe,size_t limit,std::optional<u32> mainRva,const std::map<u32,std::string>&names){
+inline Analysis analyze(const PE&pe,size_t limit,std::optional<u32> mainRva,const std::map<u32,std::string>&names,bool metadataDiscovery=true){
     using wea::DiagnosticCode;
-    Analysis a;a.mainRva=mainRva;a.names=names;a.warnings=pe.warnings;
+    Analysis a;a.metadataDiscovery=metadataDiscovery;a.mainRva=mainRva;a.names=names;a.warnings=pe.warnings;
     a.diagnostics=pe.diagnostics;Decoder decoder(pe.is64);std::queue<u32> todo;
     auto location=[&](u32 r){return wea::Location{pe.moduleId,wea::Address(wea::Rva(r))};};
     auto warn=[&](DiagnosticCode code,const std::string& message,
@@ -41,7 +41,34 @@ inline Analysis analyze(const PE&pe,size_t limit,std::optional<u32> mainRva,cons
     }
     std::set<u32> attempted;
     bool budgetHit=false;
-    while(!todo.empty()&&!budgetHit){u32 pc=todo.front();todo.pop();
+    std::map<u32,u32> metadataBounds;
+    // Existing entry/export/direct-call traversal wins instruction-boundary
+    // conflicts. Only after it finishes do metadata-only roots expand the CFG.
+    for(unsigned phase=0;phase<2;++phase){
+      if(phase==1&&metadataDiscovery){
+        for(const auto& assessment:pe.unwindInfo.records){
+            if(!assessment.eligible)continue;
+            const auto& record=pe.exceptionDirectory.records.at(assessment.recordIndex);
+            const u32 rva=record.beginRva;
+            const bool first=a.metadataSeedRvas.insert(rva).second;
+            recordFunction(rva,(assessment.chainDepth?"fragment_":"sub_")+hex(rva).substr(2),
+                "Supported v1 runtime-function metadata; candidate entry",
+                {wea::EvidenceOrigin::ExceptionDirectory,
+                 assessment.chainDepth?"procedure_fragment_entry":"function_entry",wea::Resolution::Encoded,
+                 wea::EvidenceStatus::Candidate,"pe.unwind_v1_seed",1,location(record.tableRva),
+                 "Record #"+std::to_string(record.index)+"; primary range begins at "+hex(*assessment.primaryBeginRva),
+                 {"Structural unwind validation does not prove machine-code semantics or a source function.",
+                  "Chained fragments retain their primary association; source-level ownership is not merged."}});
+            a.functions.at(rva).metadataRecords.push_back(record.index);
+            metadataBounds.emplace(rva,record.endRva);
+            if(first)todo.push(rva);
+        }
+      }
+      while(!todo.empty()&&!budgetHit){u32 pc=todo.front();todo.pop();
+        std::optional<u32> stopRva;
+        if(phase==1){auto it=metadataBounds.upper_bound(pc);if(it!=metadataBounds.begin()){
+            --it;if(pc<it->second)stopRva=it->second;
+        }}
         while(!attempted.contains(pc)){
             if(!pe.available(pc,true)){
                 warn(DiagnosticCode::UnmappedTarget,"Traversal reached non-file-backed code: "+hex(pc),location(pc));break;
@@ -54,6 +81,9 @@ inline Analysis analyze(const PE&pe,size_t limit,std::optional<u32> mainRva,cons
             if(upper!=a.instructions.begin()){const auto&prev=std::prev(upper)->second;if(u64(prev.rva)+prev.size>pc){warn(DiagnosticCode::OverlappingDecode,"Overlapping instruction target rejected: "+hex(pc),location(pc));break;}}
             auto maybe=decoder.decode(pe,pc);if(!maybe){warn(DiagnosticCode::DecodeFailed,"Undecodable bytes at "+hex(pc),location(pc));break;}Instruction i=*maybe;
             if(upper!=a.instructions.end()&&u64(pc)+i.size>upper->first){warn(DiagnosticCode::OverlappingDecode,"Overlapping instruction stream rejected: "+hex(pc),location(pc));break;}
+            if(stopRva&&u64(pc)+i.size>*stopRva){
+                warn(DiagnosticCode::InvalidMetadata,"Decoded instruction crosses metadata range end: "+hex(pc),location(pc));break;
+            }
             a.instructions[pc]=i;
             if((i.call||i.jump)&&i.targetVA){auto t=pe.rvaOf(*i.targetVA);if(t&&pe.available(*t,true)){
                 if(i.call)recordFunction(*t,"sub_"+hex(*t).substr(2),"Direct-call target; inferred function boundary",
@@ -64,9 +94,10 @@ inline Analysis analyze(const PE&pe,size_t limit,std::optional<u32> mainRva,cons
             }else warn(DiagnosticCode::UnmappedTarget,"Direct control-flow target is not file-backed executable code: "+hex(*i.targetVA),
                        wea::Location{pe.moduleId,wea::Address(wea::PreferredVa(*i.targetVA))});}
             if(i.stop||(i.jump&&!i.conditional))break;
-            u64 next=u64(pc)+i.size;if(next>UINT32_MAX)break;pc=u32(next);
+            u64 next=u64(pc)+i.size;if(next>UINT32_MAX||(stopRva&&next>=*stopRva))break;pc=u32(next);
         }
     }
+    } // discovery phases
     a.truncated=budgetHit;if(a.truncated)warn(DiagnosticCode::BudgetExhausted,"Instruction limit reached; report is partial.");
     for(auto it=a.functions.begin();it!=a.functions.end();){if(!a.instructions.contains(it->first)){warn(DiagnosticCode::UnresolvedSeed,"Unresolved function seed: "+hex(it->first),location(it->first));it=a.functions.erase(it);}else ++it;}
     std::set<u32> leaders;for(const auto&[r,f]:a.functions){(void)f;leaders.insert(r);}
