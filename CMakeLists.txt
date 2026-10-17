@@ -25,7 +25,7 @@ file(READ "${CMAKE_CURRENT_SOURCE_DIR}/web/tls-directory.js" TLS_DIRECTORY_SCRIP
 string(REPLACE "</body>" "<script>\n${TLS_DIRECTORY_SCRIPT}\n</script></body>" VIEWER_TEMPLATE "${VIEWER_TEMPLATE}")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_SOURCE_DIR}/web/tls-directory.js")
-foreach(WEA_FUNCTION_SCRIPT IN ITEMS string-model string-view function-model function-view)
+foreach(WEA_FUNCTION_SCRIPT IN ITEMS string-model string-view function-model function-view cfg-model cfg-view)
   file(READ "${CMAKE_CURRENT_SOURCE_DIR}/web/${WEA_FUNCTION_SCRIPT}.js" WEA_FUNCTION_CONTENT)
   string(REPLACE "</body>" "<script>\n${WEA_FUNCTION_CONTENT}\n</script></body>" VIEWER_TEMPLATE "${VIEWER_TEMPLATE}")
   set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
@@ -69,7 +69,7 @@ if(BUILD_TESTING)
   find_program(WEA_NODE NAMES node nodejs)
   if(WEA_NODE)
     add_test(NAME string_model COMMAND "${WEA_NODE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_string_model.js")
-    add_test(NAME function_model COMMAND "${WEA_NODE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_function_model.js")
+    add_test(NAME function_model COMMAND "${WEA_NODE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_function_model.js")\n    add_test(NAME cfg_model COMMAND "${WEA_NODE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_cfg_model.js")
   else()
     message(STATUS "Node.js unavailable: function-model checks not registered; report generation is unaffected")
   endif()
