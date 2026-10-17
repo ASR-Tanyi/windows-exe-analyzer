@@ -43,6 +43,7 @@ jobs:
           cmake --build build --parallel 2
       - name: Run native and report-contract tests
         run: |
+          node --version
           ctest --test-dir build --output-on-failure
           python3 -m unittest discover -s tests -p 'test_report_site.py' -v
       - name: Install browser test dependencies
@@ -58,3 +59,4 @@ jobs:
           build/browser-env/bin/python tests/test_exception_browser.py build/windows-exe-analyzer
           build/browser-env/bin/python tests/test_unwind_browser.py build/windows-exe-analyzer
           build/browser-env/bin/python tests/test_tls_browser.py build/windows-exe-analyzer
+          build/browser-env/bin/python tests/test_function_browser.py --fixtures build/test-fixtures --document-navigation
