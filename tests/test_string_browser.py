@@ -49,6 +49,8 @@ def main():
             check(page.locator('#browseStrings').is_visible(),'toolbar')
             page.click('#wholeFunction');page.wait_for_selector('.function-block')
             check(page.locator('a.string-inline').count()>0,'inline candidate links in function')
+            check(page.locator('a.datalink').count()==2,'original data-link count excludes string candidates')
+            check(page.locator('a.datalink.string-inline').count()==0,'separate data and string DOM contracts')
             page.locator('a.string-inline[href="#'+sid+'"]').first.click();page.wait_for_selector('.string-source')
             check(page.locator('#content').inner_text().find('Alpha Beta')>=0,'detail text')
             check('1 exact / 1 interior' in page.locator('#connections').inner_text(),'exact/interior refs')
