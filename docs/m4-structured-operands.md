@@ -123,6 +123,16 @@ passed. Chromium passed 12 Capstone and 7 LLVM operand-inspector checks.
 Local clang/lld-link were unavailable, so source-compiled fixture checks were
 explicitly skipped locally; the hosted matrix is responsible for that gate.
 
+Hosted validation on 2026-10-17 completed that gate at `dbb4819`:
+[both Linux matrix jobs passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39024075997),
+each with 17 CTest targets (including source-compiled EXE/DLL fixtures), 14
+report-site tests, and all browser suites. The source-known
+[report build and Pages deployment passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39024075994).
+The [live x64 demo](https://asr-tanyi.github.io/windows-exe-analyzer/demo64.html)
+returned HTTP 200 with operand model 1, Capstone API 5.0 / headers 5.0.9, and 36
+decoded instructions. The live URL follows future deployments; the linked run
+artifacts retain this run's reports subject to artifact retention.
+
 Reproduce with normal CMake builds for both adapters:
 
 ```sh
