@@ -61,7 +61,7 @@ inline const char* name(AddressSpace v) {
     throw std::logic_error("Invalid address space");
 }
 
-enum class EvidenceOrigin { PeHeader, ExportTable, DecodedInstruction, Analyst, AnalysisRule, ExceptionDirectory };
+enum class EvidenceOrigin { PeHeader, ExportTable, DecodedInstruction, Analyst, AnalysisRule, ExceptionDirectory, TlsDirectory };
 enum class Resolution { Encoded, Supplied, Inferred };
 enum class EvidenceStatus { Confirmed, Candidate, Assertion, Heuristic };
 inline const char* name(EvidenceOrigin v) {
@@ -72,6 +72,7 @@ inline const char* name(EvidenceOrigin v) {
         case EvidenceOrigin::Analyst: return "analyst";
         case EvidenceOrigin::AnalysisRule: return "analysis_rule";
         case EvidenceOrigin::ExceptionDirectory: return "exception_directory";
+        case EvidenceOrigin::TlsDirectory: return "tls_directory";
     }
     throw std::logic_error("Invalid evidence origin");
 }

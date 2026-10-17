@@ -2,6 +2,7 @@
 #include "model.hpp"
 #include "exception_directory.hpp"
 #include "unwind_info.hpp"
+#include "tls_directory.hpp"
 class PE {
 public:
     std::vector<u8> data;std::vector<Section> sections;std::map<u32,Import> imports;
@@ -10,6 +11,7 @@ public:
     wea::DiagnosticLog diagnostics;
     wea::ExceptionDirectory exceptionDirectory;
     wea::UnwindCatalog unwindInfo;
+    wea::TlsDirectory tlsDirectory;
     std::optional<wea::FileOffset> entryFieldOffset;
     std::string moduleId;std::vector<std::pair<u32,u32>> directories;
     explicit PE(const std::string& path) {
@@ -25,10 +27,10 @@ public:
         const auto diagnosticStart=diagnostics.items().size();
         exceptionDirectory=wea::parseExceptionDirectory(*this,diagnostics);
         unwindInfo=wea::parseUnwindInfo(*this,exceptionDirectory,diagnostics);
+        tlsDirectory=wea::parseTlsDirectory(*this,diagnostics);
         for(size_t k=diagnosticStart;k<diagnostics.items().size();++k)
             warnings.push_back(diagnostics.items()[k].message);
         if(directories.size()>13&&directories[13].first)warn(wea::DiagnosticCode::UnsupportedFeature,"delay_imports","Delay-import resolution is not implemented.");
-        if(directories.size()>9&&directories[9].first)warn(wea::DiagnosticCode::UnsupportedFeature,"tls","TLS callback discovery is not implemented; callbacks may run before the PE entry point.");
         if(directories.size()>14&&directories[14].first)warn(wea::DiagnosticCode::UnsupportedFeature,"clr","CLR metadata is present. Managed IL is not decoded by this native-code analyzer.");
     }
     void require(size_t p,size_t n)const{if(p>data.size()||n>data.size()-p)throw std::runtime_error("Truncated/out-of-range PE data");}

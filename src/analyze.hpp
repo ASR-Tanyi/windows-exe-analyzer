@@ -1,8 +1,8 @@
 #pragma once
 #include "decoder.hpp"
-inline Analysis analyze(const PE&pe,size_t limit,std::optional<u32> mainRva,const std::map<u32,std::string>&names,bool metadataDiscovery=true){
+inline Analysis analyze(const PE&pe,size_t limit,std::optional<u32> mainRva,const std::map<u32,std::string>&names,bool metadataDiscovery=true,bool tlsDiscovery=true){
     using wea::DiagnosticCode;
-    Analysis a;a.metadataDiscovery=metadataDiscovery;a.mainRva=mainRva;a.names=names;a.warnings=pe.warnings;
+    Analysis a;a.tlsDiscovery=tlsDiscovery;a.metadataDiscovery=metadataDiscovery;a.mainRva=mainRva;a.names=names;a.warnings=pe.warnings;
     a.diagnostics=pe.diagnostics;Decoder decoder(pe.is64);std::queue<u32> todo;
     auto location=[&](u32 r){return wea::Location{pe.moduleId,wea::Address(wea::Rva(r))};};
     auto warn=[&](DiagnosticCode code,const std::string& message,
@@ -44,7 +44,7 @@ inline Analysis analyze(const PE&pe,size_t limit,std::optional<u32> mainRva,cons
     std::map<u32,u32> metadataBounds;
     // Existing entry/export/direct-call traversal wins instruction-boundary
     // conflicts. Only after it finishes do metadata-only roots expand the CFG.
-    for(unsigned phase=0;phase<2;++phase){
+    for(unsigned phase=0;phase<3;++phase){
       if(phase==1&&metadataDiscovery){
         for(const auto& assessment:pe.unwindInfo.records){
             if(!assessment.eligible)continue;
@@ -64,9 +64,26 @@ inline Analysis analyze(const PE&pe,size_t limit,std::optional<u32> mainRva,cons
             if(first)todo.push(rva);
         }
       }
+      if(phase==2&&tlsDiscovery){
+        // Loader callbacks are independent roots, never fabricated call edges.
+        // Preserve each slot as evidence even when targets are duplicated.
+        for(const auto& callback:pe.tlsDirectory.callbacks){
+            if(!callback.eligible)continue;
+            const u32 rva=*callback.targetRva;
+            const bool first=a.tlsSeedRvas.insert(rva).second;
+            recordFunction(rva,"tls_callback_"+hex(rva).substr(2),
+                "Encoded TLS callback; independent entry candidate",
+                {wea::EvidenceOrigin::TlsDirectory,"tls_callback_entry",wea::Resolution::Encoded,
+                 wea::EvidenceStatus::Candidate,"pe.tls_callback_seed",1,location(callback.slotRva),
+                 "Callback #"+std::to_string(callback.index)+" in encoded array order",
+                 {"The pointer is encoded in the file; execution has not been observed.",
+                  "Loader initialization relationships are separate from normal CFG call edges."}});
+            if(first)todo.push(rva);
+        }
+      }
       while(!todo.empty()&&!budgetHit){u32 pc=todo.front();todo.pop();
         std::optional<u32> stopRva;
-        if(phase==1){auto it=metadataBounds.upper_bound(pc);if(it!=metadataBounds.begin()){
+        if(phase>=1){auto it=metadataBounds.upper_bound(pc);if(it!=metadataBounds.begin()){
             --it;if(pc<it->second)stopRva=it->second;
         }}
         while(!attempted.contains(pc)){

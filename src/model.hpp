@@ -45,6 +45,8 @@ struct Block {
 };
 struct Analysis {
     wea::DiagnosticLog diagnostics;
+    bool tlsDiscovery = true;
+    std::set<u32> tlsSeedRvas;
     bool metadataDiscovery = true;
     std::set<u32> metadataSeedRvas;
     std::map<u32,Instruction> instructions;std::map<u32,Function> functions;
