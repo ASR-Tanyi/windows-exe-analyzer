@@ -91,7 +91,7 @@
     const oldLinks=dataLinksHtml;
     dataLinksHtml=function(i) {
         let h=oldLinks(i),ids=[...(index.byInstruction.get(i.id)||[])];
-        for(const id of ids.slice(0,6)) {const s=index.entries.get(id).candidate;h+=link(id,'Text candidate: '+s.encoding+' '+JSON.stringify(s.text.slice(0,45)),i.id,'datalink string-inline');}
+        for(const id of ids.slice(0,6)) {const s=index.entries.get(id).candidate;h+=link(id,'Text candidate: '+s.encoding+' '+JSON.stringify(s.text.slice(0,45)),i.id,'string-inline');}
         if(ids.length>6)h+='<span class="small muted">More candidates in Strings.</span>';return h;
     };
     const oldData=renderData;
@@ -109,6 +109,6 @@
     };
     const button=document.createElement('button');button.id='browseStrings';button.textContent='Strings ('+index.candidates.length+')';button.onclick=()=>navigate(prefix);
     $('notes').before(button);
-    const style=document.createElement('style');style.textContent='.string-text{white-space:normal;min-width:180px;max-width:520px;overflow-wrap:anywhere}.string-hint{font-size:11px;color:var(--muted);padding:0 20px}#stringQuery{width:230px;max-width:100%}.string-source{color:var(--accent)}';
+    const style=document.createElement('style');style.textContent='.string-text{white-space:normal;min-width:180px;max-width:520px;overflow-wrap:anywhere}.string-hint{font-size:11px;color:var(--muted);padding:0 20px}#stringQuery{width:230px;max-width:100%}.string-source{color:var(--accent)}.string-inline{display:block;font:10px/1.6 var(--mono);color:#9ac5ff;margin-top:4px}';
     document.head.appendChild(style);route();
 })();
