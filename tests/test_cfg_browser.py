@@ -27,7 +27,7 @@ def main():
         page.locator('.cfg-canvas').focus();page.keyboard.press('ArrowRight');check('_cfg_' in page.evaluate('location.hash'),'keyboard selection')
         page.keyboard.press('Enter');page.wait_for_selector('.function-overview:not(.cfg-overview)');check('_fn_' in page.evaluate('location.hash'),'enter opens whole-function assembly')
         page.evaluate('history.back()');page.wait_for_selector('.cfg-overview');check(page.locator('.cfg-node.selected').count()==1,'back restores graph selection')
-        check(page.locator('#connections').inner_text().find('Outside / unknown exits')>=0,'unknown exit panel')
+        check('outside / unknown exits' in page.locator('#connections').inner_text().lower(),'unknown exit panel')
         # Force list fallback using a synthetic function with >120 blocks.
         d=json.loads(json.dumps(data));mid=d['module']['id'];blocks=[];edges=[]
         for i in range(125):
