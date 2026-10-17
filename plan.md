@@ -199,17 +199,17 @@ The Microsoft runtime entry varies with console, GUI, and DLL linkage [R3]. At t
 
 **Likely files:** `web/viewer.html`, `src/report.cpp`, function/edge models, browser tests. Presentation files may be split into authored CSS/JS and embedded at build time if the single template becomes difficult to maintain.
 
-- [ ] **M2.1** Add a function overview: entries, ranges, block/instruction counts, evidence, callers, callees, referenced data, and unresolved edges. Count unique bytes rather than double-counting shared ranges.
-- [ ] **M2.2** Render all owned blocks in one assembly view with sticky labels and source anchors. Preserve a dedicated block view and distinguish address order from execution order.
-- [ ] **M2.3** Separate intraprocedural CFG edges from call-graph edges. Calls have an explicit continuation assumption; do not connect a callee return to every caller in the function CFG.
+- [x] **M2.1** Add a function overview: entries, ranges, block/instruction counts, evidence, callers, callees, referenced data, and unresolved edges. Count unique bytes rather than double-counting shared ranges. Completed in [`ea32ba2`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/ea32ba20cfe80fe5c9d75c1c457ffa6423216ed0) using existing report ownership; [model checks](tests/test_function_model.js) and [scope](docs/m2-function-view.md). Missing membership and unresolved edges remain explicit; completeness is not inferred from their absence.
+- [x] **M2.2** Render all owned blocks in one assembly view with sticky labels and source anchors. Preserve a dedicated block view and distinguish address order from execution order. Completed in [`ea32ba2`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/ea32ba20cfe80fe5c9d75c1c457ffa6423216ed0); all owned instructions are accessible through bounded pages, with repeated headings for blocks spanning pages rather than invented block splits.
+- [x] **M2.3** Separate intraprocedural CFG edges from call-graph edges. Calls have an explicit continuation assumption; do not connect a callee return to every caller in the function CFG. Completed in the [presentation index](web/function-model.js) in [`ea32ba2`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/ea32ba20cfe80fe5c9d75c1c457ffa6423216ed0); this does not introduce a new native graph analysis or claim complete call-graph recovery.
 - [ ] **M2.4** Add a layout-backed graph view with selectable blocks, labeled branch edges, unknown exits, shared-block indicators, zoom, and keyboard navigation. Provide a list fallback when layout or size limits are reached.
 - [ ] **M2.5** Compute strongly connected regions and dominator-based natural-loop candidates on the discovered graph. Mark incompleteness; a backward address edge is only a clue. Irreducible regions must not be forced into a natural-loop model.
-- [ ] **M2.6** Retain function, block, exact instruction, selected data address, and scroll context in navigation history. Deep links must reopen the same entity after reload.
-- [ ] **M2.7** Add virtualized or paged rendering for large functions; do not put every decoded instruction into the DOM at once.
+- [x] **M2.6** Retain function, block, exact instruction, selected data address, and scroll context in navigation history. Deep links must reopen the same entity after reload. Implemented in [`ea32ba2`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/ea32ba20cfe80fe5c9d75c1c457ffa6423216ed0); [browser tests](tests/test_function_browser.py) cover call/data/metadata navigation, function-qualified instruction routes, expanded details, and vertical/horizontal assembly scroll. The [hosted regression run](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/38999660185) additionally exercises actual document reload; managed content-only runs explicitly skip that check.
+- [x] **M2.7** Add virtualized or paged rendering for large functions; do not put every decoded instruction into the DOM at once. Completed for the whole-function view in [`ea32ba2`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/ea32ba20cfe80fe5c9d75c1c457ffa6423216ed0): at most 250 instruction rows per page, including a single oversized block, with bounded detail lists and a four-function derived-index cache. This is not virtualization of the original block view or a global report-size bound.
 
-**Acceptance:** fixtures for straight-line flow, a diamond, multiple returns, nested loops, irreducible flow, recursion, a tail transfer, shared blocks, and unresolved indirect exits. Browser tests cover assembly-to-graph selection, data-to-code return, renaming, history, deep links, small screens, and malicious label escaping.
+**Acceptance:** fixtures for straight-line flow, a diamond, multiple returns, nested loops, irreducible flow, recursion, a tail transfer, shared blocks, and unresolved indirect exits. Browser tests cover assembly-to-graph selection, data-to-code return, renaming, history, deep links, small screens, and malicious label escaping. Current presentation tests cover ownership, calls/transfers, paging, and navigation; graph-specific fixtures and selection tests remain work for M2.4/M2.5.
 
-**Exit gate:** whole-function and block views agree on instruction identity and ownership evidence. The existing code/data navigation is not regressed. A graph may be incomplete, but cannot hide its missing targets.
+**Exit gate:** whole-function and block views agree on instruction identity and ownership evidence. The existing code/data navigation is not regressed. A graph may be incomplete, but cannot hide its missing targets. The overview/assembly slice is implemented; M2 as a whole remains incomplete until the graph tasks and their acceptance cases are addressed.
 
 ### M3. Strings, pointer candidates, and richer static-data references
 
@@ -340,7 +340,7 @@ Do not use source-language undefined behavior to approximate machine wraparound.
 
 ## 6. First implementation queue
 
-Keep changes small enough to review independently. The first four items now have implementation links; suggested commit titles for the remaining items describe future work.
+Keep changes small enough to review independently. The first five items now have implementation links; suggested commit titles for the remaining items describe future work.
 
 | Order | Work item | Status / implementation or suggested commit | Completion evidence |
 | --- | --- | --- | --- |
@@ -348,8 +348,8 @@ Keep changes small enough to review independently. The first four items now have
 | 2 | M1A exception records without aggressive discovery | Done: [`b47cf34`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/b47cf34f5ae23b3472d20d240c52686b48ea03e3) | [Bounded-parser contract and tests](docs/m1-exception-directory.md) |
 | 3 | Integrate metadata seeds and ownership diagnostics | Done for supported v1: [`7e85a68`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/7e85a68a872d0a2a8334a1f6f43aa3090fae91bb) | [Unwind/discovery scope and tests](docs/m1-unwind-discovery.md); fragment associations remain explicit |
 | 4 | TLS roots for x86 and x64 | Done: [`d3f86a9`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/d3f86a9cfec5062c01dc4158cf447f0d42e91c01) | [TLS contract and tests](docs/m1-tls-discovery.md); [hosted regression](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/38996995301) |
-| 5 | M2 whole-function assembly, before graph polish | Next: `feat: add whole-function HTML navigation` | Exact call/data/back navigation tests |
-| 6 | M3 searchable strings with direct references | Pending: `feat: index static strings and code cross-references` | Unicode, interior-pointer, and no-xref cases |
+| 5 | M2 whole-function assembly, before graph polish | Done: [`ea32ba2`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/ea32ba20cfe80fe5c9d75c1c457ffa6423216ed0) | [Function-view contract](docs/m2-function-view.md), [model tests](tests/test_function_model.js), and [browser checks](tests/test_function_browser.py); graph tasks remain pending |
+| 6 | M3 searchable strings with direct references | Next: `feat: index static strings and code cross-references` | Unicode, interior-pointer, and no-xref cases |
 | 7 | M2 graph view and bounded graph analysis | Pending: `feat: visualize function control-flow graphs` | Nested/irreducible/incomplete CFG fixtures |
 | 8 | M4 common operand/capability model | Pending: `refactor: expose structured decoder operands` | Backend and register-width tests |
 
@@ -459,7 +459,7 @@ A task is complete only when its implementation, relevant tests, limitations, an
 
 When priorities change, update this document and explain why. Keep completed evidence, split overly broad tasks, and move experiments to section 8 until there is a bounded implementation proposal. Owners, issue numbers, and dates should be added when actually assigned, not invented in advance.
 
-**Recommended next work:** whole-function HTML overview and assembly navigation (queue item 5 / M2), followed by image-wide strings. The initial evidence/corpus contracts, supported-v1 unwind discovery, and bounded x86/x64 TLS callback discovery are implemented as linked above. M1.7-M1.9 remain pending or partial; this does not mark all of M1 complete. Dynamic analysis remains deferred under F08.
+**Recommended next work:** image-wide static-string discovery and searchable string/code references (queue item 6 / M3). Whole-function overview and paged assembly navigation are implemented within the linked M2 presentation contract. M2.4/M2.5 graph work, M1.7-M1.9, and the remaining foundation tasks stay pending or partial. Dynamic analysis remains deferred under F08.
 
 ## 12. References
 
