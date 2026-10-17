@@ -20,7 +20,8 @@ static void tlsDirectoryJson(std::ostream& o,const PE& pe,const Analysis& a){
     o<<",\"arrayRva\":";opt(d.arrayRva);o<<",\"terminatorRva\":";opt(d.terminatorRva);
     o<<",\"issues\":";strings(d.issues);o<<",\"callbacks\":[";bool comma=false;
     for(const auto& c:d.callbacks){
-        if(comma)o<<',';comma=true;
+        if(comma){o<<',';}
+        comma=true;
         const bool attempted=c.targetRva&&a.tlsSeedRvas.contains(*c.targetRva);
         const bool decoded=attempted&&a.functions.contains(*c.targetRva)&&a.instructions.contains(*c.targetRva);
         o<<"{\"index\":"<<c.index<<",\"slotRva\":"<<quote(hex(c.slotRva))
