@@ -1,6 +1,6 @@
 'use strict';
 // Pure, bounded control-flow analysis over already-discovered intraprocedural
-// report edges. It never adds blocks, targets, or function ownership.\n// Presentation limits are deterministic and never remove underlying report facts.
+// report edges. It never adds blocks, targets, or function ownership.\n// Presentation limits are deterministic and never remove underlying report facts.\n// Unknown exits remain outside the intraprocedural graph and stay inspectable.
 (function(root){
     const defaults={nodeLimit:120,edgeLimit:300,iterationLimit:10000};
     function analyze(report,functionIndex,functionId,limits={}){
