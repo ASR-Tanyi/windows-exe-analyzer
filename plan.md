@@ -217,10 +217,10 @@ The Microsoft runtime entry varies with console, GUI, and DLL linkage [R3]. At t
 
 **Likely files:** `src/static_data.hpp`, `src/model.hpp`, `src/report.cpp`, `web/viewer.html`; proposed string/reference indexes and tests.
 
-- [ ] **M3.1** Scan readable file-backed image ranges for configurable ASCII and validated UTF-16LE candidates, including bounded unterminated prefixes. Do not restrict discovery to section names such as `.rdata` or fabricate strings from zero-fill.
-- [ ] **M3.2** Keep encoding, length in bytes/code units, termination, section, and candidate status. Do not deduplicate distinct addresses merely because their text is equal. Add non-Latin and surrogate-pair fixtures, not only zero-high-byte Latin text.
-- [ ] **M3.3** Add a searchable Strings view linked to bytes, exact references, interior references, and owning function candidates. Index discovery separately from the byte-embedding budget, with independent limits and completeness status.
-- [ ] **M3.4** Extend xrefs from exact starting addresses to typed intervals when access width is known. Distinguish code-to-data, data-to-data, address-taking, reads, writes, and unknown access. Keep unknown object boundaries explicit.
+- [x] **M3.1** Scan readable file-backed image ranges for configurable ASCII and validated UTF-16LE candidates, including bounded unterminated prefixes. Do not restrict discovery to section names such as `.rdata` or fabricate strings from zero-fill. Completed in [`e316859`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/e316859c5cc92c263ee9fde250b8d3a3629b0e23); [scanner contract](docs/m3-static-strings.md), [native bounds tests](tests/test_string_scan.cpp), and [PE/CLI tests](tests/test_strings.py). Candidate detection uses a documented text heuristic and independent scan/retention budgets, not proof of object types or exhaustive text recovery.
+- [x] **M3.2** Keep encoding, length in bytes/code units, termination, section, and candidate status. Do not deduplicate distinct addresses merely because their text is equal. Add non-Latin and surrogate-pair fixtures, not only zero-high-byte Latin text. Completed in [`e316859`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/e316859c5cc92c263ee9fde250b8d3a3629b0e23); [Unicode and identity tests](tests/test_string_scan.cpp) cover non-Latin text, supplementary characters, unaligned UTF-16LE, unpaired surrogates, termination, and distinct same-text addresses. Text previews are capped; scanned lengths and partial-prefix boundaries are explicit.
+- [x] **M3.3** Add a searchable Strings view linked to bytes, exact references, interior references, and owning function candidates. Index discovery separately from the byte-embedding budget, with independent limits and completeness status. Completed in [`e316859`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/e316859c5cc92c263ee9fde250b8d3a3629b0e23), with legacy data-link compatibility corrected in [`67a00d6`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/67a00d6e79cf6bd5f633f46b5224e6ab174b5209); [reference-index tests](tests/test_string_model.js) and [browser tests](tests/test_string_browser.py). Search covers retained previews; exact/interior matches use the operand start address and preserve access kind and all reported owners. Byte embedding and reference-index budgets are separate and partial results are labeled.
+- [ ] **M3.4** Extend xrefs from exact starting addresses to typed intervals when access width is known. Distinguish code-to-data, data-to-data, address-taking, reads, writes, and unknown access. Keep unknown object boundaries explicit. **Partial:** constant-address operand starts are matched against string candidate spans. General access-width overlaps, data-to-data references, relocation-informed pointers, and object-boundary analysis remain pending.
 - [ ] **M3.5** Parse base-relocation blocks for supported x86/x64 forms with strict bounds. Use relocation locations as pointer evidence, not proof of a variable's source type [R1].
 - [ ] **M3.6** Add bounded pointer-candidate following with selected pointer width, mapped-target checks, cycle/depth limits, and an evidence label. Never interpret an IAT's on-disk lookup value as the loaded function address.
 - [ ] **M3.7** Keep an optional rebased image view distinct from original bytes. Do not apply relocations twice or silently change the file-byte display; unsupported relocation types stay unresolved.
@@ -228,7 +228,7 @@ The Microsoft runtime entry varies with console, GUI, and DLL linkage [R3]. At t
 
 **Acceptance fixtures:** ASCII, UTF-16 non-Latin text, interior string pointers, false-positive printable bytes, pointer tables, relocations present/absent, cyclic pointers, rebasing, IAT storage, writable data, incomplete embedded pages, and accesses crossing a candidate object's boundary.
 
-**Exit gate:** searching a known string reaches every discovered direct reference in the supported fixtures. Reference counts state their discovery scope; no-results never claims the data is unused.
+**Exit gate:** searching a known string reaches every discovered direct reference in the supported fixtures. Reference counts state their discovery scope; no-results never claims the data is unused. M3.1-M3.3 are complete within the linked bounded-string contract; M3.4-M3.8 and their broader pointer/relocation cases are not marked complete.
 
 ### M4. Structured operands and bounded value analysis
 
@@ -340,7 +340,7 @@ Do not use source-language undefined behavior to approximate machine wraparound.
 
 ## 6. First implementation queue
 
-Keep changes small enough to review independently. The first five items now have implementation links; suggested commit titles for the remaining items describe future work.
+Keep changes small enough to review independently. The first six items now have implementation links; suggested commit titles for the remaining items describe future work.
 
 | Order | Work item | Status / implementation or suggested commit | Completion evidence |
 | --- | --- | --- | --- |
@@ -349,8 +349,8 @@ Keep changes small enough to review independently. The first five items now have
 | 3 | Integrate metadata seeds and ownership diagnostics | Done for supported v1: [`7e85a68`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/7e85a68a872d0a2a8334a1f6f43aa3090fae91bb) | [Unwind/discovery scope and tests](docs/m1-unwind-discovery.md); fragment associations remain explicit |
 | 4 | TLS roots for x86 and x64 | Done: [`d3f86a9`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/d3f86a9cfec5062c01dc4158cf447f0d42e91c01) | [TLS contract and tests](docs/m1-tls-discovery.md); [hosted regression](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/38996995301) |
 | 5 | M2 whole-function assembly, before graph polish | Done: [`ea32ba2`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/ea32ba20cfe80fe5c9d75c1c457ffa6423216ed0) | [Function-view contract](docs/m2-function-view.md), [model tests](tests/test_function_model.js), and [browser checks](tests/test_function_browser.py); graph tasks remain pending |
-| 6 | M3 searchable strings with direct references | Next: `feat: index static strings and code cross-references` | Unicode, interior-pointer, and no-xref cases |
-| 7 | M2 graph view and bounded graph analysis | Pending: `feat: visualize function control-flow graphs` | Nested/irreducible/incomplete CFG fixtures |
+| 6 | M3 searchable strings with direct references | Done: [`e316859`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/e316859c5cc92c263ee9fde250b8d3a3629b0e23) | [String contract](docs/m3-static-strings.md), [reference model](tests/test_string_model.js), and [browser checks](tests/test_string_browser.py); bounded previews and candidate status remain explicit |
+| 7 | M2 graph view and bounded graph analysis | Next: `feat: visualize function control-flow graphs` | Nested/irreducible/incomplete CFG fixtures |
 | 8 | M4 common operand/capability model | Pending: `refactor: expose structured decoder operands` | Backend and register-width tests |
 
 Items 5 and 6 can proceed independently once the shared identities/reference contract is stable. Broader `main` recovery is deliberately not a prerequisite for discovering or browsing functions.
@@ -459,7 +459,7 @@ A task is complete only when its implementation, relevant tests, limitations, an
 
 When priorities change, update this document and explain why. Keep completed evidence, split overly broad tasks, and move experiments to section 8 until there is a bounded implementation proposal. Owners, issue numbers, and dates should be added when actually assigned, not invented in advance.
 
-**Recommended next work:** image-wide static-string discovery and searchable string/code references (queue item 6 / M3). Whole-function overview and paged assembly navigation are implemented within the linked M2 presentation contract. M2.4/M2.5 graph work, M1.7-M1.9, and the remaining foundation tasks stay pending or partial. Dynamic analysis remains deferred under F08.
+**Recommended next work:** the bounded function CFG view and graph analysis (queue item 7 / M2.4-M2.5), preserving links to the existing whole-function assembly, strings, and bytes. Static-string discovery and exact/interior references are implemented within the M3.1-M3.3 contract. M3.4-M3.8, M1.7-M1.9, and the remaining foundation tasks stay pending or partial. Dynamic analysis remains deferred under F08.
 
 ## 12. References
 
