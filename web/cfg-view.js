@@ -4,7 +4,7 @@
     if (D.schema !== 2 || !globalThis.WEAFunctionModel || !globalThis.WEACfgModel) return;
     const functions = WEAFunctionModel.create(D), prefix = D.module.id + '_cfg_', fnPrefix = D.module.id + '_fn_';
     const byRva = new Map(D.functions.map(f => [f.rva,f]));
-    let active = null, zoom = 1;
+    let active = null, zoom = 1, refocusGraph = false;
     function fnRoute(f, block=null) {
         if (!block) return fnPrefix + f.rva.toString(16);
         const insn = block.instructions?.[0];
@@ -81,8 +81,9 @@
             for(const id of ids){if(id===ids[cur])continue;const q=g.positions.get(id);if(!p||!q)continue;const dx=q.x-p.x,dy=q.y-p.y;
                 if(e.key==='ArrowLeft'&&dx>=0||e.key==='ArrowRight'&&dx<=0||e.key==='ArrowUp'&&dy>=0||e.key==='ArrowDown'&&dy<=0)continue;
                 const s=Math.abs(dx)+(2*Math.abs(dy));if(s<score){score=s;best=id;}}
-            if(best){e.preventDefault();navigate(idFor(view.f,B.get(best)));}
+            if(best){e.preventDefault();refocusGraph=true;navigate(idFor(view.f,B.get(best)));}
         });
+        if(refocusGraph&&canvas){refocusGraph=false;requestAnimationFrame(()=>canvas.focus({preventScroll:true}));}
     }
     const button=document.createElement('button');button.id='functionCfg';button.textContent='CFG';
     $('wholeFunction')?.after(button);
