@@ -1,4 +1,5 @@
 #include "report.hpp"
+#include "string_scan.hpp"
 #include <filesystem>
 #include <iostream>
 static u32 number(const std::string&s){size_t n=0;if(s.empty()||s[0]=='-')throw std::runtime_error("Invalid nonnegative number: "+s);u64 x=std::stoull(s,&n,0);if(n!=s.size()||x>UINT32_MAX)throw std::runtime_error("Invalid 32-bit number: "+s);return u32(x);}
@@ -10,14 +11,23 @@ static void usage(){std::cout<<"Usage: windows-exe-analyzer input.exe|input.dll 
     "--data-limit caps embedded original bytes: default 4194304, maximum 67108864.\n"
     "--no-unwind-seeds keeps metadata inspection but disables metadata-derived discovery.\n"
     "--no-tls-seeds inspects TLS metadata without adding callback roots.\n"
+    "--no-strings disables static-string discovery.\n"
+    "--strings-min N sets minimum Unicode scalars per candidate (1..1024; default 4).\n"
+    "--strings-limit N caps candidates (0..100000; default 10000).\n"
+    "--strings-scan-limit BYTES caps selected file bytes (0..268435456; default 33554432).\n"
     "Read-only static analysis; input is never executed. VAs use preferred ImageBase.\n";}
 int main(int argc,char**argv){try{
     if(argc<2){usage();return 2;}if(std::string(argv[1])=="--help"){usage();return 0;}
     std::string input=argv[1],htmlPath,jsonPath,mode="--asm";bool textExplicit=false,metadataDiscovery=true,tlsDiscovery=true;std::optional<u32> mainRva;std::map<u32,std::string> names,dataNames;size_t limit=100000,dataLimit=4*1024*1024;
+    wea::StringOptions stringOptions;
     for(int k=2;k<argc;k++){std::string opt=argv[k];auto value=[&](){if(++k>=argc)throw std::runtime_error("Missing value for "+opt);return std::string(argv[k]);};
         if(opt=="--html")htmlPath=value();else if(opt=="--json")jsonPath=value();else if(opt=="--main-rva")mainRva=number(value());
         else if(opt=="--no-unwind-seeds")metadataDiscovery=false;
         else if(opt=="--no-tls-seeds")tlsDiscovery=false;
+        else if(opt=="--no-strings")stringOptions.enabled=false;
+        else if(opt=="--strings-min"){stringOptions.minCharacters=number(value());if(stringOptions.minCharacters<1||stringOptions.minCharacters>1024)throw std::runtime_error("String minimum must be 1..1024");}
+        else if(opt=="--strings-limit"){stringOptions.candidateLimit=number(value());if(stringOptions.candidateLimit>100000)throw std::runtime_error("String candidate limit must be 0..100000");}
+        else if(opt=="--strings-scan-limit"){stringOptions.scanLimit=number(value());if(stringOptions.scanLimit>256*1024*1024)throw std::runtime_error("String scan limit must be 0..268435456");}
         else if(opt=="--limit"){limit=number(value());if(limit<1||limit>1000000)throw std::runtime_error("Limit must be 1..1000000");}
         else if(opt=="--data-limit"){dataLimit=number(value());if(dataLimit>64*1024*1024)throw std::runtime_error("Data limit must be 0..67108864 bytes");}
         else if(opt=="--name"||opt=="--data-name"){std::string s=value();auto eq=s.find('=');if(eq==s.npos)throw std::runtime_error("Name syntax: 0xRVA=label");std::string label=s.substr(eq+1);if(label.empty()||label.size()>160)throw std::runtime_error("Label must contain 1..160 bytes");(opt=="--name"?names:dataNames)[number(s.substr(0,eq))]=label;}
@@ -26,6 +36,7 @@ int main(int argc,char**argv){try{
     auto same=[](const std::string&a,const std::string&b){return !a.empty()&&!b.empty()&&std::filesystem::weakly_canonical(a)==std::filesystem::weakly_canonical(b);};
     if(same(input,htmlPath)||same(input,jsonPath)||same(htmlPath,jsonPath))throw std::runtime_error("Input and output paths must be distinct");
     PE pe(input);Analysis a=analyze(pe,limit,mainRva,names,metadataDiscovery,tlsDiscovery);std::string json=reportJson(pe,a,std::filesystem::path(input).filename().string(),dataLimit,dataNames);
+    wea::appendStringCatalog(json,pe,stringOptions);
     if(!htmlPath.empty()){writeHtml(htmlPath,json);std::cerr<<"HTML: "<<htmlPath<<'\n';}
     if(!jsonPath.empty()){std::ofstream f(jsonPath,std::ios::binary);if(!f||!(f<<json<<'\n'))throw std::runtime_error("Cannot write JSON");}
     std::cerr<<a.instructions.size()<<" instructions, "<<a.blocks.size()<<" blocks, "<<a.functions.size()<<" function candidates, "<<pe.imports.size()<<" imports.\n";

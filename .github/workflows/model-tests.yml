@@ -60,3 +60,14 @@ jobs:
           build/browser-env/bin/python tests/test_unwind_browser.py build/windows-exe-analyzer
           build/browser-env/bin/python tests/test_tls_browser.py build/windows-exe-analyzer
           build/browser-env/bin/python tests/test_function_browser.py --fixtures build/test-fixtures --document-navigation
+          build/browser-env/bin/python tests/test_string_browser.py build/windows-exe-analyzer --document-navigation
+      - name: Retain test evidence and roadmap snapshot
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: analysis-test-evidence-${{ github.sha }}
+          path: |
+            build/Testing/Temporary/LastTest.log
+            plan.md
+          retention-days: 7
+          if-no-files-found: warn
