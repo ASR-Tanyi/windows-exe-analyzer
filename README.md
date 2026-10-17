@@ -52,7 +52,7 @@ cmake --build build --config Release -j
 ctest --test-dir build -C Release --output-on-failure
 ```
 
-Use an installed Capstone with `-DWEA_USE_SYSTEM_CAPSTONE=ON`, or use a locally
+Use installed Capstone 5 headers/runtime with `-DWEA_USE_SYSTEM_CAPSTONE=ON`, or use a locally
 installed LLVM shared library without downloading dependencies:
 
 ```sh
@@ -62,9 +62,10 @@ ctest --test-dir build-llvm -C Release --output-on-failure
 ```
 
 Set `-DWEA_LLVM_LIBRARY=/absolute/path/to/libLLVM.so` (or your platform's library)
-if discovery fails. LLVM development headers are not required. LLVM is the
-backend validated in the development environment; the Capstone adapter remains
-available but was not built there.
+if discovery fails. LLVM development headers are not required. Both adapters
+have native/report regression coverage; CI runs both on Linux. Capstone provides
+structured operands. LLVM remains a limited text/disassembly path and explicitly
+reports structured metadata as unavailable.
 
 The executable is `windows-exe-analyzer`. On macOS/Linux it
 is normally `build/windows-exe-analyzer`; Visual Studio multi-config builds
@@ -113,6 +114,24 @@ mutable runtime values are not inferred.
 Referenced pages have priority; the encoded report can exceed this byte budget.
 Report schema is 2; annotation schema is 1. Stable identities use a
 non-cryptographic content key plus RVA, not display names.
+
+## Structured instruction operands
+
+Select an instruction address in block or whole-function assembly and open
+**Instruction operands** in the inspector. Capstone reports GPR slices (including
+AH and extended registers), immediate bit patterns, operand/address widths,
+segment selectors, base/index/scale/displacement expressions, and prefix/encoding
+metadata. The default hosted demo now uses Capstone.
+
+The additive `operandModelVersion: 1` JSON extension preserves assembly text,
+raw bytes, existing schema-2 links, and schema-1 annotations. Backend capabilities
+appear in `module.decoderInfo`; each instruction carries `operandDetails`.
+LLVM metadata is explicitly unavailable. Reported register accesses may be
+incomplete; empty lists do not prove absence of implicit effects. Register
+overlap metadata does not yet implement zero-extension or other machine
+semantics. Value propagation and indirect-register target recovery remain next.
+
+See the [operand/capability contract and tests](docs/m4-structured-operands.md).
 
 ## Tests and reproducible examples
 
@@ -164,7 +183,7 @@ serializes JSON and embeds `web/viewer.html` through a build-generated header.
 
 This is a disassembly explorer, not a complete decompiler. `--ir`/`--both` expose
 conservative observations, not complete instruction semantics or recovered C.
-Indirect register calls, switch tables, delay imports, TLS/PDB discovery,
+Indirect register calls, switch tables, delay imports, PDB discovery,
 cross-DLL implementation navigation, relocation-aware pointer chains, and live
 values remain unimplemented. LLVM memory extraction uses a deliberately narrow
 Intel-text grammar; Capstone uses structured operands.

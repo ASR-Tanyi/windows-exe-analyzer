@@ -24,19 +24,23 @@ permissions:
 
 jobs:
   regression:
+    strategy:
+      fail-fast: false
+      matrix:
+        decoder: [LLVM, CAPSTONE]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           persist-credentials: false
-      - name: Install LLVM build dependencies
+      - name: Install build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends cmake ninja-build g++ python3 python3-venv clang-18 lld-18 llvm-18-dev
       - name: Configure and build
         run: |
-          cmake -S . -B build -G Ninja -DWEA_DECODER=LLVM \
+          cmake -S . -B build -G Ninja -DWEA_DECODER=${{ matrix.decoder }} \
             -DWEA_LLVM_LIBRARY=/usr/lib/llvm-18/lib/libLLVM.so \
             -DWEA_CLANG=/usr/bin/clang-18 -DWEA_LLD_LINK=/usr/bin/lld-link-18 \
             -DCMAKE_BUILD_TYPE=Release
@@ -62,13 +66,16 @@ jobs:
           build/browser-env/bin/python tests/test_function_browser.py --fixtures build/test-fixtures --document-navigation
           build/browser-env/bin/python tests/test_cfg_browser.py --fixtures build/test-fixtures
           build/browser-env/bin/python tests/test_string_browser.py build/windows-exe-analyzer --document-navigation
+          build/browser-env/bin/python tests/test_operand_browser.py build/windows-exe-analyzer
       - name: Retain test evidence and roadmap snapshot
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: analysis-test-evidence-${{ github.sha }}
+          name: analysis-test-evidence-${{ matrix.decoder }}-${{ github.sha }}
           path: |
             build/Testing/Temporary/LastTest.log
+            build/test-fixtures/demo64.html
+            build/test-fixtures/demo32.html
             plan.md
           retention-days: 7
           if-no-files-found: warn

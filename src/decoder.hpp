@@ -7,5 +7,6 @@ public:
     Decoder(const Decoder&)=delete;Decoder& operator=(const Decoder&)=delete;
     std::optional<Instruction> decode(const PE& pe,u32 rva);
     static const char* backend();
+    static wea::DecoderInfo info();
 private:struct State;std::unique_ptr<State> s;
 };

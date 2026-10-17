@@ -1,5 +1,6 @@
 #pragma once
 #include "analysis_types.hpp"
+#include "operands.hpp"
 #include <algorithm>
 #include <cstdint>
 #include <fstream>
@@ -30,6 +31,7 @@ struct Instruction {
     bool call=false,jump=false,conditional=false,ret=false,stop=false;
     std::optional<u64> targetVA,memoryVA;
     std::vector<MemoryReference> dataRefs;
+    wea::OperandDetails operandDetails;
 };
 struct Edge {u32 source=0,from=0;std::optional<u32> to;std::string kind,external,target;};
 struct Function {

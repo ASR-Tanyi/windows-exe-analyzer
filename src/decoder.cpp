@@ -26,15 +26,35 @@ Decoder::Decoder(bool x64):s(std::make_unique<State>()){
 }
 Decoder::~Decoder(){if(s->handle)LLVMDisasmDispose(s->handle);}
 const char* Decoder::backend(){return "LLVM C disassembler (assembly/CFG backend)";}
+wea::DecoderInfo Decoder::info(){
+    // This C adapter does not query a version API. Do not guess the loaded
+    // library's version from the link filename or the analyzer build host.
+    wea::DecoderInfo info;info.name="llvm";return info;
+}
 #else
 #include <capstone/capstone.h>
+#if CS_API_MAJOR != 5
+#error "The structured operand adapter requires Capstone 5 headers"
+#endif
+#include "capstone_operands.hpp"
 struct Decoder::State{csh handle=0;};
 Decoder::Decoder(bool x64):s(std::make_unique<State>()){
+    int major=0,minor=0;cs_version(&major,&minor);
+    if(major!=CS_API_MAJOR||minor!=CS_API_MINOR)throw std::runtime_error("Capstone runtime/header API mismatch");
     if(cs_open(CS_ARCH_X86,x64?CS_MODE_64:CS_MODE_32,&s->handle)!=CS_ERR_OK)throw std::runtime_error("Capstone initialization failed");
     if(cs_option(s->handle,CS_OPT_DETAIL,CS_OPT_ON)!=CS_ERR_OK)throw std::runtime_error("Capstone detail mode unavailable");
 }
 Decoder::~Decoder(){if(s->handle)cs_close(&s->handle);}
 const char* Decoder::backend(){return "Capstone 5";}
+wea::DecoderInfo Decoder::info(){
+    int major=0,minor=0;cs_version(&major,&minor);
+    wea::DecoderInfo info;info.name="capstone";
+    info.version=std::to_string(major)+"."+std::to_string(minor); // runtime API version, not patch version
+    info.headerVersion=std::to_string(CS_VERSION_MAJOR)+"."+std::to_string(CS_VERSION_MINOR)+"."+std::to_string(CS_VERSION_EXTRA);
+    info.structuredOperands=true;info.encodingFields=true;
+    info.registerSlices=info.operandAccess=info.implicitRegisters=!cs_support(CS_SUPPORT_DIET);
+    return info;
+}
 #endif
 
 static bool starts(const std::string&s,const std::string&p){return s.rfind(p,0)==0;}
@@ -55,6 +75,7 @@ static void classify(Instruction&i){
     else i.notes="Assembly observation only; instruction semantics are not fully lifted.";
 }
 
+#ifdef WEA_USE_LLVM
 static std::string memoryAccess(const Instruction&i,unsigned operand){
     auto n=i.mnemonic;auto p=n.find_last_of(' ');if(p!=std::string::npos)n=n.substr(p+1);
     if(n=="lea")return "address";
@@ -66,7 +87,6 @@ static std::string memoryAccess(const Instruction&i,unsigned operand){
     if(n=="xchg"||modify.contains(n))return operand==0||n=="xchg"?"read-write":"read";
     return "unknown";
 }
-#ifdef WEA_USE_LLVM
 static u32 memoryWidth(const std::string&s){
     static const std::map<std::string,u32> sizes={{"byte",1},{"word",2},{"dword",4},{"qword",8},{"tbyte",10},{"xmmword",16},{"ymmword",32},{"zmmword",64}};
     auto it=sizes.find(s);return it==sizes.end()?0:it->second;
@@ -140,24 +160,28 @@ std::optional<Instruction> Decoder::decode(const PE&pe,u32 rva){
     if(!n)return {};
     const cs_insn& c=decoded[0];i.size=c.size;i.mnemonic=c.mnemonic;i.operands=c.op_str;classify(i);
     if(c.detail){
-        const auto& x=c.detail->x86;
-        if((i.call||i.jump)&&x.op_count==1&&x.operands[0].type==X86_OP_IMM)
-            i.targetVA=pe.is64?u64(x.operands[0].imm):u64(u32(x.operands[0].imm));
+        i.operandDetails=wea::capstoneOperands(s->handle,c,pe.is64,i.call||i.jump);
+        const auto& detail=i.operandDetails;
+        if(detail.operands.size()==1 && detail.operands[0].immediateIsTarget)
+            i.targetVA=detail.operands[0].immediate;
         size_t bracket=0;
-        for(unsigned op=0;op<x.op_count;op++){
-            const auto&o=x.operands[op];if(o.type!=X86_OP_MEM)continue;
+        for(unsigned op=0;op<detail.operands.size();op++){
+            const auto&o=detail.operands[op];if(!o.memory)continue;
+            const auto& mem=*o.memory;
             size_t begin=i.operands.find('[',bracket),end=begin==std::string::npos?begin:i.operands.find(']',begin);
             if(end!=std::string::npos)bracket=end+1;
-            if(o.mem.segment!=X86_REG_INVALID||o.mem.index!=X86_REG_INVALID)continue;
-            MemoryReference r;r.operand=op;r.width=o.size;r.displacement=o.mem.disp;
-            if(o.mem.base==X86_REG_RIP){r.va=c.address+c.size+u64(o.mem.disp);r.mode="rip-relative";}
-            else if(o.mem.base==X86_REG_EIP){r.va=u32(c.address+c.size+u64(o.mem.disp));r.mode="eip-relative";}
-            else if(o.mem.base==X86_REG_INVALID){r.va=x.addr_size==8?u64(o.mem.disp):u64(u32(o.mem.disp));r.mode="absolute";}
+            if(mem.segment||mem.index)continue;
+            MemoryReference r;r.operand=op;r.width=o.widthBits/8;r.displacement=mem.displacement;
+            if(mem.base&&mem.base->name=="rip"){r.va=c.address+c.size+u64(mem.displacement);r.mode="rip-relative";}
+            else if(mem.base&&mem.base->name=="eip"){r.va=u32(c.address+c.size+u64(mem.displacement));r.mode="eip-relative";}
+            else if(!mem.base&&detail.addressWidthBits){
+                r.va=u64(mem.displacement);
+                if(detail.addressWidthBits<64)r.va&=(u64(1)<<detail.addressWidthBits)-1;
+                r.mode="absolute";
+            }
             else continue;
-            r.access=memoryAccess(i,op);
+            r.access=wea::name(o.access);
             if(r.access=="address")r.width=0;
-            else if(o.access){bool read=o.access&CS_AC_READ,write=o.access&CS_AC_WRITE;
-                r.access=read&&write?"read-write":write?"write":read?"read":"unknown";}
             if(begin!=std::string::npos&&end!=std::string::npos){r.textBegin=begin;r.textEnd=end+1;}
             r.evidence="Capstone structured memory operand";i.dataRefs.push_back(r);
         }

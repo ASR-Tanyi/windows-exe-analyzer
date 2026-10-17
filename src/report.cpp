@@ -66,15 +66,17 @@ static void exceptionDirectoryJson(std::ostream& o,const wea::ExceptionDirectory
 }
 #include "unwind_report.hpp"
 #include "tls_report.hpp"
+#include "operand_report.hpp"
 std::string reportJson(const PE&pe,const Analysis&a,const std::string&filename,size_t dataLimit,const std::map<u32,std::string>&dataNames){
     std::ostringstream o;auto q=[](const std::string&s){return quote(s);};
     auto blockId=[&](u32 r){return pe.moduleId+"_b_"+hex(r).substr(2);};
     auto insnId=[&](u32 r){return pe.moduleId+"_i_"+hex(r).substr(2);};
     auto dataId=[&](u32 r){return pe.moduleId+"_d_"+hex(r).substr(2);};
-    o<<"{\"schema\":2,\"analysisModelVersion\":1,\"module\":{\"id\":"<<q(pe.moduleId)<<",\"name\":"<<q(filename)<<",\"architecture\":"<<q(pe.is64?"x64 / PE32+":"x86 / PE32")
+    o<<"{\"schema\":2,\"analysisModelVersion\":1,\"operandModelVersion\":1,\"module\":{\"id\":"<<q(pe.moduleId)<<",\"name\":"<<q(filename)<<",\"architecture\":"<<q(pe.is64?"x64 / PE32+":"x86 / PE32")
       <<",\"kind\":"<<q(pe.dll?"DLL":"EXE")<<",\"imageBase\":"<<q(hex(pe.imageBase))<<",\"entryRva\":"<<pe.entryRva
       <<",\"entryId\":"<<(a.blocks.contains(pe.entryRva)?q(blockId(pe.entryRva)):"null")<<",\"mainId\":"<<(a.mainRva&&a.blocks.contains(*a.mainRva)?q(blockId(*a.mainRva)):"null")
-      <<",\"decoder\":"<<q(Decoder::backend())<<",\"instructionCount\":"<<a.instructions.size()<<",\"truncated\":"<<(a.truncated?"true":"false")<<"},\"functions\":[";
+      <<",\"decoder\":"<<q(Decoder::backend())<<",\"decoderInfo\":";decoderInfoJson(o,Decoder::info());
+    o<<",\"instructionCount\":"<<a.instructions.size()<<",\"truncated\":"<<(a.truncated?"true":"false")<<"},\"functions\":[";
     bool comma=false;for(const auto&[r,f]:a.functions){
         if(comma){o<<',';}comma=true;
         o<<"{\"rva\":"<<r<<",\"id\":"<<q(blockId(r))<<",\"name\":"<<q(f.name)<<",\"evidence\":"<<q(f.evidence)
@@ -98,7 +100,7 @@ std::string reportJson(const PE&pe,const Analysis&a,const std::string&filename,s
                  <<",\"access\":"<<q(ref.access)<<",\"width\":"<<ref.width<<",\"operand\":"<<ref.operand
                  <<",\"textBegin\":"<<ref.textBegin<<",\"textEnd\":"<<ref.textEnd
                  <<",\"displacement\":"<<ref.displacement<<",\"evidence\":"<<q(ref.evidence)<<"}";
-            }o<<"]}";}
+            }o<<"],\"operandDetails\":";operandDetailsJson(o,i.operandDetails);o<<"}";}
 
         o<<"]}";
     }o<<"],\"edges\":[";comma=false;

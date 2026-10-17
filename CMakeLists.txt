@@ -25,7 +25,7 @@ file(READ "${CMAKE_CURRENT_SOURCE_DIR}/web/tls-directory.js" TLS_DIRECTORY_SCRIP
 string(REPLACE "</body>" "<script>\n${TLS_DIRECTORY_SCRIPT}\n</script></body>" VIEWER_TEMPLATE "${VIEWER_TEMPLATE}")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_SOURCE_DIR}/web/tls-directory.js")
-foreach(WEA_FUNCTION_SCRIPT IN ITEMS string-model string-view function-model function-view cfg-model cfg-view)
+foreach(WEA_FUNCTION_SCRIPT IN ITEMS string-model string-view function-model function-view cfg-model cfg-view operand-view)
   file(READ "${CMAKE_CURRENT_SOURCE_DIR}/web/${WEA_FUNCTION_SCRIPT}.js" WEA_FUNCTION_CONTENT)
   string(REPLACE "</body>" "<script>\n${WEA_FUNCTION_CONTENT}\n</script></body>" VIEWER_TEMPLATE "${VIEWER_TEMPLATE}")
   set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
@@ -66,6 +66,9 @@ else()
 endif()
 include(CTest)
 if(BUILD_TESTING)
+  add_executable(operands_test tests/test_operands.cpp)
+  target_include_directories(operands_test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  add_test(NAME operand_types COMMAND operands_test)
   find_program(WEA_NODE NAMES node nodejs)
   if(WEA_NODE)
     add_test(NAME string_model COMMAND "${WEA_NODE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_string_model.js")
@@ -88,6 +91,10 @@ if(BUILD_TESTING)
   add_test(NAME tls_types COMMAND tls_types_test)
   find_package(Python3 QUIET COMPONENTS Interpreter)
   if(Python3_FOUND)
+    add_test(NAME decoder_operands_regression COMMAND "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_decoder_operands.py" "$<TARGET_FILE:windows-exe-analyzer>"
+      --backend "${WEA_DECODER}")
+    set_tests_properties(decoder_operands_regression PROPERTIES TIMEOUT 90)
     add_test(NAME static_strings_regression COMMAND "${Python3_EXECUTABLE}"
       "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_strings.py" "$<TARGET_FILE:windows-exe-analyzer>")
     set_tests_properties(static_strings_regression PROPERTIES TIMEOUT 90)
