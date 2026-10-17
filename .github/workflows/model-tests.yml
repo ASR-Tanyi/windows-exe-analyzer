@@ -59,7 +59,8 @@ jobs:
           build/browser-env/bin/python tests/test_exception_browser.py build/windows-exe-analyzer
           build/browser-env/bin/python tests/test_unwind_browser.py build/windows-exe-analyzer
           build/browser-env/bin/python tests/test_tls_browser.py build/windows-exe-analyzer
-          build/browser-env/bin/python tests/test_function_browser.py --fixtures build/test-fixtures --document-navigation\n          build/browser-env/bin/python tests/test_cfg_browser.py --fixtures build/test-fixtures
+          build/browser-env/bin/python tests/test_function_browser.py --fixtures build/test-fixtures --document-navigation
+          build/browser-env/bin/python tests/test_cfg_browser.py --fixtures build/test-fixtures
           build/browser-env/bin/python tests/test_string_browser.py build/windows-exe-analyzer --document-navigation
       - name: Retain test evidence and roadmap snapshot
         if: always()
