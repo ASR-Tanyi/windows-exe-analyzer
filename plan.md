@@ -181,17 +181,17 @@ The AMD64 exception mechanism supplies image-relative runtime-function ranges an
 
 The TLS directory includes address-bearing fields and a callback array; use the documented field semantics instead of assuming every field is an RVA [R1].
 
-- [ ] **M1.5** Parse PE32 and PE32+ TLS callback arrays with checked VA-to-RVA conversion, element widths, null termination, count caps, and readable storage checks.
-- [ ] **M1.6** Add independent callback roots without creating a fake direct call from the PE entry point. Preserve possible initialization relationships separately from normal CFG edges.
+- [x] **M1.5** Parse PE32 and PE32+ TLS callback arrays with checked VA-to-RVA conversion, element widths, null termination, count caps, and readable storage checks. Completed in [`d3f86a9`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/d3f86a9cfec5062c01dc4158cf447f0d42e91c01); [bounded TLS contract](docs/m1-tls-discovery.md), [mapping/budget checks](tests/test_tls_types.cpp), and [synthetic/source-compiled PE tests](tests/test_tls_directory.py). Partial arrays remain visible but do not add automatic roots; template/index allocation fields are recorded, not runtime-validated.
+- [x] **M1.6** Add independent callback roots without creating a fake direct call from the PE entry point. Preserve possible initialization relationships separately from normal CFG edges. Completed in [`d3f86a9`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/d3f86a9cfec5062c01dc4158cf447f0d42e91c01); [HTML navigation tests](tests/test_tls_browser.py) and [successful hosted regression run](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/38996995301). Per-slot evidence, duplicate targets, existing names, and instruction boundaries are retained; encoded array order is not a runtime trace.
 - [ ] **M1.7** Add an explicit arbitrary function-seed input distinct from `--main-rva`; retain existing exports and call targets. Keep prologue-pattern scanning optional and label it heuristic.
 - [ ] **M1.8** Treat x86 discovery separately: do not apply the AMD64 unwind-table format to x86. Use decoded calls, exports, analyst seeds, and later matched symbols/validated pointers. **Partial:** architecture gating and existing direct/export discovery are in place; arbitrary seeds and later symbol/pointer-based discovery remain pending.
-- [ ] **M1.9** Introduce entry-role records for PE entry, TLS callback, runtime startup candidate, application-entry candidate, and DLL initialization. Retain all alternatives and analyst overrides.
+- [ ] **M1.9** Introduce entry-role records for PE entry, TLS callback, runtime startup candidate, application-entry candidate, and DLL initialization. Retain all alternatives and analyst overrides. **Partial:** PE entry, TLS callback, and analyst application-entry evidence exist; a general role model and tested startup profiles remain pending.
 
 The Microsoft runtime entry varies with console, GUI, and DLL linkage [R3]. At this phase, recognize only tested startup profiles or explicit symbols. Do not rename the first call target to `main`, infer `main` from the subsystem alone, or require every program to have `main`. General argument-aware recognition is M7 work.
 
 **Acceptance fixtures:** nonleaf functions reachable only indirectly but described by metadata; a leaf without metadata; renamed metadata sections; duplicate and malformed entries; chained/cyclic records; a DLL without a PE entry; x86/x64 TLS callbacks; a custom no-CRT entry; a real CRT-linked console fixture. Compiler maps are evaluation oracles, not hidden analyzer inputs.
 
-**Exit gate:** every supported valid metadata seed appears with provenance; negative fixtures produce no extra high-confidence function claim; all ownership conflicts and missed/invalid seeds remain inspectable. Coverage is reported for the declared fixture subset, not as a percentage of unknown real-binary functions. M1B and the broader compiler/startup corpus are still pending; M1A completion is limited to the linked support contract.
+**Exit gate:** every supported valid metadata seed appears with provenance; negative fixtures produce no extra high-confidence function claim; all ownership conflicts and missed/invalid seeds remain inspectable. Coverage is reported for the declared fixture subset, not as a percentage of unknown real-binary functions. M1.7-M1.9 and the broader compiler/startup corpus are still pending or partial; M1A and TLS completion are limited to their linked support contracts.
 
 ### M2. Whole-function explorer and control-flow graphs
 
@@ -340,15 +340,15 @@ Do not use source-language undefined behavior to approximate machine wraparound.
 
 ## 6. First implementation queue
 
-Keep changes small enough to review independently. The first three items now have implementation links; suggested commit titles for the remaining items describe future work.
+Keep changes small enough to review independently. The first four items now have implementation links; suggested commit titles for the remaining items describe future work.
 
 | Order | Work item | Status / implementation or suggested commit | Completion evidence |
 | --- | --- | --- | --- |
 | 1 | Minimal M0 evidence/range model and baseline fixtures | Done: [`9299868`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/9299868a6ccecc181ffd1dddf0a8f431faeb4fd7) | [Contracts and compatibility tests](docs/m0-foundation.md); not all M0 |
 | 2 | M1A exception records without aggressive discovery | Done: [`b47cf34`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/b47cf34f5ae23b3472d20d240c52686b48ea03e3) | [Bounded-parser contract and tests](docs/m1-exception-directory.md) |
 | 3 | Integrate metadata seeds and ownership diagnostics | Done for supported v1: [`7e85a68`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/7e85a68a872d0a2a8334a1f6f43aa3090fae91bb) | [Unwind/discovery scope and tests](docs/m1-unwind-discovery.md); fragment associations remain explicit |
-| 4 | TLS roots for x86 and x64 | Next: `feat: discover and display TLS callback entries` | Callback and invalid-array tests |
-| 5 | M2 whole-function assembly, before graph polish | Pending: `feat: add whole-function HTML navigation` | Exact call/data/back navigation tests |
+| 4 | TLS roots for x86 and x64 | Done: [`d3f86a9`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/d3f86a9cfec5062c01dc4158cf447f0d42e91c01) | [TLS contract and tests](docs/m1-tls-discovery.md); [hosted regression](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/38996995301) |
+| 5 | M2 whole-function assembly, before graph polish | Next: `feat: add whole-function HTML navigation` | Exact call/data/back navigation tests |
 | 6 | M3 searchable strings with direct references | Pending: `feat: index static strings and code cross-references` | Unicode, interior-pointer, and no-xref cases |
 | 7 | M2 graph view and bounded graph analysis | Pending: `feat: visualize function control-flow graphs` | Nested/irreducible/incomplete CFG fixtures |
 | 8 | M4 common operand/capability model | Pending: `refactor: expose structured decoder operands` | Backend and register-width tests |
@@ -459,7 +459,7 @@ A task is complete only when its implementation, relevant tests, limitations, an
 
 When priorities change, update this document and explain why. Keep completed evidence, split overly broad tasks, and move experiments to section 8 until there is a bounded implementation proposal. Owners, issue numbers, and dates should be added when actually assigned, not invented in advance.
 
-**Recommended next work:** bounded PE32/PE32+ TLS callback parsing and independent callback roots (M1.5/M1.6). The initial evidence/corpus contracts, exception-directory bounds parser, and supported-v1 metadata discovery are implemented as linked above. Then ship whole-function navigation and image-wide strings before broad semantic naming.
+**Recommended next work:** whole-function HTML overview and assembly navigation (queue item 5 / M2), followed by image-wide strings. The initial evidence/corpus contracts, supported-v1 unwind discovery, and bounded x86/x64 TLS callback discovery are implemented as linked above. M1.7-M1.9 remain pending or partial; this does not mark all of M1 complete. Dynamic analysis remains deferred under F08.
 
 ## 12. References
 
