@@ -150,7 +150,21 @@ Local validation: 705 independent cases; 58 recovery contracts including the
 four generated reports; 18 C-like browser checks; existing operand navigation
 and publication checks pass. The unoptimized complex demo recovers two loops
 and two conditional regions on both architectures. The local compiler was Zig
-0.13.0's Clang 18.1.6; hosted Clang/LLVM matrix evidence is recorded after CI.
+0.13.0's Clang 18.1.6.
+
+Hosted validation for `7e93eb8` on 2026-10-18:
+
+- [Analysis matrix passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39094790674):
+  19 CTest targets and 15 publication tests per backend, all existing browser
+  suites, 18 Capstone C-like checks and 11 LLVM capability/fallback checks.
+  The Capstone job also passed all 705 independent cases with hosted Clang 18 /
+  lld-link fixtures. LLVM correctly skips semantic emulation.
+- [Report deployment passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39094790656).
+  The live manifest reported the tested commit and eight reports; the x64 O0
+  HTML/JSON returned HTTP 200 with the recovery model and view embedded.
+  [Open the demo index](https://asr-tanyi.github.io/windows-exe-analyzer/), then
+  **C-like demo** for direct access to the nested-loop function. The site serves
+  the latest deployment; the run artifacts retain this tested snapshot.
 
 ## Next work
 

@@ -311,7 +311,7 @@ Do not use source-language undefined behavior to approximate machine wraparound.
 - [x] **P1.3** Source-known scalar/array/branch/for/while/nested-loop demo at O0/O1 on x86/x64, with compiler/hash provenance. [Source](tests/fixtures/recovery.c), [generator](tests/build_recovery_fixtures.py).
 - [x] **P1.4** Compare typed operations and transformed regions with an independent bounded oracle; validate registers, defined flags, memory and source results. [705-case oracle](tests/test_pseudocode_oracle.py), [negative/graph contracts](tests/test_pseudocode.py), [browser compatibility](tests/test_pseudocode_browser.py).
 
-The local validation passes; hosted matrix/deployment results are recorded in the linked contract after publication. Full M6.4 call semantics, M7.1 SSA, M7.3 stack locals, types/prototypes, switches and exceptional paths remain pending. Test-only emulation does not activate product dynamic analysis (F08/F09).
+Local and [hosted matrix validation passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39094790674): 19 CTest targets per backend, browser suites, and 705 independent Capstone cases. [Demo deployment passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39094790656); the live eight-report manifest and C-like HTML/JSON were verified. Details are in the linked contract. Full M6.4 call semantics, M7.1 SSA, M7.3 stack locals, types/prototypes, switches and exceptional paths remain pending. Test-only emulation does not activate product dynamic analysis (F08/F09).
 
 ### M7. Function recovery and stronger entry-role recognition
 
