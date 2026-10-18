@@ -25,7 +25,7 @@ file(READ "${CMAKE_CURRENT_SOURCE_DIR}/web/tls-directory.js" TLS_DIRECTORY_SCRIP
 string(REPLACE "</body>" "<script>\n${TLS_DIRECTORY_SCRIPT}\n</script></body>" VIEWER_TEMPLATE "${VIEWER_TEMPLATE}")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_SOURCE_DIR}/web/tls-directory.js")
-foreach(WEA_FUNCTION_SCRIPT IN ITEMS string-model string-view function-model function-view cfg-model cfg-view operand-view)
+foreach(WEA_FUNCTION_SCRIPT IN ITEMS string-model string-view function-model function-view cfg-model cfg-view operand-view pseudocode-model pseudocode-view)
   file(READ "${CMAKE_CURRENT_SOURCE_DIR}/web/${WEA_FUNCTION_SCRIPT}.js" WEA_FUNCTION_CONTENT)
   string(REPLACE "</body>" "<script>\n${WEA_FUNCTION_CONTENT}\n</script></body>" VIEWER_TEMPLATE "${VIEWER_TEMPLATE}")
   set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
@@ -101,6 +101,12 @@ if(BUILD_TESTING)
     find_program(WEA_CLANG NAMES clang)
     find_program(WEA_LLD_LINK NAMES lld-link)
     if(WEA_CLANG AND WEA_LLD_LINK)
+      set(WEA_RECOVERY_FIXTURES "${CMAKE_CURRENT_BINARY_DIR}/recovery-fixtures")
+      add_test(NAME generate_recovery_fixtures COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/build_recovery_fixtures.py"
+        --output "${WEA_RECOVERY_FIXTURES}" --clang "${WEA_CLANG}" --linker "${WEA_LLD_LINK}"
+        --analyzer "$<TARGET_FILE:windows-exe-analyzer>")
+      set_tests_properties(generate_recovery_fixtures PROPERTIES FIXTURES_SETUP recovery_fixtures TIMEOUT 180)
       set(WEA_FIXTURES "${CMAKE_CURRENT_BINARY_DIR}/test-fixtures")
       add_test(NAME generate_pe_fixtures COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/build_fixtures.py"
         --output "${WEA_FIXTURES}" --clang "${WEA_CLANG}" --linker "${WEA_LLD_LINK}"
@@ -113,6 +119,19 @@ if(BUILD_TESTING)
       message(STATUS "clang/lld-link unavailable: linked EXE/DLL checks skipped; synthetic checks remain enabled")
       add_test(NAME report_regression COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_report.py"
         "$<TARGET_FILE:windows-exe-analyzer>")
+    endif()
+    if(WEA_NODE)
+      set(WEA_RECOVERY_ARGS)
+      if(WEA_CLANG AND WEA_LLD_LINK)
+        list(APPEND WEA_RECOVERY_ARGS --fixtures "${WEA_RECOVERY_FIXTURES}")
+      endif()
+      add_test(NAME pseudocode_regression COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_pseudocode.py"
+        "$<TARGET_FILE:windows-exe-analyzer>" ${WEA_RECOVERY_ARGS})
+      set_tests_properties(pseudocode_regression PROPERTIES TIMEOUT 90)
+      if(WEA_CLANG AND WEA_LLD_LINK)
+        set_tests_properties(pseudocode_regression PROPERTIES FIXTURES_REQUIRED recovery_fixtures)
+      endif()
     endif()
     set(WEA_TLS_TOOL_ARGS)
     if(WEA_CLANG AND WEA_LLD_LINK)

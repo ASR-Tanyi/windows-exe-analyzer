@@ -208,6 +208,29 @@ class ReportSiteTests(unittest.TestCase):
         self.assertNotIn('https://example.org', (output/'index.html').read_text())
         self.assertTrue((output/'demo64.html').exists())
 
+    def test_recovery_reports_publish_source_and_reports_only(self):
+        fixtures = self.make_demo_reports()
+        recovery = self.root/'recovery'
+        recovery.mkdir()
+        for bits in (64, 32):
+            for opt in ('o0', 'o1'):
+                stem = f'recovery{bits}-{opt}'
+                (recovery/(stem+'.exe')).write_bytes(pe_bytes(bits))
+                (recovery/(stem+'.html')).write_text('<!doctype html><p>C recovery</p>')
+                (recovery/(stem+'.json')).write_text(json.dumps({'module': {'id': 'm_test', 'architecture': f'x{bits}', 'instructionCount': 10},
+                    'functions': [{'name': 'transform_demo', 'rva': 4096}]}))
+        (recovery/'recovery-corpus.json').write_text('{"schema":1}')
+        output = self.root/'site'
+        argv = ['report_site.py', '--analyzer', 'unused', '--fixtures', str(fixtures), '--recovery-fixtures', str(recovery), '--output', str(output)]
+        with patch.object(sys, 'argv', argv), contextlib.redirect_stdout(io.StringIO()):
+            site.main()
+        self.assertEqual(len(json.loads((output/'manifest.json').read_text())['reports']), 8)
+        self.assertIn('transform_demo', (output/'recovery.c').read_text())
+        self.assertTrue((output/'recovery-corpus.json').exists())
+        self.assertIn('recovery64-o0.html#m_test_c_1000', (output/'index.html').read_text())
+        self.assertFalse(list(output.glob('*.exe')))
+        self.assertFalse(list(output.glob('*.obj')))
+
     def test_cli_rejects_bad_checksum_before_download(self):
         argv = ['report_site.py', '--analyzer', 'unused', '--fixtures', 'unused', '--output', str(self.root/'site'),
                 '--source', 'url', '--target', 'https://example.org/a.exe', '--sha256', 'bad']

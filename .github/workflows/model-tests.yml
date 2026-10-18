@@ -7,6 +7,7 @@ on:
       - 'src/**'
       - 'web/**'
       - 'tests/**'
+      - 'scripts/pseudocode.js'
       - 'CMakeLists.txt'
       - '.github/workflows/model-tests.yml'
   pull_request:
@@ -15,6 +16,7 @@ on:
       - 'src/**'
       - 'web/**'
       - 'tests/**'
+      - 'scripts/pseudocode.js'
       - 'CMakeLists.txt'
       - '.github/workflows/model-tests.yml'
   workflow_dispatch:
@@ -53,7 +55,7 @@ jobs:
       - name: Install browser test dependencies
         run: |
           python3 -m venv build/browser-env
-          build/browser-env/bin/python -m pip install playwright==1.57.0
+          build/browser-env/bin/python -m pip install playwright==1.57.0 unicorn==2.1.4
           build/browser-env/bin/python -m playwright install --with-deps chromium
       - name: Check HTML navigation and compatibility
         run: |
@@ -67,6 +69,10 @@ jobs:
           build/browser-env/bin/python tests/test_cfg_browser.py --fixtures build/test-fixtures
           build/browser-env/bin/python tests/test_string_browser.py build/windows-exe-analyzer --document-navigation
           build/browser-env/bin/python tests/test_operand_browser.py build/windows-exe-analyzer
+          build/browser-env/bin/python tests/test_pseudocode_browser.py build/windows-exe-analyzer --fixtures build/recovery-fixtures
+      - name: Check recovery semantics against independent emulation
+        run: |
+          build/browser-env/bin/python tests/test_pseudocode_oracle.py build/windows-exe-analyzer --fixtures build/recovery-fixtures
       - name: Retain test evidence and roadmap snapshot
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -76,6 +82,8 @@ jobs:
             build/Testing/Temporary/LastTest.log
             build/test-fixtures/demo64.html
             build/test-fixtures/demo32.html
+            build/recovery-fixtures/*.html
+            build/recovery-fixtures/recovery-corpus.json
             plan.md
           retention-days: 7
           if-no-files-found: warn

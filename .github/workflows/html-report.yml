@@ -96,6 +96,7 @@ jobs:
           fi
           python3 scripts/report_site.py \
             --analyzer build/windows-exe-analyzer --fixtures build/test-fixtures \
+            --recovery-fixtures build/recovery-fixtures \
             --output build/site --source "$REPORT_SOURCE" --target "$REPORT_TARGET" \
             --repository "$GITHUB_REPOSITORY" --release-tag "$REPORT_RELEASE" \
             --file-ref "$REPORT_FILE_REF" --sha256 "$REPORT_SHA256" "${sandbox[@]}"

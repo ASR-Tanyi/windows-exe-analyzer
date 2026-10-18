@@ -197,10 +197,15 @@ def analyze_sample(analyzer: Path, source: Path, output: Path, image: str) -> No
 
 def report_entry(directory: Path, stem: str, title: str, digest: str) -> dict:
     data = json.loads((directory / (stem + '.json')).read_text(encoding='utf-8'))
-    return {'title': title, 'html': stem + '.html', 'json': stem + '.json',
+    entry = {'title': title, 'html': stem + '.html', 'json': stem + '.json',
             'sha256': digest, 'architecture': data['module']['architecture'],
             'instructions': data['module']['instructionCount'],
             'partial': bool(data['module'].get('truncated') or data.get('data', {}).get('truncated'))}
+    if stem.startswith('recovery'):
+        demo = next((f for f in data.get('functions', []) if f.get('name') == 'transform_demo'), None)
+        if demo and isinstance(demo.get('rva'), int) and isinstance(data['module'].get('id'), str):
+            entry['pseudocode'] = stem + '.html#' + data['module']['id'] + '_c_' + format(demo['rva'], 'x')
+    return entry
 
 
 def write_index(output: Path, entries: list[dict], source: str) -> None:
@@ -217,6 +222,7 @@ def write_index(output: Path, entries: list[dict], source: str) -> None:
                      + (' &middot; partial report' if entry['partial'] else '')
                      + '</p><a class="button" href="' + escape(entry['html']) + '">Open report</a> '
                      + '<a href="' + escape(entry['json']) + '" download>JSON</a>'
+                     + ('<p><a href="' + escape(entry['pseudocode']) + '">C-like demo</a> &middot; <a href="recovery.c">C source</a></p>' if entry.get('pseudocode') else '')
                      + '<p class="hash">Input SHA-256<br>' + escape(entry['sha256']) + '</p></article>')
     page = '''<!doctype html><html lang="en"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -246,6 +252,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--analyzer', type=Path, required=True)
     parser.add_argument('--fixtures', type=Path, required=True)
+    parser.add_argument('--recovery-fixtures', type=Path,
+                        help='Optional source-known C recovery reports at O0/O1')
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--source', choices=('demo', 'release', 'url', 'repository'), default='demo')
     parser.add_argument('--target', default='')
@@ -271,6 +279,16 @@ def main() -> None:
         for suffix in ('.html', '.json'):
             shutil.copyfile(args.fixtures / (stem + suffix), output / (stem + suffix))
         entries.append(report_entry(output, stem, title, verify_pe(args.fixtures / binary)))
+    if args.recovery_fixtures:
+        for bits in (64, 32):
+            for opt in ('o0', 'o1'):
+                stem = f'recovery{bits}-{opt}'
+                for suffix in ('.html', '.json'):
+                    shutil.copyfile(args.recovery_fixtures / (stem + suffix), output / (stem + suffix))
+                entries.append(report_entry(output, stem, f'C recovery x{bits} / {opt.upper()}',
+                                            verify_pe(args.recovery_fixtures / (stem + '.exe'))))
+        shutil.copyfile(args.recovery_fixtures / 'recovery-corpus.json', output / 'recovery-corpus.json')
+        shutil.copyfile(Path(__file__).resolve().parents[1] / 'tests/fixtures/recovery.c', output / 'recovery.c')
     if args.source != 'demo':
         with tempfile.TemporaryDirectory(prefix='wea-report-') as temp:
             work = Path(temp)

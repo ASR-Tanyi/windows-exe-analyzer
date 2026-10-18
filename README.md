@@ -9,7 +9,8 @@ analyzer and report **never execute the input PE file**.
 
 Use [Actions > HTML reports > Run workflow](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/workflows/html-report.yml)
 on `main`. The default run builds x86/x64 demo EXEs and DLLs from test source,
-generates four reports, and publishes a clickable report index to GitHub Pages.
+generates four baseline reports plus four C-recovery reports (x86/x64, O0/O1),
+and publishes a clickable report index to GitHub Pages.
 The run summary contains the live links after deployment succeeds.
 
 **One-time setup:** [Settings > Pages](https://github.com/ASR-Tanyi/windows-exe-analyzer/settings/pages)
@@ -86,6 +87,20 @@ original file bytes. Back/Forward returns to the exact originating instruction.
 Search, rename, and annotate blocks/data. Export annotations as JSON for portable
 storage; browser localStorage is best-effort. The legacy annotation storage
 prefix is retained so previous labels remain compatible.
+
+Select **C-like** for an initial assembly-to-pseudocode preview: assignments,
+integer arithmetic, memory reads/writes, indexed addresses, supported if/else
+and loops, with exact assembly links. It keeps machine register names and
+explicit unknown effects; it does not reconstruct original C names/types or
+call signatures. Source `for` loops may normalize to `while`/`do-while`.
+See the [support contract and testing demo](docs/c-like-recovery.md).
+The [C demo source](tests/fixtures/recovery.c) includes a larger array transform
+with branches and nested loops. In its report, select `transform_demo`, then
+**C-like**. A text export is also available:
+
+```sh
+node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA
+```
 
 All CLI addresses are **RVAs**, not file offsets or live VAs. `--main-rva 0xRVA`
 is an analyst assertion, not automatic main discovery. `--name 0xRVA=label`

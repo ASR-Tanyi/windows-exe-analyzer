@@ -286,6 +286,8 @@ The standard Windows x64 ABI specifies argument registers, volatile state, and s
 
 **Goal:** represent supported instruction behavior accurately before simplifying it into readable code.
 
+**Current preview:** [C-like recovery v1](docs/c-like-recovery.md) implements a bounded normal-path operand-to-operation model in `web/pseudocode-model.js`, shared with text export and a test-only evaluator. This user-requested early M6/M7 slice does not complete the broader milestones below.
+
 **Likely files:** reusable M4 transfers plus proposed `src/ir/` and instruction-semantics fixtures. A machine instruction may lift to several operations; preserve every operation's source instruction identity. Ghidra p-code is a useful reference for this separation, not a required runtime dependency [R6].
 
 - [ ] **M6.1** Write a semantic contract for fixed-width bit-vectors, register slices, memory loads/stores, flags, control flow, and unknown/undefined values. Define what execution conditions are modeled and which are not.
@@ -301,6 +303,15 @@ Do not use source-language undefined behavior to approximate machine wraparound.
 **Acceptance:** boundary values, arithmetic wraparound, signed/unsigned comparisons, partial writes, zero/masked shifts, preserved flags, memory widths, unknown calls, and unsupported forms. Define a fault-free domain for the first evaluator; trapping cases must be excluded explicitly or modeled, never silently validated as equivalent.
 
 **Exit gate:** no unexplained mismatch in supported instruction-form tests, and every unsupported effect is visible. First-stage semantic support may be x64-only; x86 decoding remains usable and its semantic limitations are explicit.
+
+#### Delivered preview slice (2026-10-18)
+
+- [x] **P1.1** Typed integer/register/memory operations from structured operands, explicit all-state barriers, and a per-form semantic contract. [Model](web/pseudocode-model.js), [contract](docs/c-like-recovery.md).
+- [x] **P1.2** Bounded labeled C-like output, if/else and loop graph reductions, shared/truncated/irreducible fallbacks, source links and rename-safe routes. [View](web/pseudocode-view.js), [text export](scripts/pseudocode.js).
+- [x] **P1.3** Source-known scalar/array/branch/for/while/nested-loop demo at O0/O1 on x86/x64, with compiler/hash provenance. [Source](tests/fixtures/recovery.c), [generator](tests/build_recovery_fixtures.py).
+- [x] **P1.4** Compare typed operations and transformed regions with an independent bounded oracle; validate registers, defined flags, memory and source results. [705-case oracle](tests/test_pseudocode_oracle.py), [negative/graph contracts](tests/test_pseudocode.py), [browser compatibility](tests/test_pseudocode_browser.py).
+
+The local validation passes; hosted matrix/deployment results are recorded in the linked contract after publication. Full M6.4 call semantics, M7.1 SSA, M7.3 stack locals, types/prototypes, switches and exceptional paths remain pending. Test-only emulation does not activate product dynamic analysis (F08/F09).
 
 ### M7. Function recovery and stronger entry-role recognition
 
@@ -340,7 +351,7 @@ Do not use source-language undefined behavior to approximate machine wraparound.
 
 ## 6. First implementation queue
 
-Keep changes small enough to review independently. The first eight items now have implementation links; suggested commit titles for the remaining items describe future work.
+Keep changes small enough to review independently. The first eight items have implementation links. Item 9 is the user-requested early C-like recovery slice; item 10 resumes the reusable analysis core.
 
 | Order | Work item | Status / implementation or suggested commit | Completion evidence |
 | --- | --- | --- | --- |
@@ -352,7 +363,8 @@ Keep changes small enough to review independently. The first eight items now hav
 | 6 | M3 searchable strings with direct references | Done: [`e316859`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/e316859c5cc92c263ee9fde250b8d3a3629b0e23) | [String contract](docs/m3-static-strings.md), [reference model](tests/test_string_model.js), and [browser checks](tests/test_string_browser.py); bounded previews and candidate status remain explicit |
 | 7 | M2 graph view and bounded graph analysis | Done: [`247290e`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/247290e74fb1adf8957750adeb2b1595177ae8f2) + [`b8529ea`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/b8529eab42cbcf36087440cff38ded2318f93261) | [CFG contract](docs/m2-cfg.md), [graph-model tests](tests/test_cfg_model.js), [browser checks](tests/test_cfg_browser.py), [hosted regression](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39009132203) |
 | 8 | M4 common operand/capability model | Done for the documented subset: [`91923ac`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/91923ac22865f5e3fc962967f93a5c5db82707cf) | [Operand/capability contract](docs/m4-structured-operands.md), [backend/width tests](tests/test_decoder_operands.py), [inspector compatibility](tests/test_operand_browser.py) |
-| 9 | M4.4–M4.5 bounded value domain and integer/address transfer core | Next: `feat: add bounded integer value and transfer core` | Positive and unknown/clobber cases; reuse operation definitions in future IR before adding M4.6 CFG propagation |
+| 9 | Early M6/M7 C-like recovery preview and richer C demo | Done for the P1 subset; implementation link recorded after commit | [Contract, source-known demo and validation](docs/c-like-recovery.md); typed operations, conservative structure, barriers and provenance |
+| 10 | M4.4–M4.5 value domain, then stack-slot/def-use recovery | Next: `feat: track bounded values and stack-slot candidates` | Reuse the preview operation contract; test overlapping aliases, joins and unknown call clobbers before simplifying locals or adding indirect targets |
 
 Items 5 and 6 can proceed independently once the shared identities/reference contract is stable. Broader `main` recovery is deliberately not a prerequisite for discovering or browsing functions.
 
@@ -460,7 +472,7 @@ A task is complete only when its implementation, relevant tests, limitations, an
 
 When priorities change, update this document and explain why. Keep completed evidence, split overly broad tasks, and move experiments to section 8 until there is a bounded implementation proposal. Owners, issue numbers, and dates should be added when actually assigned, not invented in advance.
 
-**Recommended next work:** the bounded value domain and narrow integer/address transfer core (queue item 9 / M4.4-M4.5), shared with future IR. M4.1-M4.3 now expose structured Capstone operands and explicit backend/instruction capability limits; LLVM remains a text path. Follow the transfer core with M4.6 propagation and M4.7 call-clobber rules before indirect-target recovery. M2 whole-function/CFG presentation and M3.1-M3.3 string discovery are implemented within their linked bounded contracts. M3.4-M3.8, M1.7-M1.9, and remaining foundation tasks stay pending or partial. Dynamic analysis remains deferred under F08.
+**Recommended next work:** bounded value propagation and tracked stack-slot candidates (queue item 10 / M4.4–M4.7, then M7.1–M7.3), reusing the preview's typed operation contract. The user requested early assembly-to-C experimentation, so P1 now provides source-linked scalar/memory/branch/loop output and a nested-loop demo before full SSA/ABI recovery. Improve local-variable and expression readability next, preserving widths, flags, memory effects and unknown call clobbers. Original for/while spelling, C types, I/O signatures and full function completeness remain unknown. Indirect discovery and product dynamic analysis remain deferred.
 
 ## 12. References
 

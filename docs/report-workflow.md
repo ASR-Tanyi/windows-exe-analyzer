@@ -28,6 +28,9 @@ After the deploy job succeeds, click **Open all reports** in the run summary or
 - Index: https://asr-tanyi.github.io/windows-exe-analyzer/
 - x64 demo: https://asr-tanyi.github.io/windows-exe-analyzer/demo64.html
 - x86 demo: https://asr-tanyi.github.io/windows-exe-analyzer/demo32.html
+- C recovery x64, O0: https://asr-tanyi.github.io/windows-exe-analyzer/recovery64-o0.html
+- C recovery x64, O1: https://asr-tanyi.github.io/windows-exe-analyzer/recovery64-o1.html
+- C recovery source: https://asr-tanyi.github.io/windows-exe-analyzer/recovery.c
 - Custom input, when present: https://asr-tanyi.github.io/windows-exe-analyzer/sample.html
 
 These are expected addresses, not a claim that Pages has already been enabled.
@@ -36,7 +39,10 @@ custom domains also work.
 
 ## Analyze another EXE or DLL
 
-All modes retain the four generated demo reports and add a custom report.
+All modes retain the four baseline and four C-recovery reports; custom modes add
+one input report. The C-recovery reports cover x86/x64 at O0/O1. Select a function
+such as `transform_demo`, then **C-like**. See the [recovery contract](c-like-recovery.md)
+for supported forms and limitations.
 
 | source | target | Other inputs |
 | --- | --- | --- |
