@@ -146,6 +146,22 @@ The browser checks pass for Capstone (24) and LLVM fallback (11), along with
 took 53 ms total, with an 8.4 ms maximum per candidate; this is a corpus timing,
 not a worst-case resource bound.
 
+Hosted validation for `96a8c60` on 2026-10-19:
+
+- [Analysis matrix passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39217062898):
+  21 CTest targets and 15 publication tests per backend, all existing browser
+  suites, 24 Capstone C-like checks and 11 LLVM fallback checks. The Capstone
+  job passed 705 independent cases with Clang 18/lld-link fixtures, checking
+  6,654 executed instruction states and 2,017 alias addresses. LLVM explicitly
+  skips semantic emulation.
+- [Demo deployment passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39217063042).
+  The live manifest identifies the tested revision and eight reports. The
+  [x64 O0 nested-loop demo](https://asr-tanyi.github.io/windows-exe-analyzer/recovery64-o0.html#m_38ea623bd3bb24a7_c_11a0)
+  includes the updated preview. Live HTML/JSON returned HTTP 200 and the embedded
+  analysis/view sources matched the committed files. The downloaded self-contained
+  HTML passed browser checks for its eight aliases, raw toggle and value evidence.
+  This site serves the latest deployment; workflow artifacts retain the tested snapshot.
+
 ## Next slice
 
 Build register def-use/SSA joins before substituting expressions across

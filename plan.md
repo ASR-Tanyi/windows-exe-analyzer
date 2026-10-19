@@ -322,7 +322,7 @@ Local and [hosted matrix validation passed](https://github.com/ASR-Tanyi/windows
 - [x] **P2.3** Optional typed memory aliases, raw-address toggle, stack-location table and source-linked register facts in HTML/text/JSON. Overlap, unknown stack changes and unresolved roles remain explicit. [UI](web/pseudocode-view.js), [contract](docs/bounded-values.md).
 - [x] **P2.4** Validate facts at concrete instruction states and alias addresses against Unicorn using the existing x86/x64 O0/O1 nested-loop demo, plus exhaustive small-domain checks and browser compatibility. [Oracle](tests/test_pseudocode_oracle.py), [domain tests](tests/test_value_domain.js), [browser tests](tests/test_pseudocode_browser.py).
 
-The [validation record](docs/bounded-values.md#validation) separates local and hosted evidence. P2 does not recover source local names/types, saved-register versus argument roles, register SSA, I/O signatures or indirect targets. M4.7 and M7.1–M7.4 remain open.
+The [hosted matrix passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39217062898): 21 CTest targets per backend, all browser suites, 705 independent cases, 6,654 concrete-state checks and 2,017 alias-address checks. [Demo deployment passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39217063042). The [validation record](docs/bounded-values.md#validation) separates local and hosted evidence. P2 does not recover source local names/types, saved-register versus argument roles, register SSA, I/O signatures or indirect targets. M4.7 and M7.1–M7.4 remain open.
 
 ### M7. Function recovery and stronger entry-role recognition
 
