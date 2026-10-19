@@ -1,5 +1,7 @@
 # Bounded values and stack memory aliases
 
+Implemented in [`5c61ae7`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/5c61ae739ef57ef22075873fb5c3d74db5ec36db).
+
 C-like preview v2 adds entry-relative register facts and readable stack memory
 aliases to the existing typed operations. Open `transform_demo` in an O0 report,
 select **C-like**, and expand **stack locations**. **Show stack memory aliases**
