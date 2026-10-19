@@ -246,10 +246,12 @@ Capstone detail mode supplies structured operands and access metadata [R4]. The 
 
 #### M4B. A small reusable analysis core
 
-- [ ] **M4.4** Define a bounded value domain: constants, module-relative addresses, import-symbol references, small finite target sets, and unknown. Preserve known-bit/width information where required; cap candidate growth.
-- [ ] **M4.5** Implement tested transfer operations for a narrow integer/address subset and reuse their definitions in M6. Do not write a separate string-pattern value engine that later disagrees with the lifter.
-- [ ] **M4.6** Propagate within blocks, then across the CFG to a fixed point. Joins with incompatible predecessors become a candidate set or unknown; work budgets must terminate loops.
+- [x] **M4.4** Define a bounded value domain: constants, module-relative addresses, import-symbol references, small finite target sets, and unknown. Preserve known-bit/width information where required; cap candidate growth. Completed for the [preview value domain](docs/bounded-values.md): four alternatives, known-bit masks, entry-stack addresses and capped provenance. Import atoms are representable but never inferred from mutable IAT loads; target resolution remains M4C work.
+- [x] **M4.5** Implement tested transfer operations for a narrow integer/address subset and reuse their definitions in M6. Do not write a separate string-pattern value engine that later disagrees with the lifter. [Transfers](web/value-analysis.js) consume the preview's typed operations and share [integer result definitions](web/bitvectors.js) with its evaluator. [Domain tests](tests/test_value_domain.js) and the [independent emulator](tests/test_pseudocode_oracle.py) check width, aliases and concrete-state containment.
+- [x] **M4.6** Propagate within blocks, then across the CFG to a fixed point. Joins with incompatible predecessors become a candidate set or unknown; work budgets must terminate loops. Completed over the preview's bounded discovered, owned CFG; both branch outcomes are retained. [Contracts](tests/test_value_analysis.py) cover joins, growing loops and transactional budget fallback. No discovery feedback, memory-value propagation or completeness claim is implied.
 - [ ] **M4.7** Apply explicit ABI summaries at calls. Unknown calls invalidate affected volatile registers and potentially modified memory; unsupported operations invalidate facts conservatively. Never propagate a pre-call value just because it was convenient.
+
+The current preview clears **all** state at calls/unsupported forms, including SP/FP, and treats every memory load as unknown. This is a safe fallback, not completion of M4.7's explicit ABI summaries.
 
 The standard Windows x64 ABI specifies argument registers, volatile state, and stack conventions [R5]. Keep that profile separate from x86 cdecl/stdcall/fastcall/thiscall and from custom conventions.
 
@@ -286,7 +288,7 @@ The standard Windows x64 ABI specifies argument registers, volatile state, and s
 
 **Goal:** represent supported instruction behavior accurately before simplifying it into readable code.
 
-**Current preview:** [C-like recovery v1](docs/c-like-recovery.md) implements a bounded normal-path operand-to-operation model in `web/pseudocode-model.js`, shared with text export and a test-only evaluator. This user-requested early M6/M7 slice does not complete the broader milestones below.
+**Current preview:** [C-like recovery v2](docs/c-like-recovery.md) implements a bounded normal-path operand-to-operation model in `web/pseudocode-model.js`, shared with text export and a test-only evaluator. [Bounded values and stack memory aliases](docs/bounded-values.md) improve readability without removing effects. This user-requested early M6/M7 slice does not complete the broader milestones below.
 
 **Likely files:** reusable M4 transfers plus proposed `src/ir/` and instruction-semantics fixtures. A machine instruction may lift to several operations; preserve every operation's source instruction identity. Ghidra p-code is a useful reference for this separation, not a required runtime dependency [R6].
 
@@ -313,6 +315,15 @@ Do not use source-language undefined behavior to approximate machine wraparound.
 
 Local and [hosted matrix validation passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39094790674): 19 CTest targets per backend, browser suites, and 705 independent Capstone cases. [Demo deployment passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39094790656); the live eight-report manifest and C-like HTML/JSON were verified. Details are in the linked contract. Full M6.4 call semantics, M7.1 SSA, M7.3 stack locals, types/prototypes, switches and exceptional paths remain pending. Test-only emulation does not activate product dynamic analysis (F08/F09).
 
+#### P2. Bounded values and stack-alias preview — completed subset
+
+- [x] **P2.1** Bounded finite/known-bit domain and shared integer transfer semantics; no display-text parsing. [Domain](web/value-domain.js), [shared results](web/bitvectors.js).
+- [x] **P2.2** Entry-relative forward fixed point, capped provenance and work, explicit unknown loads and all-state call barriers. [Pass](web/value-analysis.js), [negative and budget contracts](tests/test_value_analysis.py).
+- [x] **P2.3** Optional typed memory aliases, raw-address toggle, stack-location table and source-linked register facts in HTML/text/JSON. Overlap, unknown stack changes and unresolved roles remain explicit. [UI](web/pseudocode-view.js), [contract](docs/bounded-values.md).
+- [x] **P2.4** Validate facts at concrete instruction states and alias addresses against Unicorn using the existing x86/x64 O0/O1 nested-loop demo, plus exhaustive small-domain checks and browser compatibility. [Oracle](tests/test_pseudocode_oracle.py), [domain tests](tests/test_value_domain.js), [browser tests](tests/test_pseudocode_browser.py).
+
+The [validation record](docs/bounded-values.md#validation) separates local and hosted evidence. P2 does not recover source local names/types, saved-register versus argument roles, register SSA, I/O signatures or indirect targets. M4.7 and M7.1–M7.4 remain open.
+
 ### M7. Function recovery and stronger entry-role recognition
 
 **Goal:** turn verified low-level effects into readable, inspectable function-level code.
@@ -322,6 +333,8 @@ Local and [hosted matrix validation passed](https://github.com/ASR-Tanyi/windows
 - [ ] **M7.1** Build def-use chains and register SSA with explicit merge nodes. Begin with conservative memory effects; postpone precise memory SSA until alias assumptions are defined.
 - [ ] **M7.2** Add constant/copy propagation, dead-value cleanup, and width-correct expression simplification. Do not remove potentially observable loads, stores, traps, or calls solely because a register result is unused.
 - [ ] **M7.3** Recover stack-relative slots using tracked stack/frame state. Distinguish saved registers, return addresses, ABI home space, spills, outgoing arguments, and candidate locals. Unknown stack adjustment ends precise slot tracking.
+
+  P2 now supplies conservative physical stack locations and optional memory aliases. Return/PUSH/POP/entry regions and overlap are exposed, but saved-register, spill, outgoing-argument and local roles are not inferred; this item stays open.
 - [ ] **M7.4** Infer arguments and return candidates from supported ABI profiles and callers. Preserve conflicting prototypes, varargs uncertainty, hidden parameters, and analyst-supplied types.
 - [ ] **M7.5** Emit readable labeled low-level pseudocode first. Preserve `goto` for unsupported or irreducible structure; recover `if`, loops, and supported switches only when the graph/effects justify the transformation.
 - [ ] **M7.6** Link each pseudocode expression to all contributing instructions, including transformations that combine multiple instructions. Renaming must update displays without rewriting the evidence.
@@ -351,7 +364,7 @@ Local and [hosted matrix validation passed](https://github.com/ASR-Tanyi/windows
 
 ## 6. First implementation queue
 
-Keep changes small enough to review independently. The first eight items have implementation links. Item 9 is the user-requested early C-like recovery slice; item 10 resumes the reusable analysis core.
+Keep changes small enough to review independently. Items 1–9 have implementation links. Item 10 completes the bounded value/stack-alias subset; item 11 advances register def-use before ABI-aware simplification.
 
 | Order | Work item | Status / implementation or suggested commit | Completion evidence |
 | --- | --- | --- | --- |
@@ -364,7 +377,8 @@ Keep changes small enough to review independently. The first eight items have im
 | 7 | M2 graph view and bounded graph analysis | Done: [`247290e`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/247290e74fb1adf8957750adeb2b1595177ae8f2) + [`b8529ea`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/b8529eab42cbcf36087440cff38ded2318f93261) | [CFG contract](docs/m2-cfg.md), [graph-model tests](tests/test_cfg_model.js), [browser checks](tests/test_cfg_browser.py), [hosted regression](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39009132203) |
 | 8 | M4 common operand/capability model | Done for the documented subset: [`91923ac`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/91923ac22865f5e3fc962967f93a5c5db82707cf) | [Operand/capability contract](docs/m4-structured-operands.md), [backend/width tests](tests/test_decoder_operands.py), [inspector compatibility](tests/test_operand_browser.py) |
 | 9 | Early M6/M7 C-like recovery preview and richer C demo | Done for the P1 subset: [`fd1542a`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/fd1542a0b2b79f39e8cdc6e19add4f367abdb305) | [Contract, source-known demo and validation](docs/c-like-recovery.md); typed operations, conservative structure, barriers and provenance |
-| 10 | M4.4–M4.5 value domain, then stack-slot/def-use recovery | Next: `feat: track bounded values and stack-slot candidates` | Reuse the preview operation contract; test overlapping aliases, joins and unknown call clobbers before simplifying locals or adding indirect targets |
+| 10 | M4.4–M4.6 bounded values and stack-slot candidates | Done for P2: `feat: track bounded values and stack-slot candidates` | [Contract and validation](docs/bounded-values.md); capped CFG fixed point, known bits, conservative memory aliases and independent concrete-state checks |
+| 11 | M7.1 register def-use/SSA joins, then M4.7 ABI summaries | Next: `feat: build register def-use chains with explicit joins` | Preserve widths, partial-register definitions, source provenance and unknown call clobbers; test merged definitions before expression substitution |
 
 Items 5 and 6 can proceed independently once the shared identities/reference contract is stable. Broader `main` recovery is deliberately not a prerequisite for discovering or browsing functions.
 
@@ -472,7 +486,7 @@ A task is complete only when its implementation, relevant tests, limitations, an
 
 When priorities change, update this document and explain why. Keep completed evidence, split overly broad tasks, and move experiments to section 8 until there is a bounded implementation proposal. Owners, issue numbers, and dates should be added when actually assigned, not invented in advance.
 
-**Recommended next work:** bounded value propagation and tracked stack-slot candidates (queue item 10 / M4.4–M4.7, then M7.1–M7.3), reusing the preview's typed operation contract. The user requested early assembly-to-C experimentation, so P1 now provides source-linked scalar/memory/branch/loop output and a nested-loop demo before full SSA/ABI recovery. Improve local-variable and expression readability next, preserving widths, flags, memory effects and unknown call clobbers. Original for/while spelling, C types, I/O signatures and full function completeness remain unknown. Indirect discovery and product dynamic analysis remain deferred.
+**Recommended next work:** register def-use chains and explicit merge nodes (queue item 11 / M7.1), followed by reviewed ABI call summaries (M4.7) before cross-instruction expression substitution. P1 provides the source-linked scalar/memory/branch/loop preview and nested-loop demo; P2 adds bounded value facts and physical stack memory aliases. Preserve widths, flags, memory effects, source evidence and call clobbers while improving readability. Original for/while spelling, C types, local storage roles, I/O signatures and full function completeness remain unknown. Indirect discovery and product dynamic analysis remain deferred.
 
 ## 12. References
 

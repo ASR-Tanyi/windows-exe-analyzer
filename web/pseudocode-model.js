@@ -2,7 +2,8 @@
 // Versioned, bounded preview. Operands are decoder facts, never parsed assembly
 // strings. The typed operations are shared by the renderer and semantic tests.
 (function (root) {
-    const VERSION = 1, LIMITS = Object.freeze({blocks: 128, instructions: 2048, edges: 384});
+    const VA = typeof module === 'object' && module.exports ? require('./value-analysis.js') : root.WEAValueAnalysis;
+    const VERSION = 2, LIMITS = Object.freeze({blocks: 128, instructions: 2048, edges: 384});
     const widths = new Set([8, 16, 32, 64]);
     const conditions = {
         e: 'zero', z: 'zero', ne: '!zero', nz: '!zero',
@@ -148,21 +149,22 @@
         }
         return result;
     }
-    function expr(e) {
+    function expr(e, alias = () => null) {
+        const child = e => expr(e, alias);
         if (e.kind === 'constant') return '0x' + BigInt(e.value).toString(16);
         if (e.kind === 'register') {
             let value = e.name;
             if (e.offset) value = '(' + value + ' >> ' + e.offset + ')';
             return e.width === e.familyWidth ? value : 'u' + e.width + '(' + value + ')';
         }
-        if (e.kind === 'load') return 'read' + e.width + '(' + expr(e.address) + ')';
-        if (e.kind === 'cast') return (e.signed ? 'sext' + e.value.width + '_to_' : 'u') + e.width + '(' + expr(e.value) + ')';
+        if (e.kind === 'load') return alias(e) || 'read' + e.width + '(' + child(e.address) + ')';
+        if (e.kind === 'cast') return (e.signed ? 'sext' + e.value.width + '_to_' : 'u') + e.width + '(' + child(e.value) + ')';
         if (e.kind === 'binary') {
             // Render modular negative displacements as subtraction. Arithmetic
             // remains explicitly truncated by the enclosing address cast.
             if (e.operator === '+' && e.right.kind === 'constant' && BigInt.asIntN(e.width, BigInt(e.right.value)) < 0n)
-                return '(' + expr(e.left) + ' - 0x' + (-BigInt.asIntN(e.width, BigInt(e.right.value))).toString(16) + ')';
-            return '(' + expr(e.left) + ' ' + e.operator + ' ' + expr(e.right) + ')';
+                return '(' + child(e.left) + ' - 0x' + (-BigInt.asIntN(e.width, BigInt(e.right.value))).toString(16) + ')';
+            return '(' + child(e.left) + ' ' + e.operator + ' ' + child(e.right) + ')';
         }
         if (e.kind === 'condition') return condition(e.code);
         throw Error('unknown expression');
@@ -170,24 +172,26 @@
     function condition(code) {
         return (conditions[code] || 'unknown_condition').replace(/\b(zero|carry|sign|overflow|parity)\b/g, 'flags.$1');
     }
-    function assignment(target, value) {
+    function assignment(target, value, alias = () => null) {
+        if (target.kind === 'load' && alias(target)) return alias(target) + ' = ' + value + ';';
         if (target.kind === 'load') return 'write' + target.width + '(' + expr(target.address) + ', ' + value + ');';
         if (target.width === target.familyWidth || target.familyWidth === 64 && target.width === 32)
             return target.name + ' = ' + (target.width === 32 ? 'u32(' + value + ')' : value) + ';';
         return target.name + ' = insert' + target.width + '(' + target.name + ', ' + target.offset + ', ' + value + ');';
     }
-    function operation(op, source) {
-        if (op.kind === 'assign') return assignment(op.target, expr(op.value));
+    function operation(op, source, alias = () => null) {
+        const read = e => expr(e, alias), write = (target, value) => assignment(target, value, alias);
+        if (op.kind === 'assign') return write(op.target, read(op.value));
         // A 32-bit CMOV in long mode clears the upper half even when false.
-        if (op.kind === 'select') return assignment(op.target, '(' + condition(op.condition) + ' ? ' + expr(op.value) + ' : ' + expr(op.target) + ')');
+        if (op.kind === 'select') return write(op.target, '(' + condition(op.condition) + ' ? ' + read(op.value) + ' : ' + read(op.target) + ')');
         if (op.kind === 'alu') {
-            const args = [expr(op.left)]; if (op.right) args.push(expr(op.right));
+            const args = [read(op.left)]; if (op.right) args.push(read(op.right));
             if (op.operator !== 'not') args.push('&flags');
             const value = op.operator + op.width + '(' + args.join(', ') + ')';
-            return op.target ? assignment(op.target, value) : value + ';';
+            return op.target ? write(op.target, value) : value + ';';
         }
-        if (op.kind === 'push') return 'push' + op.width + '(' + expr(op.value) + ');';
-        if (op.kind === 'pop') return assignment(op.value, 'pop' + op.width + '()');
+        if (op.kind === 'push') return 'push' + op.width + '(' + read(op.value) + ');';
+        if (op.kind === 'pop') return write(op.value, 'pop' + op.width + '()');
         if (op.kind === 'nop') return '/* nop */';
         return 'unknown_effects("' + source.replace(/[^a-zA-Z0-9_]/g, '_') + '"); /* ' + op.reason + '; registers, flags, memory invalidated */';
     }
@@ -209,9 +213,10 @@
         if (edges.length > LIMITS.edges) return unavailable('Recovery edge budget exceeded (384 edges).');
         const outgoing = new Map(blocks.map(b => [b.id, []]));
         for (const e of edges) if (e.kind !== 'call') outgoing.get(e.from).push(e);
-        const instructions = [], nodes = new Map(), label = id => 'L_' + (blocks.find(b => b.id === id)?.rva.toString(16) || 'unknown');
+        const instructions = [], nodes = new Map(), liftedByBlock = new Map(), label = id => 'L_' + (blocks.find(b => b.id === id)?.rva.toString(16) || 'unknown');
         for (const b of blocks) {
             const lifted = b.instructions.map(i => lift(i, report)); instructions.push(...lifted);
+            liftedByBlock.set(b.id, lifted);
             const body = lifted.flatMap(i => i.ops.map(op => ({kind: 'line', text: operation(op, i.source), operation: op, sources: [i.source]})));
             const last = lifted[lifted.length - 1], outs = outgoing.get(b.id);
             let term = {kind: 'exit', text: 'unknown_control_transfer();', sources: last ? [last.source] : []};
@@ -226,6 +231,18 @@
             } else if (outs.length === 1 && ['jump', 'fallthrough', 'continuation'].includes(outs[0].kind))
                 term = {kind: 'goto', to: target(outs[0]), sources: last ? [last.source] : []};
             nodes.set(b.id, {id: b.id, body, term, sources: b.instructions.map(i => i.id)});
+        }
+        const valueAnalysis = VA.analyze(report, blocks, edges, liftedByBlock, functionId);
+        const aliases = new Map();
+        for (const a of valueAnalysis.accesses) if (a.alias) aliases.set(a.source + ':' + a.key, a);
+        for (const n of nodes.values()) for (const line of n.body) {
+            const sources = [...line.sources];
+            line.displayText = operation(line.operation, line.sources[0], e => {
+                const a = aliases.get(line.sources[0] + ':' + VA.addressKey(e));
+                if (a) sources.push(...a.sources);
+                return a?.alias;
+            });
+            line.displaySources = [...new Set(sources)];
         }
         const successors = n => n.term.kind === 'goto' ? [n.term.to] : n.term.kind === 'branch' ? [n.term.yes, n.term.no] : [];
         const stats = {supported: instructions.filter(i => i.status === 'supported').length,
@@ -287,10 +304,19 @@
             }
             if (!changed) break;
         }
-        const lines = [], add = (text, depth, sources = []) => lines.push({text, depth, sources: [...new Set(sources)]});
+        const lines = [], displayLines = [];
+        for (const slot of valueAnalysis.slots.filter(s => s.aliasable)) {
+            const offset = BigInt(slot.offset);
+            displayLines.push({text: '/* ' + slot.id + ': read/write' + slot.width + '(entry_sp - 0x' + (-offset).toString(16) + ') */',
+                depth: 0, sources: slot.sources});
+        }
+        const add = (text, depth, sources = [], displayText = text, displaySources = sources) => {
+            lines.push({text, depth, sources: [...new Set(sources)]});
+            displayLines.push({text: displayText, depth, sources: [...new Set(displaySources)]});
+        };
         function render(body, depth) {
             for (const node of body) {
-                if (node.kind === 'line') add(node.text, depth, node.sources);
+                if (node.kind === 'line') add(node.text, depth, node.sources, node.displayText, node.displaySources);
                 else if (node.kind === 'if') {
                     add('if (' + node.condition + ') {', depth, node.sources); render(node.yes, depth + 1);
                     if (node.no.length) {add('} else {', depth, node.sources); render(node.no, depth + 1);}
@@ -315,7 +341,7 @@
                 add('else ' + transfer(t.no), 1, t.sources);
             } else add(t.kind === 'goto' ? transfer(t.to) : t.text, 1, t.sources);
         }
-        return {version: VERSION, status: stats.barriers ? 'partial' : 'supported_subset', instructions, regions, lines, stats,
+        return {version: VERSION, status: stats.barriers ? 'partial' : 'supported_subset', instructions, regions, lines, displayLines, valueAnalysis, stats,
             structured: mayStructure, complete: false, functionId,
             notice: 'C-like preview of normal-path machine effects. Inferred function boundaries; complete recovery is not proven. Registers retain machine names. read/write addresses are byte addresses; helpers use fixed-width bit vectors. Calls and unsupported forms invalidate all state. for/while source spelling, variable names, types and I/O prototypes are not recovered.'};
     }

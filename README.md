@@ -93,6 +93,10 @@ integer arithmetic, memory reads/writes, indexed addresses, supported if/else
 and loops, with exact assembly links. It keeps machine register names and
 explicit unknown effects; it does not reconstruct original C names/types or
 call signatures. Source `for` loops may normalize to `while`/`do-while`.
+Proven stack locations now get optional readable memory aliases, with bounded
+register-value facts and source evidence. The stack table explains ambiguous or
+overlapping locations; the toggle restores raw addresses. These are memory
+aliases, not inferred C locals. See the [value-analysis contract](docs/bounded-values.md).
 See the [support contract and testing demo](docs/c-like-recovery.md).
 The [C demo source](tests/fixtures/recovery.c) includes a larger array transform
 with branches and nested loops. In its report, select `transform_demo`, then
@@ -100,6 +104,7 @@ with branches and nested loops. In its report, select `transform_demo`, then
 
 ```sh
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA
+node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --raw
 ```
 
 All CLI addresses are **RVAs**, not file offsets or live VAs. `--main-rva 0xRVA`
@@ -144,7 +149,8 @@ appear in `module.decoderInfo`; each instruction carries `operandDetails`.
 LLVM metadata is explicitly unavailable. Reported register accesses may be
 incomplete; empty lists do not prove absence of implicit effects. Register
 overlap metadata does not yet implement zero-extension or other machine
-semantics. Value propagation and indirect-register target recovery remain next.
+semantics. The separate C-like preview implements a bounded typed integer/value
+subset; ABI summaries and indirect-register target recovery remain pending.
 
 See the [operand/capability contract and tests](docs/m4-structured-operands.md).
 

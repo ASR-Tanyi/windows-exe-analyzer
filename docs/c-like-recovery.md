@@ -1,4 +1,4 @@
-# C-like recovery preview v1
+# C-like recovery preview v2
 
 Open a function in a Capstone-generated HTML report and select **C-like**.
 Select an address to return to the exact instruction in whole-function assembly;
@@ -11,13 +11,14 @@ The shared [model](../web/pseudocode-model.js) also exports text or typed JSON:
 ```sh
 ./build/windows-exe-analyzer program.exe --json build/program.json
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA
+node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --raw
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --json
 ```
 
 Replace `0xFUNCTION_RVA` with an actual discovered function entry. This is a
 separate preview, not a redefinition of the CLI's `--ir` observation notes.
 The decoder's `instructionSemantics:false` capability is unchanged: decoding
-itself supplies operands, not this model's effects. Preview version 1 appears in
+itself supplies operands, not this model's effects. Preview version 2 appears in
 the export; report schema 2 and existing identities remain compatible.
 
 ## What the output means
@@ -25,7 +26,9 @@ the export; report schema 2 and existing identities remain compatible.
 The first pass recovers low-level C-like operations, not original source. For
 example, `write32(u64(base + index * 4), value)` describes an indexed memory
 write. It does not prove that `base` is a C array or that `index` was a source
-variable. Registers keep their machine names; stack/frame accesses stay explicit.
+variable. Registers keep their machine names. Version 2 adds optional
+[stack memory aliases and bounded value facts](bounded-values.md); every aliased
+access still reads/writes memory, and the raw address view remains available.
 There is no invented function prototype, return type, local name, or I/O API.
 
 The normal-path domain is native x86/x64 Windows code with flat default segment
@@ -81,7 +84,7 @@ memory, `i` a normalized bit-pattern immediate. Equal widths are required unless
 an extension is explicit. Integer widths are 8/16/32/64 subject to the mode and
 the actual decoded form. No assembly operand string is parsed.
 
-| Family | Forms accepted by v1 | Exclusions |
+| Family | Forms accepted by v1/v2 | Exclusions |
 | --- | --- | --- |
 | MOV / MOVABS | r←r/m/i, m←r/i | Segment/control/vector registers; memory-to-memory |
 | MOVZX / MOVSX | 8/16-bit r/m to wider r | Unsupported width combinations |
@@ -146,7 +149,7 @@ return and array results over zero/small/max/over-limit counts. It accepts only
 these generated fixtures, uses instruction/time budgets, and never runs a PE
 natively. This is testing infrastructure, not a dynamic-analysis product mode.
 
-Local validation: 705 independent cases; 58 recovery contracts including the
+Initial v1 local validation: 705 independent cases; 58 recovery contracts including the
 four generated reports; 18 C-like browser checks; existing operand navigation
 and publication checks pass. The unoptimized complex demo recovers two loops
 and two conditional regions on both architectures. The local compiler was Zig
@@ -168,9 +171,9 @@ Hosted validation for `7e93eb8` on 2026-10-18:
 
 ## Next work
 
-Recover stack-slot candidates and register def-use chains, then simplify
-expressions while retaining effects/provenance. Keep physical aliases explicit
-until merges, ABI clobbers, overlapping stack slots and calls are modeled.
-Integrate the typed contract with M4's bounded value domain before using values
-to discover indirect targets. Full ABI prototypes, I/O calls, SSA, switches,
-exceptional paths and source-type recovery remain pending.
+Version 2 implements bounded value propagation and conservative stack-slot
+candidates; its [contract and validation](bounded-values.md) cover joins, loops,
+overlap and all-state call clobbers. Build register def-use/SSA joins next, then
+support explicit ABI/call profiles before simplifying expressions across calls
+or recovering I/O signatures. Full prototypes, switches, exceptional paths,
+source types and indirect-target discovery remain pending.

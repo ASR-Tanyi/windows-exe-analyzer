@@ -12,12 +12,13 @@ import struct
 import subprocess
 import tempfile
 from test_pseudocode import ROOT, models, report
-from unicorn import Uc, UC_ARCH_X86, UC_MODE_32, UC_MODE_64
+from unicorn import Uc, UC_ARCH_X86, UC_MODE_32, UC_MODE_64, UC_HOOK_CODE
 from unicorn import x86_const as uc_regs
 
 FLAGS = {'carry': 0, 'parity': 2, 'auxiliary': 4, 'zero': 6, 'sign': 7, 'overflow': 11}
 DATA, STACK, RETURN = 0x200000, 0x300800, 0x500000
 RNG = random.Random(73191)
+VALUE_CHECKS = {'states': 0, 'aliases': 0}
 
 
 def registers(bits):
@@ -41,7 +42,7 @@ def write_word(state, address, value, size=4):
         state['memory'][str(address + i)] = b
 
 
-def oracle(bits, segments, start, state, single=False):
+def oracle(bits, segments, start, state, single=False, model=None):
     uc = Uc(UC_ARCH_X86, UC_MODE_64 if bits == 64 else UC_MODE_32)
     pages = set()
     def ensure(address, size):
@@ -54,6 +55,51 @@ def oracle(bits, segments, start, state, single=False):
         ensure(int(address), 1); uc.mem_write(int(address), bytes([byte]))
     for name, value in state['registers'].items(): uc.reg_write(getattr(uc_regs, 'UC_X86_REG_' + name.upper()), int(value))
     uc.reg_write(uc_regs.UC_X86_REG_EFLAGS, 2 | sum(int(v) << FLAGS[k] for k, v in state['flags'].items()))
+    if model and model['valueAnalysis']['status'] == 'converged':
+        va = model['valueAnalysis']
+        facts = {f['source']: f for f in va['facts']}
+        # Every observed concrete state must be contained in the static facts.
+        # Resolve symbolic entry_sp from the emulator's actual incoming state.
+        entry_sp = int(state['registers']['rsp' if bits == 64 else 'esp'])
+        image_base = start - model['instructions'][0]['rva']
+        by_va = {image_base + i['rva']: i for i in model['instructions']}
+        accesses = {}
+        for a in va['accesses']: accesses.setdefault(a['source'], []).append(a)
+        def concrete(e, regs):
+            width, kind = e['width'], e['kind']
+            if kind == 'constant': result = int(e['value'])
+            elif kind == 'register': result = regs[e['name']] >> e['offset']
+            elif kind == 'cast':
+                result = concrete(e['value'], regs)
+                if e['signed'] and result & (1 << (e['value']['width'] - 1)): result -= 1 << e['value']['width']
+            elif kind == 'binary':
+                left, right = concrete(e['left'], regs), concrete(e['right'], regs)
+                result = left + right if e['operator'] == '+' else left * right
+            else: raise AssertionError('unexpected address expression ' + kind)
+            return result & ((1 << width) - 1)
+        def contained(v, number):
+            mask = (1 << v['width']) - 1
+            if number & int(v['knownMask'], 16) != int(v['knownValue'], 16): return False
+            if v['atoms'] is None: return True
+            values = [(entry_sp + int(a['offset'])) & mask if a['kind'] == 'stack' else int(a['value'])
+                      for a in v['atoms']]
+            return number in values
+        def trace(machine, address, size, _):
+            insn = by_va.get(address)
+            assert insn, ('executed instruction outside recovered function', hex(address))
+            regs = {r: machine.reg_read(getattr(uc_regs, 'UC_X86_REG_' + r.upper())) for r in registers(bits)}
+            for r, value in facts[insn['source']]['before'].items():
+                assert contained(value, regs[r]), ('unsound abstract fact', insn['rva'], r, value, regs[r])
+            VALUE_CHECKS['states'] += 1
+            for access in accesses.get(insn['source'], []):
+                if access['key']:
+                    actual = concrete(json.loads(access['key'])['address'], regs)
+                    assert contained(access['address'], actual), ('unsound address', access, actual)
+                    if access.get('alias'):
+                        assert actual == (entry_sp + int(access['stackOffset'])) & ((1 << bits) - 1)
+                        assert access['allocated'] and not access['proofTruncated']
+                        VALUE_CHECKS['aliases'] += 1
+        uc.hook_add(UC_HOOK_CODE, trace)
     uc.emu_start(start, start + len(segments[0][1]) if single else RETURN, timeout=2000000, count=1 if single else 100000)
     if not single:
         ip = uc.reg_read(uc_regs.UC_X86_REG_RIP if bits == 64 else uc_regs.UC_X86_REG_EIP)
@@ -141,7 +187,7 @@ def main():
                 state['registers']['rax'] = str(0xffffffff if ecx else 0)
                 start = int(data['module']['imageBase'], 16) + 0x1000
                 actual = evaluate([{'model': model, 'input': state}])[0]
-                compare(actual, oracle(64, [(start, bytes.fromhex(code))], start, state), 'structured authored CFG')
+                compare(actual, oracle(64, [(start, bytes.fromhex(code))], start, state, model=model), 'structured authored CFG')
                 count += 1
         # O0/O1 source-known functions: compare every register, defined flag,
         # stack/data byte plus the independently written source-level result.
@@ -181,13 +227,16 @@ def main():
                     else:
                         for i, v in enumerate(arguments): write_word(state, STACK + 4 + i * 4, v)
                     actual = evaluate([{'model': model, 'input': state}])[0]
-                    compare(actual, oracle(bits, segments, base + f['rva'], state), path.name + ' ' + name)
+                    compare(actual, oracle(bits, segments, base + f['rva'], state, model=model), path.name + ' ' + name)
                     assert int(actual['registers']['rax' if bits == 64 else 'eax']) & mask == result, (path.name, name, n, 'source result')
                     for address, v in (writes or {}).items():
                         got = sum(actual['memory'][str(address + j)] << (8 * j) for j in range(4))
                         assert got == v, (path.name, name, n, 'source memory')
                     count += 1
     print(f'PASS: {count} independent instruction/structured-CFG/source cases (registers, defined flags, memory)')
+    assert VALUE_CHECKS['states'] > 0 and VALUE_CHECKS['aliases'] > 0
+    print('PASS: abstract facts at %d executed instruction states; %d concrete stack-alias addresses' %
+          (VALUE_CHECKS['states'], VALUE_CHECKS['aliases']))
 
 
 if __name__ == '__main__':

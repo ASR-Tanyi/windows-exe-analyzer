@@ -4,7 +4,7 @@
     const prefix = D.module.id + '_c_', fnPrefix = D.module.id + '_fn_';
     const functions = new Map(D.functions.map(f => [f.id, f]));
     const byRva = new Map(D.functions.map(f => [f.rva, f]));
-    let active = null;
+    let active = null, aliasesEnabled = true;
     const idFor = f => prefix + f.rva.toString(16);
     function parse(id) {
         if (!id.startsWith(prefix)) return null;
@@ -20,11 +20,21 @@
         const owners = [...new Set(block?.owners || [])].filter(id => functions.has(id));
         return owners.length === 1 ? functions.get(owners[0]) : null;
     }
+    function valueText(value) {
+        if (!value) return 'unknown';
+        const atom = a => a.kind === 'stack' ? 'entry_sp ' + (BigInt(a.offset) < 0n ? '- ' : '+ ') +
+            '0x' + (BigInt(a.offset) < 0n ? -BigInt(a.offset) : BigInt(a.offset)).toString(16) :
+            a.kind === 'module' ? 'module RVA ' + hex(Number(a.rva)) :
+            a.kind === 'import' ? a.symbol : '0x' + BigInt(a.value).toString(16);
+        return (value.atoms ? value.atoms.map(atom).join(' or ') :
+            'known bits ' + value.knownValue + ' / mask ' + value.knownMask) + (value.proofTruncated ? ' (proof capped)' : '');
+    }
     function render(f) {
         active = f; selected = f.id; setTab('functions');
-        const model = WEAPseudocodeModel.recover(D, f.id), s = model.stats;
+        const model = WEAPseudocodeModel.recover(D, f.id), s = model.stats, va = model.valueAnalysis;
+        const lines = aliasesEnabled ? model.displayLines : model.lines;
         let h = '<section class="blockcard pseudocode-overview"><div class="blockhead"><div class="blocktop">' +
-            '<span class="eyebrow">Assembly to C-like / preview v1</span><span class="pill warn">PARTIAL RECOVERY</span></div>' +
+            '<span class="eyebrow">Assembly to C-like / preview v2</span><span class="pill warn">PARTIAL RECOVERY</span></div>' +
             '<h2 class="blocktitle">' + E(label(B.get(f.id) || f)) + '</h2><div class="addressmeta">' +
             link(assembly(f), 'Whole-function assembly', idFor(f), 'pseudo-assembly') + ' / ' +
             link(D.module.id + '_cfg_' + f.rva.toString(16), 'Control-flow graph', idFor(f)) + '</div></div>';
@@ -34,8 +44,20 @@
                 [[s.supported, 'Supported instructions'], [s.barriers, 'Unknown effects'], [s.ifs, 'If regions'], [s.loops, 'Loop regions']]
                     .map(([n, t]) => '<div class="stat"><div class="statvalue">' + n + '</div><div class="statlabel">' + t + '</div></div>').join('') + '</div>';
             if (!model.structured) h += '<p class="datawarning">Shared blocks or truncated discovery: structure recovery disabled; explicit transfers retained.</p>';
+            if (va.status !== 'converged') h += '<p class="datawarning">' + E(va.reason) + '</p>';
+            else {
+                h += '<p class="summary">' + E(va.notice) + '</p>';
+                if (va.slots.length) h += '<details class="pseudo-slots"><summary>' + va.slots.length + ' stack locations / ' +
+                    va.slots.filter(s => s.aliasable).length + ' readable memory aliases</summary>' +
+                    '<div class="pseudo-slot-table"><table><thead><tr><th>Location</th><th>Width</th><th>Evidence</th></tr></thead><tbody>' +
+                    va.slots.map(slot => '<tr><td><code>' + E(slot.id) + '</code><br>entry_sp ' + E(slot.offset) +
+                        ' bytes</td><td>' + slot.width + ' bits</td><td>' + E(slot.kind.replaceAll('_', ' ')) + ': ' +
+                        E(slot.reasons.length ? slot.reasons.join('; ') : slot.note) + '</td></tr>').join('') + '</tbody></table></div></details>';
+                if (va.slots.some(s => s.aliasable)) h += '<p><label class="pseudo-alias-toggle"><input type="checkbox" id="pseudoAliases"' +
+                    (aliasesEnabled ? ' checked' : '') + '> Show stack memory aliases</label></p>';
+            }
             h += '<div class="pseudo-code" role="region" aria-label="C-like pseudocode"><table><thead><tr><th>Assembly</th><th>C-like effects</th><th>Evidence</th></tr></thead><tbody>';
-            model.lines.forEach((line, n) => {
+            lines.forEach((line, n) => {
                 const source = line.sources.find(id => I.has(id));
                 h += '<tr><td>' + (source ? link(assembly(f, source), hex(I.get(source).insn.rva), idFor(f), 'pseudo-source') : '') +
                     '</td><td><code>' + '    '.repeat(line.depth) + E(line.text) + '</code></td><td>' +
@@ -47,15 +69,28 @@
         $('content').innerHTML = h;
         const help = '<h3 class="eyebrow">Reading the preview</h3><p>Registers are machine-state variables, not inferred C locals. ' +
             '<code>read32(base + index * 4)</code> and <code>write32</code> are little-endian, byte-addressed memory operations; an indexed address is not proof of an array type.</p>' +
+            '<p><code>entry_sp</code> is the stack pointer on entry. A <code>slot_</code> name aliases the same memory on every use; it is not a cached value, original variable name or C local. Loads and stores still occur. Turn aliases off to see each original address expression.</p>' +
             '<p><code>uN</code> truncates to N bits; <code>sext</code> sign-extends; <code>insert</code> preserves the rest of a register. Arithmetic helpers wrap to their width and update <code>flags</code>. Undefined flags remain unknown.</p>' +
             '<p>Comparisons update flags immediately, so later branches use a snapshot of the comparison. Loop headers stay inside the loop. Source <code>for</code> loops may appear as <code>while</code> or <code>do/while</code>.</p>' +
             '<p><code>return_to_caller</code> models the near-return boundary; no C return type is inferred. Calls, I/O APIs, exceptional paths and unsupported effects need further analysis.</p>';
         $('connections').innerHTML = help;
         $('renamebox').hidden = !B.has(f.id); $('labelname').value = label(B.get(f.id) || f); $('labelnote').value = labels[f.id]?.note || '';
+        if ($('pseudoAliases')) $('pseudoAliases').onchange = e => {aliasesEnabled = e.target.checked; render(f);};
+        const facts = new Map((va?.facts || []).map(f => [f.source, f]));
         for (const button of document.querySelectorAll('.pseudo-evidence')) button.onclick = () => {
-            const line = model.lines[Number(button.dataset.line)];
+            const line = lines[Number(button.dataset.line)];
+            const first = line.sources.find(id => facts.has(id)), fact = facts.get(first);
+            let evidence = '';
+            if (fact) {
+                const registers = [...new Set([...Object.keys(fact.before), ...Object.keys(fact.after)])];
+                evidence = '<h3 class="eyebrow">Value facts at ' + hex(I.get(first).insn.rva) + '</h3>' +
+                    '<p>Before / after the first contributing instruction. All unlisted registers and all memory contents are unknown. Both branch outcomes are retained.</p>' +
+                    registers.map(r => '<p><code>' + E(r) + '</code><br>' + E(valueText(fact.before[r])) + '<br>→ ' + E(valueText(fact.after[r])) + '</p>').join('');
+                evidence += va.accesses.filter(a => a.source === first).map(a => '<p>' + E(a.access) + a.width + ': ' +
+                    E(valueText(a.address)) + (a.alias ? ' → ' + E(a.alias) : '') + '</p>').join('');
+            }
             $('connections').innerHTML = '<h3 class="eyebrow">Contributing instructions</h3><p><code>' + E(line.text) + '</code></p>' +
-                line.sources.filter(id => I.has(id)).map(id => '<p>' + link(assembly(f, id), hex(I.get(id).insn.rva) + ' ' + I.get(id).insn.mnemonic, idFor(f), 'pseudo-source') + '</p>').join('');
+                line.sources.filter(id => I.has(id)).map(id => '<p>' + link(assembly(f, id), hex(I.get(id).insn.rva) + ' ' + I.get(id).insn.mnemonic, idFor(f), 'pseudo-source') + '</p>').join('') + evidence;
         };
         renderSidebar();
     }
@@ -82,6 +117,6 @@
         if (!active) return; e.stopImmediatePropagation(); navigate(assembly(active));
     }, true);
     const style = document.createElement('style');
-    style.textContent = '.pseudo-code{overflow:auto;max-height:75vh}.pseudo-code table{width:100%;font:12px var(--mono)}.pseudo-code td{vertical-align:top}.pseudo-code code{white-space:pre}.pseudo-code th{position:sticky;top:0;background:var(--panel2)}.pseudo-evidence{font:11px var(--sans);white-space:nowrap}.pseudocode-overview .summary{line-height:1.6}';
+    style.textContent = '.pseudo-code{overflow:auto;max-height:75vh}.pseudo-code table{width:100%;font:12px var(--mono)}.pseudo-code td{vertical-align:top}.pseudo-code code{white-space:pre}.pseudo-code th{position:sticky;top:0;background:var(--panel2)}.pseudo-evidence{font:11px var(--sans);white-space:nowrap}.pseudocode-overview .summary{line-height:1.6}.pseudo-slot-table{overflow:auto;max-height:20em}.pseudo-slots{margin:1em 0}.pseudo-slots table{width:100%}.pseudo-alias-toggle{display:inline-flex;align-items:center;gap:8px}.pseudo-alias-toggle input{width:auto;margin:0}';
     document.head.appendChild(style); route();
 })();

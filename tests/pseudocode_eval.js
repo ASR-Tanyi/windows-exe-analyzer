@@ -2,6 +2,7 @@
 // Test-only bit-vector interpreter. No native input execution; unknown effects
 // stop evaluation. The independent oracle is Unicorn, not the display strings.
 const fs = require('node:fs');
+const BV = require('../web/bitvectors.js');
 const u = (v, n) => BigInt.asUintN(n, v), s = (v, n) => BigInt.asIntN(n, v);
 function execute(model, input, maxSteps = 100000) {
     const regs = Object.fromEntries(Object.entries(input.registers).map(([k, v]) => [k, BigInt(v)]));
@@ -54,9 +55,9 @@ function execute(model, input, maxSteps = 100000) {
     }
     function alu(op) {
         const n = op.width, a = value(op.left), b = op.right ? value(op.right) : 0n, sign = 1n << BigInt(n - 1);
-        const kind = op.operator; let raw, result;
+        const kind = op.operator, result = BV.integerResult(kind, n, a, b); let raw;
         const arithmetic = (left, right, subtract) => {
-            raw = subtract ? left - right : left + right; result = u(raw, n);
+            raw = subtract ? left - right : left + right;
             flags.carry = subtract ? left < right : raw >> BigInt(n) !== 0n;
             flags.overflow = !!((subtract ? (left ^ right) & (left ^ result) : ~(left ^ right) & (left ^ result)) & sign);
             flags.auxiliary = !!((left ^ right ^ result) & 16n);
@@ -66,16 +67,14 @@ function execute(model, input, maxSteps = 100000) {
             arithmetic(kind === 'neg' ? 0n : a, ['inc', 'dec'].includes(kind) ? 1n : kind === 'neg' ? a : b, ['sub', 'cmp', 'dec', 'neg'].includes(kind));
             if (['inc', 'dec'].includes(kind)) flags.carry = carry;
         } else if (['and', 'test', 'or', 'xor', 'not'].includes(kind)) {
-            result = u(kind === 'or' ? a | b : kind === 'xor' ? a ^ b : kind === 'not' ? ~a : a & b, n);
             if (kind !== 'not') {flags.carry = false; flags.overflow = false; flags.auxiliary = null;}
         } else if (kind === 'imul') {
-            raw = s(a, n) * s(b, n); result = u(raw, n);
+            raw = s(a, n) * s(b, n);
             flags.carry = flags.overflow = s(result, n) !== raw;
             flags.zero = flags.sign = flags.parity = flags.auxiliary = null;
         } else if (['shl', 'shr', 'sar'].includes(kind)) {
             const count = Number(b & BigInt(n === 64 ? 63 : 31));
-            if (!count) {write(op.target, a); return;}
-            result = u(kind === 'shl' ? a << BigInt(count) : kind === 'shr' ? a >> BigInt(count) : s(a, n) >> BigInt(count), n);
+            if (!count) {write(op.target, result); return;}
             flags.carry = count >= n && kind !== 'sar' ? null : kind === 'shl' ? !!(a & (1n << BigInt(n - count))) : !!(a & (1n << BigInt(Math.min(count, n) - 1)));
             flags.overflow = count !== 1 ? null : kind === 'sar' ? false : kind === 'shr' ? !!(a & sign) : !!(result & sign) !== flags.carry;
             flags.auxiliary = null;
