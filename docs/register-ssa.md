@@ -1,5 +1,7 @@
 # Register def-use chains and explicit joins
 
+Implemented in [`a3c15bc`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/a3c15bcc95849ef6e79579e369283810ed5bd00b).
+
 C-like preview v3 adds bounded register SSA for the supported x86/x64 integer
 subset. Each write creates a register version, each read links to its reaching
 definition, and a branch/loop join selects the version from the predecessor
