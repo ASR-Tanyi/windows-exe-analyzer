@@ -42,6 +42,14 @@ def main():
         diamond = report(a.analyzer, root, '83f9007e07b801000000eb05b802000000c3')
         loop = report(a.analyzer, root, 'b90300000031c001c8ffc975fac3')
         available = diamond['module']['decoderInfo']['capabilities']['structuredOperands']
+        # CLI inspection uses the same graph as the embedded preview, with an
+        # explicit failure status for backends without typed operands.
+        export = root / 'ssa-export.json'; export.write_text(json.dumps(diamond))
+        cli = subprocess.run(['node', str(ROOT / 'scripts/pseudocode.js'), str(export), '0x1000', '--ssa'],
+            capture_output=True, text=True, timeout=10)
+        check(cli.returncode == (0 if available else 2), 'SSA export backend status')
+        check(('phi' in cli.stdout and 'rax_' in cli.stdout) if available else 'Structured operands unavailable' in cli.stdout,
+              'SSA text shows joined definitions or capability fallback')
         if not available:
             check(all(m['status'] == 'unavailable' for m in models([diamond, loop])), 'LLVM must not invent semantics')
         else:
@@ -61,6 +69,7 @@ def main():
             truncated['module']['truncated'] = True
             for model in models([shared, truncated]):
                 check(not model['structured'] and model['stats']['gotos'] > 0, 'shared/truncated graph keeps transfers')
+                check(model['registerSSA']['status'] == 'unavailable' and not model['registerSSA']['definitions'], 'unsafe graph cannot produce SSA')
             unresolved = copy.deepcopy(diamond)
             unresolved['edges'][0]['to'] = None
             check(any('unknown_control_transfer' in x['text'] for x in models([unresolved])[0]['lines']), 'unresolved edge preserved')
@@ -103,6 +112,7 @@ def main():
                         check(m['status'] == 'unavailable', 'LLVM fixture remains unavailable')
                         continue
                     check(m['status'] == 'supported_subset', path.name + ' ' + f['name'] + ': ' + repr([i for i in m['instructions'] if i['status'] == 'barrier']))
+                    check(m['registerSSA']['status'] == 'available', path.name + ' ' + f['name'] + ': register SSA available')
                     if f['name'] == 'transform_demo':
                         check(m['stats']['loops'] >= 1, 'complex demo retains loops')
                         if '-o0' in path.name:

@@ -24,8 +24,9 @@ node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --raw
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --json
 ```
 
-The JSON export has `version: 2`, raw `lines`, alias-aware `displayLines`, the
-unchanged typed instructions/regions, and `valueAnalysis.version: 1`. Analysis
+The current JSON export has `version: 3`, raw `lines`, alias-aware `displayLines`,
+the unchanged typed instructions/regions, and `valueAnalysis.version: 1`.
+Version 3 adds [register SSA](register-ssa.md) alongside the v2 value analysis. Analysis
 results are computed on demand by the shared browser/Node model; native report
 schema 2, `operandModelVersion: 1` and decoder capabilities are unchanged.
 LLVM/legacy reports still report unavailable semantic features.
@@ -164,9 +165,10 @@ Hosted validation for `96a8c60` on 2026-10-19:
 
 ## Next slice
 
-Build register def-use/SSA joins before substituting expressions across
-instructions. Add explicitly selected ABI profiles and reviewed call summaries
-before retaining values across calls or recovering I/O prototypes. Keep memory
-aliases observable until alias assumptions and storage roles are supported.
-Indirect discovery, source local names/types, argument/return inference, switches
-and exceptional paths remain pending; M7.1–M7.4 are not completed by this pass.
+[Register def-use/SSA joins](register-ssa.md) are now implemented in preview v3
+for the bounded integer GPR subset (M7.1). Add explicitly selected ABI profiles
+and reviewed call summaries next, before retaining values across calls or
+recovering I/O prototypes. Keep memory aliases observable until alias assumptions
+and storage roles are supported. Indirect discovery, source local names/types,
+argument/return inference, switches and exceptional paths remain pending;
+M4.7 and M7.2–M7.4 stay open.

@@ -19,6 +19,7 @@ FLAGS = {'carry': 0, 'parity': 2, 'auxiliary': 4, 'zero': 6, 'sign': 7, 'overflo
 DATA, STACK, RETURN = 0x200000, 0x300800, 0x500000
 RNG = random.Random(73191)
 VALUE_CHECKS = {'states': 0, 'aliases': 0}
+SSA_CHECKS = {'states': 0, 'uses': 0, 'joins': 0, 'exits': 0}
 
 
 def registers(bits):
@@ -40,6 +41,84 @@ def initial(bits):
 def write_word(state, address, value, size=4):
     for i, b in enumerate((value & ((1 << (size * 8)) - 1)).to_bytes(size, 'little')):
         state['memory'][str(address + i)] = b
+
+
+def register_trace(uc, bits, start, state, model):
+    """Track dynamic definition identities/values independently of SSA building.
+
+    The emulator chooses each predecessor. Snapshot definitions after actual
+    machine instructions; check each use and parallel PHI against those snapshots.
+    """
+    graph = model['registerSSA']
+    assert graph['status'] == 'available', graph.get('reason')
+    defs = {d['id']: d for d in graph['definitions']}
+    uses = {u['id']: u for u in graph['uses']}
+    blocks = {b['id']: b for b in graph['blocks']}
+    records = {i['source']: i for i in graph['instructions']}
+    base = start - blocks[graph['entry']]['rva']
+    by_address = {base + i['rva']: records[i['source']] for i in model['instructions'] if i['source'] in records}
+    current = {d['register']: d['id'] for d in defs.values() if d['kind'] == 'entry'}
+    snapshots = {id: int(state['registers'][r]) for r, id in current.items()}
+    previous = None
+    previous_regs = None
+
+    def capture():
+        return {r: uc.reg_read(getattr(uc_regs, 'UC_X86_REG_' + r.upper())) for r in registers(bits)}
+
+    def finish(regs):
+        if previous is None: return
+        writes = {defs[id]['register']: defs[id] for id in previous['writes']}
+        for r in registers(bits):
+            if r not in writes:
+                assert regs[r] == previous_regs[r], ('unrepresented register write', previous['source'], r)
+        for r, d in writes.items():
+            preserved = int(d['preserveMask'], 16)
+            assert (regs[r] & preserved) == (previous_regs[r] & preserved), ('partial-write preservation', d)
+            if d['zeroExtend']: assert regs[r] >> 32 == 0, ('32-bit write did not zero extend', d)
+            snapshots[d['id']] = regs[r]
+            current[r] = d['id']
+
+    def trace(machine, address, size, _):
+        nonlocal previous, previous_regs
+        regs = capture()
+        finish(regs)
+        i = by_address[address]
+        block = blocks[i['block']]
+        if address == base + block['rva']:
+            predecessor = previous['block'] if previous else None
+            pending = {}
+            for id in block['phis']:
+                d = defs[id]
+                incoming = [uses[u] for u in d['incoming'] if uses[u]['predecessor'] == predecessor]
+                assert len(incoming) == 1, ('missing actual PHI predecessor', d, predecessor)
+                u = incoming[0]
+                assert current[d['register']] == u['definition'], ('wrong reaching edge definition', d, u, current[d['register']])
+                assert snapshots[u['definition']] == regs[d['register']], ('wrong PHI value', d, u)
+                pending[d['register']] = (id, regs[d['register']])
+                SSA_CHECKS['joins'] += 1
+            # PHIs read their predecessor's state simultaneously.
+            for r, (id, value) in pending.items(): current[r] = id; snapshots[id] = value
+        for id in i['reads']:
+            u = uses[id]
+            assert u['definition'] == current[u['register']], ('stale use definition', u, current[u['register']])
+            mask = int(u['mask'], 16)
+            assert snapshots[u['definition']] & mask == regs[u['register']] & mask, ('wrong SSA input value', u)
+            SSA_CHECKS['uses'] += 1
+        previous, previous_regs = i, regs
+        SSA_CHECKS['states'] += 1
+
+    uc.hook_add(UC_HOOK_CODE, trace)
+
+    def complete(single):
+        regs = capture()
+        finish(regs)
+        if not single:
+            for id in blocks[previous['block']]['exitUses']:
+                u = uses[id]
+                assert current[u['register']] == u['definition'], ('wrong machine exit definition', u)
+                assert snapshots[u['definition']] == regs[u['register']], ('wrong machine exit value', u)
+                SSA_CHECKS['exits'] += 1
+    return complete
 
 
 def oracle(bits, segments, start, state, single=False, model=None):
@@ -100,7 +179,9 @@ def oracle(bits, segments, start, state, single=False, model=None):
                         assert access['allocated'] and not access['proofTruncated']
                         VALUE_CHECKS['aliases'] += 1
         uc.hook_add(UC_HOOK_CODE, trace)
+    finish_registers = register_trace(uc, bits, start, state, model) if model else None
     uc.emu_start(start, start + len(segments[0][1]) if single else RETURN, timeout=2000000, count=1 if single else 100000)
+    if finish_registers: finish_registers(single)
     if not single:
         ip = uc.reg_read(uc_regs.UC_X86_REG_RIP if bits == 64 else uc_regs.UC_X86_REG_EIP)
         assert ip == RETURN, 'oracle did not return within budget'
@@ -162,8 +243,9 @@ def main():
             cases = common + (extra64 if bits == 64 else [])
             reports = [report(args.analyzer, root, code + 'c3', bits) for code in cases]
             lifted = models(reports, recover=False)
+            flows = models(reports)
             requests, expected, labels = [], [], []
-            for code, model in zip(cases, lifted):
+            for code, model, flow in zip(cases, lifted, flows):
                 assert model['status'] == 'supported', (bits, code, model)
                 for edge in range(6):
                     state = initial(bits)
@@ -173,13 +255,15 @@ def main():
                         state['registers'][cx] = str([0, 1, 31, 32, 63, 64][edge])
                     start = (0x140000000 if bits == 64 else 0x400000) + 0x1000
                     requests.append({'model': model, 'input': state})
-                    expected.append(oracle(bits, [(start, bytes.fromhex(code))], start, state, single=True))
+                    expected.append(oracle(bits, [(start, bytes.fromhex(code))], start, state, single=True, model=flow))
                     labels.append(f'{bits}-bit {code} edge {edge}')
             for actual, want, label in zip(evaluate(requests), expected, labels):
                 compare(actual, want, label); count += 1
         # Compare transformed CFG execution, including flags changed after CMP.
         for code in ['83f9007e07b801000000eb05b802000000c3', 'b90300000031c001c8ffc975fac3',
-                     '83f900ffc07507b801000000eb05b802000000c3']:
+                     '83f900ffc07507b801000000eb05b802000000c3',
+                     '83f9007407b4010fb6d0eb03b40290c3',  # byte definitions join whole families
+                     '83c00183f8037cf8c3']:  # actual entry backedge and initial incoming definition
             data = report(args.analyzer, root, code)
             model = models([data])[0]
             for ecx in (0, 1, 0xffffffff):
@@ -237,6 +321,8 @@ def main():
     assert VALUE_CHECKS['states'] > 0 and VALUE_CHECKS['aliases'] > 0
     print('PASS: abstract facts at %d executed instruction states; %d concrete stack-alias addresses' %
           (VALUE_CHECKS['states'], VALUE_CHECKS['aliases']))
+    assert all(SSA_CHECKS.values())
+    print('PASS: register SSA at {states} states, {uses} uses, {joins} selected PHI edges and {exits} exit values'.format(**SSA_CHECKS))
 
 
 if __name__ == '__main__':

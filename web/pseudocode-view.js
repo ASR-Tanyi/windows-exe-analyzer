@@ -34,7 +34,7 @@
         const model = WEAPseudocodeModel.recover(D, f.id), s = model.stats, va = model.valueAnalysis;
         const lines = aliasesEnabled ? model.displayLines : model.lines;
         let h = '<section class="blockcard pseudocode-overview"><div class="blockhead"><div class="blocktop">' +
-            '<span class="eyebrow">Assembly to C-like / preview v2</span><span class="pill warn">PARTIAL RECOVERY</span></div>' +
+            '<span class="eyebrow">Assembly to C-like / preview v3</span><span class="pill warn">PARTIAL RECOVERY</span></div>' +
             '<h2 class="blocktitle">' + E(label(B.get(f.id) || f)) + '</h2><div class="addressmeta">' +
             link(assembly(f), 'Whole-function assembly', idFor(f), 'pseudo-assembly') + ' / ' +
             link(D.module.id + '_cfg_' + f.rva.toString(16), 'Control-flow graph', idFor(f)) + '</div></div>';
@@ -56,6 +56,7 @@
                 if (va.slots.some(s => s.aliasable)) h += '<p><label class="pseudo-alias-toggle"><input type="checkbox" id="pseudoAliases"' +
                     (aliasesEnabled ? ' checked' : '') + '> Show stack memory aliases</label></p>';
             }
+            h += WEARegisterFlowView.markup(model.registerSSA, model.instructions, E);
             h += '<div class="pseudo-code" role="region" aria-label="C-like pseudocode"><table><thead><tr><th>Assembly</th><th>C-like effects</th><th>Evidence</th></tr></thead><tbody>';
             lines.forEach((line, n) => {
                 const source = line.sources.find(id => I.has(id));
@@ -76,10 +77,13 @@
         $('connections').innerHTML = help;
         $('renamebox').hidden = !B.has(f.id); $('labelname').value = label(B.get(f.id) || f); $('labelnote').value = labels[f.id]?.note || '';
         if ($('pseudoAliases')) $('pseudoAliases').onchange = e => {aliasesEnabled = e.target.checked; render(f);};
+        const inspectFlow = model.registerSSA ? WEARegisterFlowView.bind(model.registerSSA, {escape: E,
+            sourceLink: id => I.has(id) ? link(assembly(f, id), hex(I.get(id).insn.rva) + ' ' + I.get(id).insn.mnemonic, idFor(f), 'pseudo-source') : E(id)}) : () => {};
         const facts = new Map((va?.facts || []).map(f => [f.source, f]));
         for (const button of document.querySelectorAll('.pseudo-evidence')) button.onclick = () => {
             const line = lines[Number(button.dataset.line)];
             const first = line.sources.find(id => facts.has(id)), fact = facts.get(first);
+            inspectFlow(line.sources[0]);
             let evidence = '';
             if (fact) {
                 const registers = [...new Set([...Object.keys(fact.before), ...Object.keys(fact.after)])];
@@ -118,5 +122,6 @@
     }, true);
     const style = document.createElement('style');
     style.textContent = '.pseudo-code{overflow:auto;max-height:75vh}.pseudo-code table{width:100%;font:12px var(--mono)}.pseudo-code td{vertical-align:top}.pseudo-code code{white-space:pre}.pseudo-code th{position:sticky;top:0;background:var(--panel2)}.pseudo-evidence{font:11px var(--sans);white-space:nowrap}.pseudocode-overview .summary{line-height:1.6}.pseudo-slot-table{overflow:auto;max-height:20em}.pseudo-slots{margin:1em 0}.pseudo-slots table{width:100%}.pseudo-alias-toggle{display:inline-flex;align-items:center;gap:8px}.pseudo-alias-toggle input{width:auto;margin:0}';
+    style.textContent += '.pseudo-flow{margin:1em 0}.pseudo-flow label{display:block;margin:1em 0}.pseudo-flow select{max-width:100%}.pseudo-flow-table{overflow:auto;max-height:24em}.pseudo-flow table{width:100%}.pseudo-flow td{vertical-align:top}.pseudo-def,.pseudo-use{font:11px var(--mono);padding:3px 6px;margin:2px}.pseudo-flow h3{margin-top:1em}';
     document.head.appendChild(style); route();
 })();

@@ -1,4 +1,4 @@
-# C-like recovery preview v2
+# C-like recovery preview v3
 
 Open a function in a Capstone-generated HTML report and select **C-like**.
 Select an address to return to the exact instruction in whole-function assembly;
@@ -12,13 +12,14 @@ The shared [model](../web/pseudocode-model.js) also exports text or typed JSON:
 ./build/windows-exe-analyzer program.exe --json build/program.json
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --raw
+node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --ssa
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --json
 ```
 
 Replace `0xFUNCTION_RVA` with an actual discovered function entry. This is a
 separate preview, not a redefinition of the CLI's `--ir` observation notes.
 The decoder's `instructionSemantics:false` capability is unchanged: decoding
-itself supplies operands, not this model's effects. Preview version 2 appears in
+itself supplies operands, not this model's effects. Preview version 3 appears in
 the export; report schema 2 and existing identities remain compatible.
 
 ## What the output means
@@ -29,6 +30,10 @@ write. It does not prove that `base` is a C array or that `index` was a source
 variable. Registers keep their machine names. Version 2 adds optional
 [stack memory aliases and bounded value facts](bounded-values.md); every aliased
 access still reads/writes memory, and the raw address view remains available.
+Version 3 adds [register def-use chains and explicit joins](register-ssa.md).
+Expand **Register flow** to follow definitions, incoming predecessor values and
+reverse uses. The graph preserves full-family and partial-write dependencies;
+it does not yet substitute expressions into the displayed code.
 There is no invented function prototype, return type, local name, or I/O API.
 
 The normal-path domain is native x86/x64 Windows code with flat default segment
@@ -84,7 +89,7 @@ memory, `i` a normalized bit-pattern immediate. Equal widths are required unless
 an extension is explicit. Integer widths are 8/16/32/64 subject to the mode and
 the actual decoded form. No assembly operand string is parsed.
 
-| Family | Forms accepted by v1/v2 | Exclusions |
+| Family | Forms accepted by v1/v2/v3 | Exclusions |
 | --- | --- | --- |
 | MOV / MOVABS | r←r/m/i, m←r/i | Segment/control/vector registers; memory-to-memory |
 | MOVZX / MOVSX | 8/16-bit r/m to wider r | Unsupported width combinations |
@@ -173,7 +178,9 @@ Hosted validation for `7e93eb8` on 2026-10-18:
 
 Version 2 implements bounded value propagation and conservative stack-slot
 candidates; its [contract and validation](bounded-values.md) cover joins, loops,
-overlap and all-state call clobbers. Build register def-use/SSA joins next, then
-support explicit ABI/call profiles before simplifying expressions across calls
-or recovering I/O signatures. Full prototypes, switches, exceptional paths,
-source types and indirect-target discovery remain pending.
+overlap and all-state call clobbers. Version 3 implements bounded integer GPR
+def-use/SSA with source-linked inspection and independent execution checks;
+see its [contract and validation](register-ssa.md). Explicit ABI/call profiles
+are next, before expression substitution across calls or I/O signatures.
+Full prototypes, switches, exceptional paths, source types and indirect-target
+discovery remain pending.

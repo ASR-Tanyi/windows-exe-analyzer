@@ -3,7 +3,8 @@
 // strings. The typed operations are shared by the renderer and semantic tests.
 (function (root) {
     const VA = typeof module === 'object' && module.exports ? require('./value-analysis.js') : root.WEAValueAnalysis;
-    const VERSION = 2, LIMITS = Object.freeze({blocks: 128, instructions: 2048, edges: 384});
+    const SSA = typeof module === 'object' && module.exports ? require('./register-ssa.js') : root.WEARegisterSSA;
+    const VERSION = 3, LIMITS = Object.freeze({blocks: 128, instructions: 2048, edges: 384});
     const widths = new Set([8, 16, 32, 64]);
     const conditions = {
         e: 'zero', z: 'zero', ne: '!zero', nz: '!zero',
@@ -233,6 +234,7 @@
             nodes.set(b.id, {id: b.id, body, term, sources: b.instructions.map(i => i.id)});
         }
         const valueAnalysis = VA.analyze(report, blocks, edges, liftedByBlock, functionId);
+        const registerSSA = SSA.analyze(report, blocks, edges, liftedByBlock, functionId);
         const aliases = new Map();
         for (const a of valueAnalysis.accesses) if (a.alias) aliases.set(a.source + ':' + a.key, a);
         for (const n of nodes.values()) for (const line of n.body) {
@@ -341,7 +343,7 @@
                 add('else ' + transfer(t.no), 1, t.sources);
             } else add(t.kind === 'goto' ? transfer(t.to) : t.text, 1, t.sources);
         }
-        return {version: VERSION, status: stats.barriers ? 'partial' : 'supported_subset', instructions, regions, lines, displayLines, valueAnalysis, stats,
+        return {version: VERSION, status: stats.barriers ? 'partial' : 'supported_subset', instructions, regions, lines, displayLines, valueAnalysis, registerSSA, stats,
             structured: mayStructure, complete: false, functionId,
             notice: 'C-like preview of normal-path machine effects. Inferred function boundaries; complete recovery is not proven. Registers retain machine names. read/write addresses are byte addresses; helpers use fixed-width bit vectors. Calls and unsupported forms invalidate all state. for/while source spelling, variable names, types and I/O prototypes are not recovered.'};
     }

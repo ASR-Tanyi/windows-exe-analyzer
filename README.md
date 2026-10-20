@@ -97,6 +97,10 @@ Proven stack locations now get optional readable memory aliases, with bounded
 register-value facts and source evidence. The stack table explains ambiguous or
 overlapping locations; the toggle restores raw addresses. These are memory
 aliases, not inferred C locals. See the [value-analysis contract](docs/bounded-values.md).
+Expand **Register flow** to follow each register read to its defining write,
+inspect branch/loop joins and browse reverse uses with assembly evidence.
+Partial writes and unknown call clobbers stay explicit; see the
+[register SSA contract](docs/register-ssa.md).
 See the [support contract and testing demo](docs/c-like-recovery.md).
 The [C demo source](tests/fixtures/recovery.c) includes a larger array transform
 with branches and nested loops. In its report, select `transform_demo`, then
@@ -105,6 +109,7 @@ with branches and nested loops. In its report, select `transform_demo`, then
 ```sh
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --raw
+node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --ssa
 ```
 
 All CLI addresses are **RVAs**, not file offsets or live VAs. `--main-rva 0xRVA`

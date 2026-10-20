@@ -288,7 +288,7 @@ The standard Windows x64 ABI specifies argument registers, volatile state, and s
 
 **Goal:** represent supported instruction behavior accurately before simplifying it into readable code.
 
-**Current preview:** [C-like recovery v2](docs/c-like-recovery.md) implements a bounded normal-path operand-to-operation model in `web/pseudocode-model.js`, shared with text export and a test-only evaluator. [Bounded values and stack memory aliases](docs/bounded-values.md) improve readability without removing effects. This user-requested early M6/M7 slice does not complete the broader milestones below.
+**Current preview:** [C-like recovery v3](docs/c-like-recovery.md) implements a bounded normal-path operand-to-operation model in `web/pseudocode-model.js`, shared with text export and a test-only evaluator. [Bounded values and stack memory aliases](docs/bounded-values.md) improve readability without removing effects. [Register def-use/SSA](docs/register-ssa.md) now supplies explicit joins and source-linked inspection for the supported integer GPR subset. These delivered slices do not complete the broader M6/M7 milestones below.
 
 **Likely files:** reusable M4 transfers plus proposed `src/ir/` and instruction-semantics fixtures. A machine instruction may lift to several operations; preserve every operation's source instruction identity. Ghidra p-code is a useful reference for this separation, not a required runtime dependency [R6].
 
@@ -313,7 +313,7 @@ Do not use source-language undefined behavior to approximate machine wraparound.
 - [x] **P1.3** Source-known scalar/array/branch/for/while/nested-loop demo at O0/O1 on x86/x64, with compiler/hash provenance. [Source](tests/fixtures/recovery.c), [generator](tests/build_recovery_fixtures.py).
 - [x] **P1.4** Compare typed operations and transformed regions with an independent bounded oracle; validate registers, defined flags, memory and source results. [705-case oracle](tests/test_pseudocode_oracle.py), [negative/graph contracts](tests/test_pseudocode.py), [browser compatibility](tests/test_pseudocode_browser.py).
 
-Local and [hosted matrix validation passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39094790674): 19 CTest targets per backend, browser suites, and 705 independent Capstone cases. [Demo deployment passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39094790656); the live eight-report manifest and C-like HTML/JSON were verified. Details are in the linked contract. Full M6.4 call semantics, M7.1 SSA, M7.3 stack locals, types/prototypes, switches and exceptional paths remain pending. Test-only emulation does not activate product dynamic analysis (F08/F09).
+Local and [hosted matrix validation passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39094790674): 19 CTest targets per backend, browser suites, and 705 independent Capstone cases. [Demo deployment passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39094790656); the live eight-report manifest and C-like HTML/JSON were verified. Details are in the linked contract. P1 did not supply register SSA; P3 below now completes that bounded subset. Full M6.4 call semantics, M7.3 stack locals, types/prototypes, switches and exceptional paths remain pending. Test-only emulation does not activate product dynamic analysis (F08/F09).
 
 #### P2. Bounded values and stack-alias preview — completed subset
 
@@ -322,7 +322,16 @@ Local and [hosted matrix validation passed](https://github.com/ASR-Tanyi/windows
 - [x] **P2.3** Optional typed memory aliases, raw-address toggle, stack-location table and source-linked register facts in HTML/text/JSON. Overlap, unknown stack changes and unresolved roles remain explicit. [UI](web/pseudocode-view.js), [contract](docs/bounded-values.md).
 - [x] **P2.4** Validate facts at concrete instruction states and alias addresses against Unicorn using the existing x86/x64 O0/O1 nested-loop demo, plus exhaustive small-domain checks and browser compatibility. [Oracle](tests/test_pseudocode_oracle.py), [domain tests](tests/test_value_domain.js), [browser tests](tests/test_pseudocode_browser.py).
 
-The [hosted matrix passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39217062898): 21 CTest targets per backend, all browser suites, 705 independent cases, 6,654 concrete-state checks and 2,017 alias-address checks. [Demo deployment passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39217063042). The [validation record](docs/bounded-values.md#validation) separates local and hosted evidence. P2 does not recover source local names/types, saved-register versus argument roles, register SSA, I/O signatures or indirect targets. M4.7 and M7.1–M7.4 remain open.
+The [hosted matrix passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39217062898): 21 CTest targets per backend, all browser suites, 705 independent cases, 6,654 concrete-state checks and 2,017 alias-address checks. [Demo deployment passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39217063042). The [validation record](docs/bounded-values.md#validation) separates local and hosted evidence. P2 does not recover source local names/types, saved-register versus argument roles, I/O signatures or indirect targets. Register SSA is delivered separately in P3; M4.7 and M7.2–M7.4 remain open.
+
+#### P3. Register def-use/SSA preview — completed subset
+
+- [x] **P3.1** Build deterministic, bounded integer GPR SSA over the owned reachable CFG, with explicit predecessor joins, entry-backedge inputs, liveness-pruned joins and transactional budget fallback. [Pass](web/register-ssa.js), [contract](docs/register-ssa.md).
+- [x] **P3.2** Preserve partial-register masks, x64 zero-extension, old-operand ordering, unknown loads and all-register call clobbers. Observe every GPR at machine exits without inferring return types. Memory and flags stay explicit outside SSA. [673 graph contracts](tests/test_register_ssa.js).
+- [x] **P3.3** Add instruction/definition/join inspection and reverse-use navigation with exact assembly evidence, plus `--ssa` text and additive preview v3 JSON. [Inspector](web/register-flow-view.js), [export](scripts/pseudocode.js), [browser checks](tests/test_pseudocode_browser.py).
+- [x] **P3.4** Independently validate reaching definitions, selected join inputs, partial writes and exit state against emulator-chosen paths through authored CFGs and the x86/x64 O0/O1 nested-loop demo. [711-case oracle](tests/test_pseudocode_oracle.py), [validation record](docs/register-ssa.md#validation).
+
+Local validation passes on both backends: 20 CTest targets each, 38 Capstone / 13 LLVM C-like browser checks and 15 publication checks. The 711 independent cases check 6,999 instruction states, 8,629 SSA uses, 720 selected join edges and 1,680 exit values. P3 supplies the M7.1 integer GPR subset; expression substitution, ABI summaries, memory/flag SSA and source variables remain separate work.
 
 ### M7. Function recovery and stronger entry-role recognition
 
@@ -330,7 +339,7 @@ The [hosted matrix passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/act
 
 **Likely files:** proposed data-flow/recovery passes, IR simplifier, renderers, browser tests, and additional CRT-linked fixtures.
 
-- [ ] **M7.1** Build def-use chains and register SSA with explicit merge nodes. Begin with conservative memory effects; postpone precise memory SSA until alias assumptions are defined.
+- [x] **M7.1** Build def-use chains and register SSA with explicit merge nodes. Completed for the bounded supported integer GPR subset in P3: [contract and validation](docs/register-ssa.md), [pass](web/register-ssa.js), [graph tests](tests/test_register_ssa.js). Memory/flag effects remain explicit; precise memory SSA waits for defined alias assumptions. Vector registers and unsupported forms are not claimed.
 - [ ] **M7.2** Add constant/copy propagation, dead-value cleanup, and width-correct expression simplification. Do not remove potentially observable loads, stores, traps, or calls solely because a register result is unused.
 - [ ] **M7.3** Recover stack-relative slots using tracked stack/frame state. Distinguish saved registers, return addresses, ABI home space, spills, outgoing arguments, and candidate locals. Unknown stack adjustment ends precise slot tracking.
 
@@ -364,7 +373,7 @@ The [hosted matrix passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/act
 
 ## 6. First implementation queue
 
-Keep changes small enough to review independently. Items 1–9 have implementation links. Item 10 completes the bounded value/stack-alias subset; item 11 advances register def-use before ABI-aware simplification.
+Keep changes small enough to review independently. Items 1–9 have implementation links. Item 10 completes the bounded value/stack-alias subset and item 11 completes bounded integer register SSA. Item 12 adds explicit ABI/call summaries before expression substitution across calls.
 
 | Order | Work item | Status / implementation or suggested commit | Completion evidence |
 | --- | --- | --- | --- |
@@ -378,7 +387,8 @@ Keep changes small enough to review independently. Items 1–9 have implementati
 | 8 | M4 common operand/capability model | Done for the documented subset: [`91923ac`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/91923ac22865f5e3fc962967f93a5c5db82707cf) | [Operand/capability contract](docs/m4-structured-operands.md), [backend/width tests](tests/test_decoder_operands.py), [inspector compatibility](tests/test_operand_browser.py) |
 | 9 | Early M6/M7 C-like recovery preview and richer C demo | Done for the P1 subset: [`fd1542a`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/fd1542a0b2b79f39e8cdc6e19add4f367abdb305) | [Contract, source-known demo and validation](docs/c-like-recovery.md); typed operations, conservative structure, barriers and provenance |
 | 10 | M4.4–M4.6 bounded values and stack-slot candidates | Done for P2: [`5c61ae7`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/5c61ae739ef57ef22075873fb5c3d74db5ec36db) | [Contract and validation](docs/bounded-values.md); capped CFG fixed point, known bits, conservative memory aliases and independent concrete-state checks |
-| 11 | M7.1 register def-use/SSA joins, then M4.7 ABI summaries | Next: `feat: build register def-use chains with explicit joins` | Preserve widths, partial-register definitions, source provenance and unknown call clobbers; test merged definitions before expression substitution |
+| 11 | M7.1 register def-use/SSA joins | Done for P3: `feat: build register def-use chains with explicit joins` | [Contract and validation](docs/register-ssa.md); partial-register dependencies, explicit predecessor joins, all-register clobbers, source-linked inspection and independent execution checks |
+| 12 | M4.7 explicit ABI/call summaries | Next: `feat: add explicit x64 call summaries` | Require an explicit Windows x64 profile; test preserved registers, stack/return effects, memory invalidation and unknown-call fallback. Handle x86 conventions separately; do not infer a prototype from PE bitness |
 
 Items 5 and 6 can proceed independently once the shared identities/reference contract is stable. Broader `main` recovery is deliberately not a prerequisite for discovering or browsing functions.
 
@@ -486,7 +496,7 @@ A task is complete only when its implementation, relevant tests, limitations, an
 
 When priorities change, update this document and explain why. Keep completed evidence, split overly broad tasks, and move experiments to section 8 until there is a bounded implementation proposal. Owners, issue numbers, and dates should be added when actually assigned, not invented in advance.
 
-**Recommended next work:** register def-use chains and explicit merge nodes (queue item 11 / M7.1), followed by reviewed ABI call summaries (M4.7) before cross-instruction expression substitution. P1 provides the source-linked scalar/memory/branch/loop preview and nested-loop demo; P2 adds bounded value facts and physical stack memory aliases. Preserve widths, flags, memory effects, source evidence and call clobbers while improving readability. Original for/while spelling, C types, local storage roles, I/O signatures and full function completeness remain unknown. Indirect discovery and product dynamic analysis remain deferred.
+**Recommended next work:** explicit Windows x64 ABI profiles and reviewed call summaries (queue item 12 / M4.7), then width-correct expression substitution using SSA (M7.2). Test call stack/return effects, preserved registers and memory invalidation before retaining pre-call values. P1 provides the source-linked scalar/memory/branch/loop preview and nested-loop demo; P2 adds bounded value facts and physical stack memory aliases; P3 adds integer register def-use chains and explicit joins. Preserve widths, flags, memory effects and source evidence while improving readability. Original for/while spelling, C types, local storage roles, I/O signatures and full function completeness remain unknown. Indirect discovery and product dynamic analysis remain deferred.
 
 ## 12. References
 
