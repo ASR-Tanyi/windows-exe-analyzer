@@ -156,6 +156,24 @@ Local validation on 2026-10-20, using Zig 0.13.0 / Clang 18.1.6 for x86/x64 O0/O
   87,147 bytes; the corpus contained 31 joins. These are corpus measurements,
   not worst-case resource guarantees.
 
+Hosted validation for `deb52c0` on 2026-10-20:
+
+- [Analysis matrix passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39360855137):
+  22 CTest targets and 15 publication tests per backend, all existing browser
+  suites, 38 Capstone C-like checks and 13 LLVM capability/fallback checks.
+  The Capstone job passed 711 independent cases with Clang 18/lld-link fixtures:
+  7,283 instruction states, 8,574 SSA uses, 699 selected join edges, 1,680 exit
+  values and 2,017 alias addresses. LLVM explicitly skips semantic emulation.
+- [Demo deployment passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39360855075).
+  The live manifest identifies the tested revision and eight reports. The
+  [optimized x64 nested-loop demo](https://asr-tanyi.github.io/windows-exe-analyzer/recovery64-o1.html#m_b2c773e4cf51a9a6_c_1080)
+  exposes 54 register definitions and eight joins. Live HTML/JSON returned HTTP
+  200, embedded JSON matched the separate report, and all four changed model/view
+  scripts matched the committed sources. The downloaded self-contained HTML
+  passed offline browser checks for join inputs, reverse-use inspection, exact
+  assembly navigation and Back, without JavaScript errors. The site serves the
+  latest deployment; workflow artifacts retain this tested snapshot.
+
 ## Next slice
 
 M7.1 is complete for this bounded integer GPR subset. Implement M4.7 next:

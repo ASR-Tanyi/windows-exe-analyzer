@@ -333,6 +333,8 @@ The [hosted matrix passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/act
 
 Local validation passes on both backends: 20 CTest targets each, 38 Capstone / 13 LLVM C-like browser checks and 15 publication checks. The 711 independent cases check 6,999 instruction states, 8,629 SSA uses, 720 selected join edges and 1,680 exit values. P3 supplies the M7.1 integer GPR subset; expression substitution, ABI summaries, memory/flag SSA and source variables remain separate work.
 
+The [hosted matrix passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39360855137): 22 CTest targets per backend, all browser suites and 711 independent cases. Hosted compiler output exercised 7,283 instruction states, 8,574 SSA uses, 699 selected joins and 1,680 exit values. [Demo deployment passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39360855075); the live optimized x64 demo's 54 definitions/eight joins, embedded sources and offline navigation were verified. The [validation record](docs/register-ssa.md#validation) retains both local and hosted counts.
+
 ### M7. Function recovery and stronger entry-role recognition
 
 **Goal:** turn verified low-level effects into readable, inspectable function-level code.
