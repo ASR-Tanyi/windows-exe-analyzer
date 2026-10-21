@@ -1,4 +1,4 @@
-# C-like recovery preview v3
+# C-like recovery preview v4
 
 Open a function in a Capstone-generated HTML report and select **C-like**.
 Select an address to return to the exact instruction in whole-function assembly;
@@ -14,12 +14,13 @@ node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --raw
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --ssa
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --json
+node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --calls call-assumptions.json --json
 ```
 
 Replace `0xFUNCTION_RVA` with an actual discovered function entry. This is a
 separate preview, not a redefinition of the CLI's `--ir` observation notes.
 The decoder's `instructionSemantics:false` capability is unchanged: decoding
-itself supplies operands, not this model's effects. Preview version 3 appears in
+itself supplies operands, not this model's effects. Preview version 4 appears in
 the export; report schema 2 and existing identities remain compatible.
 
 ## What the output means
@@ -34,6 +35,10 @@ Version 3 adds [register def-use chains and explicit joins](register-ssa.md).
 Expand **Register flow** to follow definitions, incoming predecessor values and
 reverse uses. The graph preserves full-family and partial-write dependencies;
 it does not yet substitute expressions into the displayed code.
+Version 4 adds [explicit call summaries](call-summaries.md) at analyst-selected
+Windows x64 call sites. The default remains unknown; the UI displays all profile
+assumptions and supports portable selection files. This does not recover a
+function prototype or argument count.
 There is no invented function prototype, return type, local name, or I/O API.
 
 The normal-path domain is native x86/x64 Windows code with flat default segment
@@ -71,9 +76,14 @@ The typed operation contract is:
   encoded stack adjustment and exits the candidate. It does not infer a C return
   value. ABI inputs are used only by the fixture test harness.
 - `unknown_effects(source)` invalidates **all registers, flags and memory**.
-  No facts flow across a call or unsupported operation. A displayed continuation
+  No facts flow across an unselected call or unsupported operation. A displayed continuation
   after a call is still the existing CFG's assumption that it returns. Unknown
   control transfers remain explicit. The test evaluator stops on unknown state.
+- An explicitly selected `call_summary` spans CALL through normal return under
+  the documented Windows x64 assumptions. It preserves nonvolatile GPRs and
+  pre-call SP, with fresh volatile values and unknown memory/flags. Raw CALL
+  target/return-address metadata remains separate; the stack push is not applied
+  a second time. Selected operations are marked `assumed`, not proven supported.
 
 These rules follow Intel's [Software Developer Manuals](https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html),
 Volume 1 §3.4.1 (general-purpose registers) and Volume 2 instruction entries
@@ -89,7 +99,7 @@ memory, `i` a normalized bit-pattern immediate. Equal widths are required unless
 an extension is explicit. Integer widths are 8/16/32/64 subject to the mode and
 the actual decoded form. No assembly operand string is parsed.
 
-| Family | Forms accepted by v1/v2/v3 | Exclusions |
+| Family | Forms accepted by v1–v4 | Exclusions |
 | --- | --- | --- |
 | MOV / MOVABS | r←r/m/i, m←r/i | Segment/control/vector registers; memory-to-memory |
 | MOVZX / MOVSX | 8/16-bit r/m to wider r | Unsupported width combinations |
@@ -104,6 +114,7 @@ the actual decoded form. No assembly operand string is parsed.
 | PUSH/POP | Native-width r; PUSH immediate | Memory stack operands, POP SP, non-native widths |
 | Jcc/JMP; RET | Supported flag conditions with direct targets; unprefixed near RET, optional adjustment | Indirect/far transfers, LOOP/JCXZ family |
 | NOP | Decoded NOP, including inert segment/size prefixes | LOCK/REP and PAUSE semantics |
+| CALL (v4) | Near direct/register/flat-memory target metadata; optional explicit Windows x64 normal-return summary | Default barrier; no automatic profile, prototype, x86 summary or indirect-target resolution |
 | Everything else | Visible all-state barrier | No guessed effect or call/I/O signature |
 
 ## Structure and limits
@@ -129,7 +140,8 @@ always false because discovered function membership is not proven complete.
 `scalar_ops`, `choose_value`, `array_read_write`, `sum_for`, `sum_while` and
 `transform_demo`. The last combines bounded array writes, arithmetic, bit
 operations, if/else, and a nested loop. A custom entry calls these functions;
-its calls deliberately remain unknown-effect barriers.
+its calls default to unknown-effect barriers and provide the v4 call-assumption
+demo when the analyst selects the profile.
 
 ```sh
 python3 tests/build_recovery_fixtures.py --output build/recovery-fixtures \
@@ -180,7 +192,8 @@ Version 2 implements bounded value propagation and conservative stack-slot
 candidates; its [contract and validation](bounded-values.md) cover joins, loops,
 overlap and all-state call clobbers. Version 3 implements bounded integer GPR
 def-use/SSA with source-linked inspection and independent execution checks;
-see its [contract and validation](register-ssa.md). Explicit ABI/call profiles
-are next, before expression substitution across calls or I/O signatures.
-Full prototypes, switches, exceptional paths, source types and indirect-target
-discovery remain pending.
+see its [contract and validation](register-ssa.md). Version 4 adds an explicit
+Windows x64 call-summary subset with [independent boundary validation](call-summaries.md).
+Width-correct pure-register expression substitution is next. Broader ABI profiles,
+full prototypes, I/O signatures, switches, exceptional paths, source types and
+indirect-target discovery remain pending.

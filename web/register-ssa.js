@@ -1,7 +1,8 @@
 'use strict';
 // Register SSA over the preview's typed operations, before graph reduction.
-// No expression substitution, flag SSA, memory SSA or ABI assumptions.
+// No expression substitution, flag SSA or memory SSA. Call assumptions are explicit.
 (function (root) {
+    const CALL = typeof module === 'object' && module.exports ? require('./call-summaries.js') : root.WEACallSummaries;
     const LIMITS = Object.freeze({blocks: 128, instructions: 2048, edges: 384, definitions: 8192, uses: 32768, work: 131072});
     const families = bits => bits === 64 ? ['rax', 'rbx', 'rcx', 'rdx', 'rsi', 'rdi', 'rbp', 'rsp',
         ...Array.from({length: 8}, (_, i) => 'r' + (i + 8))] : ['eax', 'ebx', 'ecx', 'edx', 'esi', 'edi', 'ebp', 'esp'];
@@ -68,6 +69,17 @@
                 step.memory.read = true;
                 write(native(sp), [...read(native(sp), 'return-stack'), ...read(op.adjustment, 'adjustment')]);
             } else if (op.kind === 'branch') step.flags.read = true;
+            else if (op.kind === 'call_summary') {
+                const profile = CALL.profile(op);
+                if (bits !== 64) throw Error('Call summary requires x64.');
+                read(op.target, 'call-target');
+                // No prototype: conservatively retain potential uses of all
+                // GPR inputs, without assigning argument positions or types.
+                for (const r of regs) read(native(r), 'possible-call-input');
+                step.memory.unknown = step.flags.unknown = true;
+                step.memory.write = step.memory.read = true;
+                for (const r of profile.clobbered) write(native(r), [], false, 'clobber');
+            }
             else if (op.kind === 'barrier') {
                 step.memory.unknown = step.flags.unknown = true;
                 for (const r of regs) write(native(r), [], false, 'clobber');
@@ -231,7 +243,8 @@
                     liveIn: [...info.get(b.id).liveIn].sort(cmp), liveOut: [...info.get(b.id).liveOut].sort(cmp)})),
                 stats: {definitions: list.length, joins: list.filter(d => d.kind === 'phi').length, uses: uses.size,
                     reachableBlocks: real.length, disconnectedBlocks: blocks.length - real.length, work},
-                notice: 'Register versions describe machine state, not C variables. Joins select one definition per incoming edge. Memory/flags remain explicit effects outside this SSA graph; calls clobber every register. No expressions or effects are removed.'};
+                assumptionSources: real.flatMap(b => info.get(b.id).steps.filter(x => x.instruction.status === 'assumed').map(x => x.instruction.source)),
+                notice: 'Register versions describe machine state, not C variables. Joins select one definition per incoming edge. Memory/flags remain explicit effects outside this SSA graph. Explicit call assumptions preserve nonvolatile GPR versions; other calls clobber every register. No expressions or effects are removed.'};
         } catch (e) {return empty(e instanceof BudgetError ? 'budget_exceeded' : 'unavailable', e.message);}
     }
     const api = {LIMITS, families, effects, analyze};

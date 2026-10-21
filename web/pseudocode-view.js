@@ -5,6 +5,7 @@
     const functions = new Map(D.functions.map(f => [f.id, f]));
     const byRva = new Map(D.functions.map(f => [f.rva, f]));
     let active = null, aliasesEnabled = true;
+    const callAssumptions = new Map();
     const idFor = f => prefix + f.rva.toString(16);
     function parse(id) {
         if (!id.startsWith(prefix)) return null;
@@ -31,10 +32,11 @@
     }
     function render(f) {
         active = f; selected = f.id; setTab('functions');
-        const model = WEAPseudocodeModel.recover(D, f.id), s = model.stats, va = model.valueAnalysis;
+        const model = WEAPseudocodeModel.recover(D, f.id, {callAssumptions: callAssumptions.get(f.id)}), s = model.stats, va = model.valueAnalysis;
+        const sourceLink = id => I.has(id) ? link(assembly(f, id), hex(I.get(id).insn.rva) + ' ' + I.get(id).insn.mnemonic, idFor(f), 'pseudo-source') : E(id);
         const lines = aliasesEnabled ? model.displayLines : model.lines;
         let h = '<section class="blockcard pseudocode-overview"><div class="blockhead"><div class="blocktop">' +
-            '<span class="eyebrow">Assembly to C-like / preview v3</span><span class="pill warn">PARTIAL RECOVERY</span></div>' +
+            '<span class="eyebrow">Assembly to C-like / preview v4</span><span class="pill warn">PARTIAL RECOVERY</span></div>' +
             '<h2 class="blocktitle">' + E(label(B.get(f.id) || f)) + '</h2><div class="addressmeta">' +
             link(assembly(f), 'Whole-function assembly', idFor(f), 'pseudo-assembly') + ' / ' +
             link(D.module.id + '_cfg_' + f.rva.toString(16), 'Control-flow graph', idFor(f)) + '</div></div>';
@@ -44,6 +46,7 @@
                 [[s.supported, 'Supported instructions'], [s.barriers, 'Unknown effects'], [s.ifs, 'If regions'], [s.loops, 'Loop regions']]
                     .map(([n, t]) => '<div class="stat"><div class="statvalue">' + n + '</div><div class="statlabel">' + t + '</div></div>').join('') + '</div>';
             if (!model.structured) h += '<p class="datawarning">Shared blocks or truncated discovery: structure recovery disabled; explicit transfers retained.</p>';
+            h += WEACallSummaryView.markup(model.callAnalysis, E, sourceLink);
             if (va.status !== 'converged') h += '<p class="datawarning">' + E(va.reason) + '</p>';
             else {
                 h += '<p class="summary">' + E(va.notice) + '</p>';
@@ -77,8 +80,12 @@
         $('connections').innerHTML = help;
         $('renamebox').hidden = !B.has(f.id); $('labelname').value = label(B.get(f.id) || f); $('labelnote').value = labels[f.id]?.note || '';
         if ($('pseudoAliases')) $('pseudoAliases').onchange = e => {aliasesEnabled = e.target.checked; render(f);};
+        if (model.callAnalysis) WEACallSummaryView.bind(model.callAnalysis, value => {
+            callAssumptions.set(f.id, value);
+            if (active?.id === f.id) render(f);
+        }, message);
         const inspectFlow = model.registerSSA ? WEARegisterFlowView.bind(model.registerSSA, {escape: E,
-            sourceLink: id => I.has(id) ? link(assembly(f, id), hex(I.get(id).insn.rva) + ' ' + I.get(id).insn.mnemonic, idFor(f), 'pseudo-source') : E(id)}) : () => {};
+            sourceLink}) : () => {};
         const facts = new Map((va?.facts || []).map(f => [f.source, f]));
         for (const button of document.querySelectorAll('.pseudo-evidence')) button.onclick = () => {
             const line = lines[Number(button.dataset.line)];
@@ -123,5 +130,6 @@
     const style = document.createElement('style');
     style.textContent = '.pseudo-code{overflow:auto;max-height:75vh}.pseudo-code table{width:100%;font:12px var(--mono)}.pseudo-code td{vertical-align:top}.pseudo-code code{white-space:pre}.pseudo-code th{position:sticky;top:0;background:var(--panel2)}.pseudo-evidence{font:11px var(--sans);white-space:nowrap}.pseudocode-overview .summary{line-height:1.6}.pseudo-slot-table{overflow:auto;max-height:20em}.pseudo-slots{margin:1em 0}.pseudo-slots table{width:100%}.pseudo-alias-toggle{display:inline-flex;align-items:center;gap:8px}.pseudo-alias-toggle input{width:auto;margin:0}';
     style.textContent += '.pseudo-flow{margin:1em 0}.pseudo-flow label{display:block;margin:1em 0}.pseudo-flow select{max-width:100%}.pseudo-flow-table{overflow:auto;max-height:24em}.pseudo-flow table{width:100%}.pseudo-flow td{vertical-align:top}.pseudo-def,.pseudo-use{font:11px var(--mono);padding:3px 6px;margin:2px}.pseudo-flow h3{margin-top:1em}';
+    style.textContent += '.pseudo-calls{margin:1em 0}.pseudo-calls table{width:100%}.pseudo-calls td{vertical-align:top}.pseudo-calls select{max-width:100%}';
     document.head.appendChild(style); route();
 })();

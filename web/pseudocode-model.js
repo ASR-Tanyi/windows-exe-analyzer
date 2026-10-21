@@ -4,7 +4,8 @@
 (function (root) {
     const VA = typeof module === 'object' && module.exports ? require('./value-analysis.js') : root.WEAValueAnalysis;
     const SSA = typeof module === 'object' && module.exports ? require('./register-ssa.js') : root.WEARegisterSSA;
-    const VERSION = 3, LIMITS = Object.freeze({blocks: 128, instructions: 2048, edges: 384});
+    const CALL = typeof module === 'object' && module.exports ? require('./call-summaries.js') : root.WEACallSummaries;
+    const VERSION = 4, LIMITS = Object.freeze({blocks: 128, instructions: 2048, edges: 384});
     const widths = new Set([8, 16, 32, 64]);
     const conditions = {
         e: 'zero', z: 'zero', ne: '!zero', nz: '!zero',
@@ -131,6 +132,18 @@
                 if (a.width !== bits || a.kind === 'load' || m === 'pop' && a.name === (bits === 64 ? 'rsp' : 'esp'))
                     throw Error('unsupported stack form');
                 result.ops.push({kind: m, value: a, width: bits});
+            } else if (m === 'call') {
+                arity(1);
+                // Keep raw near-CALL facts even when the default effect is a
+                // barrier. Never execute these facts and a summary together.
+                if (d.prefixes.leadingBytes.some(p => p === 0x66)) throw Error('unsupported CALL operand-size prefix');
+                const target = args[0].kind === 'immediate' && args[0].immediate?.interpretation === 'preferred_va' ?
+                    constant(args[0].immediate.value, bits) : read(args[0]);
+                if (target.width !== bits || !['constant', 'register', 'load'].includes(target.kind)) throw Error('unsupported near CALL target');
+                result.call = {kind: 'near_call', width: bits, target,
+                    returnAddress: constant(BigInt(report.module.imageBase) + BigInt(insn.rva + insn.size), bits),
+                    entryStackDelta: -bits / 8, returnAddressBytes: bits / 8};
+                throw Error('call effects and signature unknown');
             } else if (m === 'ret') {
                 if (args.length > 1 || args.length && args[0].kind !== 'immediate' || d.prefixes.leadingBytes.length)
                     throw Error('unsupported return form');
@@ -193,11 +206,13 @@
         }
         if (op.kind === 'push') return 'push' + op.width + '(' + read(op.value) + ');';
         if (op.kind === 'pop') return write(op.value, 'pop' + op.width + '()');
+        if (op.kind === 'call_summary') return 'assume_windows_x64_call(' + read(op.target) +
+            '); /* normal return; preserve nonvolatile GPRs/RSP; volatile GPRs, flags and memory unknown */';
         if (op.kind === 'nop') return '/* nop */';
         return 'unknown_effects("' + source.replace(/[^a-zA-Z0-9_]/g, '_') + '"); /* ' + op.reason + '; registers, flags, memory invalidated */';
     }
     const refs = nodes => [...new Set(nodes.flatMap(n => n.sources || []))];
-    function recover(report, functionId) {
+    function recover(report, functionId, options = {}) {
         const unavailable = reason => ({version: VERSION, status: 'unavailable', reason, lines: [], instructions: [], regions: [], stats: {}});
         if (report.schema !== 2 || report.operandModelVersion !== 1 || !report.module?.decoderInfo?.capabilities?.structuredOperands)
             return unavailable('Structured operands unavailable; use the Capstone backend.');
@@ -218,6 +233,10 @@
         for (const b of blocks) {
             const lifted = b.instructions.map(i => lift(i, report)); instructions.push(...lifted);
             liftedByBlock.set(b.id, lifted);
+        }
+        const callAnalysis = CALL.apply(report, blocks, edges, liftedByBlock, functionId, options.callAssumptions);
+        for (const b of blocks) {
+            const lifted = liftedByBlock.get(b.id);
             const body = lifted.flatMap(i => i.ops.map(op => ({kind: 'line', text: operation(op, i.source), operation: op, sources: [i.source]})));
             const last = lifted[lifted.length - 1], outs = outgoing.get(b.id);
             let term = {kind: 'exit', text: 'unknown_control_transfer();', sources: last ? [last.source] : []};
@@ -248,7 +267,7 @@
         }
         const successors = n => n.term.kind === 'goto' ? [n.term.to] : n.term.kind === 'branch' ? [n.term.yes, n.term.no] : [];
         const stats = {supported: instructions.filter(i => i.status === 'supported').length,
-            barriers: instructions.filter(i => i.status === 'barrier').length, ifs: 0, loops: 0, gotos: 0};
+            barriers: instructions.filter(i => i.status === 'barrier').length, assumedCalls: callAnalysis.applied, ifs: 0, loops: 0, gotos: 0};
         // Local single-entry graph reductions. Each rule preserves all effects
         // and successors. No address-order heuristics or speculative joins.
         const mayStructure = !report.module.truncated && blocks.every(b => new Set(b.owners).size === 1);
@@ -343,9 +362,9 @@
                 add('else ' + transfer(t.no), 1, t.sources);
             } else add(t.kind === 'goto' ? transfer(t.to) : t.text, 1, t.sources);
         }
-        return {version: VERSION, status: stats.barriers ? 'partial' : 'supported_subset', instructions, regions, lines, displayLines, valueAnalysis, registerSSA, stats,
+        return {version: VERSION, status: stats.barriers ? 'partial' : stats.assumedCalls ? 'assumed_subset' : 'supported_subset', instructions, regions, lines, displayLines, valueAnalysis, registerSSA, callAnalysis, stats,
             structured: mayStructure, complete: false, functionId,
-            notice: 'C-like preview of normal-path machine effects. Inferred function boundaries; complete recovery is not proven. Registers retain machine names. read/write addresses are byte addresses; helpers use fixed-width bit vectors. Calls and unsupported forms invalidate all state. for/while source spelling, variable names, types and I/O prototypes are not recovered.'};
+            notice: 'C-like preview of normal-path machine effects. Inferred function boundaries; complete recovery is not proven. Registers retain machine names. read/write addresses are byte addresses; helpers use fixed-width bit vectors. Calls without an explicit summary and unsupported forms invalidate all state. Selected call summaries are analyst assumptions. for/while source spelling, variable names, types and I/O prototypes are not recovered.'};
     }
     const api = {VERSION, LIMITS, lift, recover, expr, condition};
     if (typeof module === 'object' && module.exports) module.exports = api;

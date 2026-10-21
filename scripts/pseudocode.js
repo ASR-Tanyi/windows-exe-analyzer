@@ -4,14 +4,29 @@
 const fs = require('node:fs');
 const model = require('../web/pseudocode-model.js');
 function main() {
-    const [path, entry, format] = process.argv.slice(2);
-    if (!path || !entry || format && !['--json', '--raw', '--ssa'].includes(format))
-        throw Error('Usage: node scripts/pseudocode.js report.json FUNCTION_RVA [--json|--raw|--ssa]');
+    const [path, entry, ...args] = process.argv.slice(2);
+    let format, calls;
+    const usage = 'Usage: node scripts/pseudocode.js report.json FUNCTION_RVA [--json|--raw|--ssa] [--calls assumptions.json]';
+    if (!path || !entry) throw Error(usage);
+    for (let n = 0; n < args.length; n++) {
+        if (['--json', '--raw', '--ssa'].includes(args[n]) && !format) format = args[n];
+        else if (args[n] === '--calls' && !calls && args[n + 1] && !args[n + 1].startsWith('--')) calls = args[++n];
+        else throw Error(usage);
+    }
     if (!/^(0x[0-9a-f]+|[0-9]+)$/i.test(entry)) throw Error('Function RVA must be decimal or 0x hexadecimal.');
     const report = JSON.parse(fs.readFileSync(path, 'utf8'));
     const f = report.functions.find(f => f.rva === Number(entry));
     if (!f) throw Error('No function candidate at that RVA.');
-    const result = model.recover(report, f.id);
+    let callAssumptions;
+    if (calls) {
+        if (fs.statSync(calls).size > 65536) throw Error('Call-assumption file exceeds 64 KiB.');
+        callAssumptions = JSON.parse(fs.readFileSync(calls, 'utf8')) ?? {};
+    }
+    const result = model.recover(report, f.id, {callAssumptions});
+    if (result.callAnalysis?.status === 'invalid') {
+        console.error('No call summaries applied: ' + result.callAnalysis.reason); process.exitCode = 2;
+    }
+    if (format !== '--json' && result.callAnalysis?.applied) console.log('// ' + result.callAnalysis.notice);
     if (format === '--json') console.log(JSON.stringify(result, null, 2));
     else if (result.status === 'unavailable') console.log('// ' + result.reason);
     else if (format === '--ssa') {

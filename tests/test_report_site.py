@@ -218,7 +218,7 @@ class ReportSiteTests(unittest.TestCase):
                 (recovery/(stem+'.exe')).write_bytes(pe_bytes(bits))
                 (recovery/(stem+'.html')).write_text('<!doctype html><p>C recovery</p>')
                 (recovery/(stem+'.json')).write_text(json.dumps({'module': {'id': 'm_test', 'architecture': f'x{bits}', 'instructionCount': 10},
-                    'functions': [{'name': 'transform_demo', 'rva': 4096}]}))
+                    'functions': [{'name': 'transform_demo', 'rva': 4096}, {'name': 'pe_entry', 'rva': 8192}]}))
         (recovery/'recovery-corpus.json').write_text('{"schema":1}')
         output = self.root/'site'
         argv = ['report_site.py', '--analyzer', 'unused', '--fixtures', str(fixtures), '--recovery-fixtures', str(recovery), '--output', str(output)]
@@ -228,6 +228,8 @@ class ReportSiteTests(unittest.TestCase):
         self.assertIn('transform_demo', (output/'recovery.c').read_text())
         self.assertTrue((output/'recovery-corpus.json').exists())
         self.assertIn('recovery64-o0.html#m_test_c_1000', (output/'index.html').read_text())
+        self.assertIn('recovery64-o0.html#m_test_c_2000', (output/'index.html').read_text())
+        self.assertNotIn('recovery32-o0.html#m_test_c_2000', (output/'index.html').read_text())
         self.assertFalse(list(output.glob('*.exe')))
         self.assertFalse(list(output.glob('*.obj')))
 

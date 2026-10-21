@@ -101,6 +101,12 @@ Expand **Register flow** to follow each register read to its defining write,
 inspect branch/loop joins and browse reverse uses with assembly evidence.
 Partial writes and unknown call clobbers stay explicit; see the
 [register SSA contract](docs/register-ssa.md).
+For reviewed x64 call sites, **Call assumptions** can explicitly select a
+Windows x64 normal-return summary. It preserves nonvolatile GPR/SP facts while
+keeping volatile registers, flags and memory unknown. Export/import selections
+for reuse; unselected calls retain all-state barriers. See the
+[call-summary contract](docs/call-summaries.md) and **Call assumptions demo** in
+the report index.
 See the [support contract and testing demo](docs/c-like-recovery.md).
 The [C demo source](tests/fixtures/recovery.c) includes a larger array transform
 with branches and nested loops. In its report, select `transform_demo`, then
@@ -110,6 +116,7 @@ with branches and nested loops. In its report, select `transform_demo`, then
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --raw
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --ssa
+node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --calls call-assumptions.json --json
 ```
 
 All CLI addresses are **RVAs**, not file offsets or live VAs. `--main-rva 0xRVA`

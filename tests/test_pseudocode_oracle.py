@@ -43,7 +43,7 @@ def write_word(state, address, value, size=4):
         state['memory'][str(address + i)] = b
 
 
-def register_trace(uc, bits, start, state, model):
+def register_trace(uc, bits, start, state, model, skip_callees=False):
     """Track dynamic definition identities/values independently of SSA building.
 
     The emulator chooses each predecessor. Snapshot definitions after actual
@@ -80,6 +80,7 @@ def register_trace(uc, bits, start, state, model):
 
     def trace(machine, address, size, _):
         nonlocal previous, previous_regs
+        if skip_callees and address not in by_address: return
         regs = capture()
         finish(regs)
         i = by_address[address]

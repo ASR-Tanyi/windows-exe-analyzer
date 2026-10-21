@@ -41,7 +41,7 @@ The instruction forms and normal-path assumptions in the
 | Partial write | Explicit old-family input for preserved bits; `preserveMask` identifies those bits, including AH/AX cases |
 | x64 32-bit write | Zero upper 32 bits, including false-path register CMOV32; no upper-half preservation dependency |
 | Join (`phi`) | One incoming use per distinct reachable predecessor block; the runtime predecessor chooses the value |
-| Clobber | Fresh unknown version of every GPR at a call or unsupported operation, including SP/FP and nonvolatile registers |
+| Clobber | Fresh unknown version of every GPR at an unselected call or unsupported operation, including SP/FP and nonvolatile registers; v4 explicit call summaries clobber volatile GPRs only |
 | Load | New register value marked `memoryRead`; address registers are inputs, memory contents remain unknown |
 | Machine exit | Observe all GPRs after effects, including RET's updated SP; this does not select an ABI return register |
 
@@ -56,7 +56,9 @@ but are outside this SSA graph. A flag-write marker means the operation may
 write flags; the typed operation still determines masked-zero-count behavior,
 preserved flags and undefined flags. No load/store forwarding, memory SSA, flag
 SSA, expression substitution or dead-operation removal is introduced. Calls
-continue to invalidate all state; no ABI is guessed from the PE architecture.
+without a selected profile continue to invalidate all state. Preview v4 adds
+[explicit Windows x64 call assumptions](call-summaries.md) and exports their
+source IDs as `assumptionSources`; no ABI is guessed from the PE architecture.
 
 ## Graph construction and bounds
 
@@ -98,7 +100,7 @@ definition with an explicit truncation message; JSON retains every bounded use.
 
 ## Additive export contract
 
-Preview JSON is now `version: 3`, with `registerSSA.version: 1` alongside the
+Current preview JSON is `version: 4`, with `registerSSA.version: 1` alongside the
 unchanged raw `lines`, alias-aware `displayLines`, typed instructions/regions and
 `valueAnalysis.version: 1`. Native report schema 2, operand model version 1 and
 existing annotation/navigation identities are unchanged.
@@ -176,10 +178,9 @@ Hosted validation for `deb52c0` on 2026-10-20:
 
 ## Next slice
 
-M7.1 is complete for this bounded integer GPR subset. Implement M4.7 next:
-explicitly selected Windows x64 ABI profiles and reviewed call summaries, with
-unknown-call fallback, preserved-register/stack rules and memory effects tested
-separately. x86 conventions need their own profiles. Then use SSA for M7.2
-width-correct expression substitution, retaining observable loads, stores,
-flags, calls and traps. Source locals/types, argument/return inference and I/O
-signatures remain pending.
+M7.1 is complete for this bounded integer GPR subset. Preview v4 implements the
+explicit Windows x64 normal-return subset of [M4.7](call-summaries.md), with
+independent call-boundary checks. Use SSA next for M7.2 width-correct pure-register
+expression substitution within basic blocks, retaining observable loads, stores,
+flags, calls and traps. Other ABI profiles, source locals/types, argument/return
+inference and I/O signatures remain pending.

@@ -3,6 +3,7 @@
 // Memory contents and branch predicates are deliberately not propagated.
 (function (root) {
     const V = typeof module === 'object' && module.exports ? require('./value-domain.js') : root.WEAValueDomain;
+    const CALL = typeof module === 'object' && module.exports ? require('./call-summaries.js') : root.WEACallSummaries;
     const LIMITS = Object.freeze({blocks: 128, instructions: 2048, edges: 384, visits: 4096, operations: 65536, accesses: 8192});
     const families = bits => (bits === 64 ? ['rax', 'rbx', 'rcx', 'rdx', 'rsi', 'rdi', 'rbp', 'rsp',
         ...Array.from({length: 8}, (_, i) => 'r' + (i + 8))] : ['eax', 'ebx', 'ecx', 'edx', 'esi', 'edi', 'ebp', 'esp']);
@@ -45,6 +46,13 @@
             const sp = bits === 64 ? 'rsp' : 'esp';
             state[sp] = V.derived(V.binary(op.kind === 'push' ? '-' : '+', state[sp], V.constant(bits, bits / 8)), source);
             if (op.kind === 'pop') write(op.value, V.unknown(op.value.width));
+        } else if (op.kind === 'call_summary') {
+            const profile = CALL.profile(op);
+            if (bits !== 64) throw Error('Call summary requires x64.');
+            for (const r of profile.clobbered) state[r] = V.unknown(bits);
+            // The summary spans CALL through normal return: SP has net delta
+            // zero. Attach the call assertion to every retained value proof.
+            for (const r of profile.preserved) state[r] = V.derived(state[r], source);
         } else if (op.kind === 'barrier') Object.assign(state, newState(bits));
         return state;
     }
@@ -132,6 +140,14 @@
                 for (const op of i.ops) {
                     if (op.kind === 'assign') read(op.value, state, i.source);
                     if (op.kind === 'alu') {read(op.left, state, i.source); read(op.right, state, i.source);}
+                    if (op.kind === 'call_summary') {
+                        read(op.target, state, i.source);
+                        record(i.source, null, 64, 'write', state, 'call_return_address', V.binary('-', state[sp], V.constant(bits, 8)));
+                        // Four affected eight-byte regions, not a claim that
+                        // the callee performs four particular memory accesses.
+                        for (let n = 0; n < CALL.profile(op).homeBytes; n += 8)
+                            record(i.source, null, 64, 'unknown', state, 'call_home_space', V.binary('+', state[sp], V.constant(bits, n)));
+                    }
                     if (op.target?.kind === 'load') record(i.source, op.target, op.target.width, 'write', state);
                     if (op.kind === 'push' || op.kind === 'pop') {
                         const value = op.kind === 'push' ? V.binary('-', state[sp], V.constant(bits, bits / 8)) : state[sp];
@@ -157,6 +173,7 @@
             slot.id = 'slot_' + (offset < 0n ? 'm' : 'p') + (offset < 0n ? -offset : offset).toString(16) + '_u' + slot.width;
             slot.kind = offset < BigInt(bits / 8) && end > 0n ? 'return_address_region' :
                 uses.some(a => a.implicit === 'return') ? 'return_access' :
+                uses.some(a => a.implicit === 'call_return_address' || a.implicit === 'call_home_space') ? 'call_storage' :
                 uses.some(a => a.implicit === 'push' || a.implicit === 'pop') ? 'push_pop_storage' :
                 offset >= BigInt(bits / 8) ? 'entry_stack' : uses.every(a => a.allocated) ? 'frame_slot' : 'unclassified_stack';
             if (list.some(other => other !== slot && BigInt(other.offset) < end && BigInt(other.offset) + BigInt(other.width / 8) > offset))
@@ -174,7 +191,8 @@
         }
         return {version: 1, status: 'converged', visits, operations, facts, accesses, slots: list,
             reachableBlocks: inputs.size, complete: false,
-            notice: 'Entry-relative facts over discovered normal-flow edges; both branch outcomes retained. Memory loads and call effects are unknown. Slot names are memory aliases, not source locals.'};
+            assumptionSources: [...liftedByBlock.values()].flat().filter(i => i.status === 'assumed').map(i => i.source),
+            notice: 'Entry-relative facts over discovered normal-flow edges; both branch outcomes retained. All memory loads are unknown. Explicit call assumptions may retain nonvolatile GPR/SP facts; other calls discard all state. Slot names are memory aliases, not source locals.'};
     }
     const api = {LIMITS, newState, evaluate, apply, analyze, compactState, addressKey};
     if (typeof module === 'object' && module.exports) module.exports = api;

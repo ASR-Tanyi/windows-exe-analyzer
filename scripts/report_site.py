@@ -205,6 +205,9 @@ def report_entry(directory: Path, stem: str, title: str, digest: str) -> dict:
         demo = next((f for f in data.get('functions', []) if f.get('name') == 'transform_demo'), None)
         if demo and isinstance(demo.get('rva'), int) and isinstance(data['module'].get('id'), str):
             entry['pseudocode'] = stem + '.html#' + data['module']['id'] + '_c_' + format(demo['rva'], 'x')
+        caller = next((f for f in data.get('functions', []) if f.get('name') == 'pe_entry'), None)
+        if stem.startswith('recovery64') and caller and isinstance(caller.get('rva'), int) and isinstance(data['module'].get('id'), str):
+            entry['calls'] = stem + '.html#' + data['module']['id'] + '_c_' + format(caller['rva'], 'x')
     return entry
 
 
@@ -223,6 +226,7 @@ def write_index(output: Path, entries: list[dict], source: str) -> None:
                      + '</p><a class="button" href="' + escape(entry['html']) + '">Open report</a> '
                      + '<a href="' + escape(entry['json']) + '" download>JSON</a>'
                      + ('<p><a href="' + escape(entry['pseudocode']) + '">C-like demo</a> &middot; <a href="recovery.c">C source</a></p>' if entry.get('pseudocode') else '')
+                     + ('<p><a href="' + escape(entry['calls']) + '">Call assumptions demo</a></p>' if entry.get('calls') else '')
                      + '<p class="hash">Input SHA-256<br>' + escape(entry['sha256']) + '</p></article>')
     page = '''<!doctype html><html lang="en"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
