@@ -1,5 +1,7 @@
 # Explicit Windows x64 call summaries
 
+Implemented in [`a19bc95`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/a19bc95a777df174149f023de6f19fc1e6cf9b01).
+
 C-like preview v4 can retain nonvolatile GPR and stack facts across a call when
 the analyst explicitly selects the reviewed `windows-x64-normal-return-v1`
 contract at that instruction. The default is still an all-state barrier. PE
