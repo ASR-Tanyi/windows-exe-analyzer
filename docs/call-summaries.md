@@ -158,6 +158,30 @@ Local validation on 2026-10-21 uses Zig 0.13.0 / Clang 18.1.6:
   `callAnalysis` was 2,722 bytes. This is a corpus measurement, not a worst-case
   resource guarantee.
 
+Hosted validation for [`8ba2913`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/8ba29134fd72971beb8bb34e9bfe332c9405a482)
+passed on 2026-10-21:
+
+- The [regression matrix](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39564735660)
+  passed 23 CTest targets and 15 publication tests on each backend, all browser
+  suites, and 53 Capstone / 13 LLVM C-like browser checks. LLVM continues to
+  exercise the unavailable-semantics fallback; independent execution checks run
+  with Capstone's structured operands.
+- Hosted compiler output passed the same 711 independent semantic cases at
+  7,283 instruction states, 2,017 stack-alias addresses, 8,574 SSA uses,
+  699 selected join edges and 1,680 exit values. The 36 call executions covered
+  108 call/return boundaries, 738 caller states, 2,328 SSA uses, 144 selected
+  joins and 576 exit values. Both deliberately invalid ABI implementations were
+  rejected. State/use counts differ from the local compiler output above.
+- [HTML report generation and Pages deployment](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39564735803)
+  passed. On 2026-10-22, HTTPS downloads confirmed the deployed commit, eight
+  manifest reports and the index's
+  [call-assumptions demo](https://asr-tanyi.github.io/windows-exe-analyzer/recovery64-o0.html#m_38ea623bd3bb24a7_c_12a0)
+  link. The downloaded HTML's six relevant embedded modules matched the source,
+  and its embedded report matched the separate JSON. Offline Chromium checks of
+  that exact artifact passed: zero selections by default, all six explicit
+  profiles, export/CLI parity, exact assembly navigation and Back preserving the
+  selections, with no JavaScript errors.
+
 ## Next slice
 
 M4.7 is complete for this explicit Windows x64 normal-return GPR subset. Start

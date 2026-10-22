@@ -344,6 +344,8 @@ The [hosted matrix passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/act
 
 Local checks pass: 21 CTest targets on each backend, 53 Capstone / 13 LLVM C-like browser checks, 15 publication tests, the existing 711 semantic cases, and 36 new call executions across 108 boundaries. The call-path oracle checks 756 caller states, 2,352 SSA uses, 144 selected joins and 576 exit values. Two invalid ABI implementations are rejected. This closes the supported M4.7 subset; it does not prove a selected callee follows the ABI or infer arguments, returns, I/O APIs or source types. Broader M6.4 call semantics remain open.
 
+The [hosted matrix passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39564735660) on 2026-10-21: 23 CTest targets per backend, all browser suites, 15 publication tests, 711 independent semantic cases and 36 call executions. Hosted call-path checks cover 738 caller states, 2,328 SSA uses, 144 selected joins and 576 exit values; both invalid ABI implementations are rejected. [Demo deployment passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39564735803). On 2026-10-22, the deployed eight-report manifest, embedded sources and six-call demo were verified by HTTPS download and offline browser checks, including export/CLI parity and assembly/history navigation. The [validation record](docs/call-summaries.md#validation) retains local and hosted counts. M7.2 remains the next slice.
+
 ### M7. Function recovery and stronger entry-role recognition
 
 **Goal:** turn verified low-level effects into readable, inspectable function-level code.
