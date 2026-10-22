@@ -101,6 +101,9 @@ Expand **Register flow** to follow each register read to its defining write,
 inspect branch/loop joins and browse reverse uses with assembly evidence.
 Partial writes and unknown call clobbers stay explicit; see the
 [register SSA contract](docs/register-ssa.md).
+**Simplify register expressions** combines bounded constants, copies and pure
+arithmetic within each basic block. The toggle restores original effects; flags,
+memory and calls remain explicit. See the [expression contract](docs/register-expressions.md).
 For reviewed x64 call sites, **Call assumptions** can explicitly select a
 Windows x64 normal-return summary. It preserves nonvolatile GPR/SP facts while
 keeping volatile registers, flags and memory unknown. Export/import selections
@@ -115,6 +118,7 @@ with branches and nested loops. In its report, select `transform_demo`, then
 ```sh
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --raw
+node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --simplified
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --ssa
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --calls call-assumptions.json --json
 ```

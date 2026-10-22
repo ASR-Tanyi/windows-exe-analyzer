@@ -4,7 +4,7 @@
 const fs = require('node:fs');
 const BV = require('../web/bitvectors.js');
 const u = (v, n) => BigInt.asUintN(n, v), s = (v, n) => BigInt.asIntN(n, v);
-function execute(model, input, maxSteps = 100000) {
+function execute(model, input, maxSteps = 100000, simplified = false) {
     const regs = Object.fromEntries(Object.entries(input.registers).map(([k, v]) => [k, BigInt(v)]));
     const memory = new Map(Object.entries(input.memory || {}).map(([k, v]) => [BigInt(k), v]));
     const flags = {...input.flags}; let steps = 0, returned = false;
@@ -42,6 +42,7 @@ function execute(model, input, maxSteps = 100000) {
             return u(e.operator === '+' ? a + b : e.operator === '*' ? a * b : (() => {throw Error('operator');})(), e.width);
         }
         if (e.kind === 'condition') return cc(e.code) ? 1n : 0n;
+        if (e.kind === 'integer') return BV.integerResult(e.operator, e.width, value(e.left), e.right ? value(e.right) : 0n);
         throw Error('expression');
     }
     function write(target, v) {
@@ -101,7 +102,7 @@ function execute(model, input, maxSteps = 100000) {
     function body(nodes) {
         for (const n of nodes) {
             tick();
-            if (n.kind === 'line' && n.operation) operation(n.operation);
+            if (n.kind === 'line' && n.operation) operation(simplified && n.simplifiedOperation || n.operation);
             else if (n.kind === 'if') body(test(n.test) ? n.yes : n.no);
             else if (n.kind === 'while') {while (true) {tick(); body(n.head); if (!test(n.test)) break; body(n.body);}}
             else if (n.kind === 'do') {do {tick(); body(n.body);} while (test(n.test));}
@@ -130,5 +131,5 @@ function execute(model, input, maxSteps = 100000) {
 module.exports = {execute};
 if (require.main === module) {
     const requests = JSON.parse(fs.readFileSync(0, 'utf8'));
-    console.log(JSON.stringify(requests.map(r => execute(r.model, r.input))));
+    console.log(JSON.stringify(requests.map(r => execute(r.model, r.input, 100000, r.simplified))));
 }

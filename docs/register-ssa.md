@@ -100,7 +100,7 @@ definition with an explicit truncation message; JSON retains every bounded use.
 
 ## Additive export contract
 
-Current preview JSON is `version: 4`, with `registerSSA.version: 1` alongside the
+Current preview JSON is `version: 5`, with `registerSSA.version: 1` alongside the
 unchanged raw `lines`, alias-aware `displayLines`, typed instructions/regions and
 `valueAnalysis.version: 1`. Native report schema 2, operand model version 1 and
 existing annotation/navigation identities are unchanged.
@@ -180,7 +180,8 @@ Hosted validation for `deb52c0` on 2026-10-20:
 
 M7.1 is complete for this bounded integer GPR subset. Preview v4 implements the
 explicit Windows x64 normal-return subset of [M4.7](call-summaries.md), with
-independent call-boundary checks. Use SSA next for M7.2 width-correct pure-register
-expression substitution within basic blocks, retaining observable loads, stores,
-flags, calls and traps. Other ABI profiles, source locals/types, argument/return
+independent call-boundary checks. Preview v5 uses SSA for bounded
+[pure-register expression substitution](register-expressions.md) within basic
+blocks, retaining every instruction and observable effect. Dead-value cleanup
+and wider propagation remain open in M7.2. Other ABI profiles, source locals/types, argument/return
 inference and I/O signatures remain pending.

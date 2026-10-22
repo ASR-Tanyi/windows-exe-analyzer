@@ -331,7 +331,7 @@ The [hosted matrix passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/act
 - [x] **P3.3** Add instruction/definition/join inspection and reverse-use navigation with exact assembly evidence, plus `--ssa` text and additive preview v3 JSON. [Inspector](web/register-flow-view.js), [export](scripts/pseudocode.js), [browser checks](tests/test_pseudocode_browser.py).
 - [x] **P3.4** Independently validate reaching definitions, selected join inputs, partial writes and exit state against emulator-chosen paths through authored CFGs and the x86/x64 O0/O1 nested-loop demo. [711-case oracle](tests/test_pseudocode_oracle.py), [validation record](docs/register-ssa.md#validation).
 
-Local validation passes on both backends: 20 CTest targets each, 38 Capstone / 13 LLVM C-like browser checks and 15 publication checks. The 711 independent cases check 6,999 instruction states, 8,629 SSA uses, 720 selected join edges and 1,680 exit values. P3 supplies the M7.1 integer GPR subset; ABI summaries are delivered separately in P4. Expression substitution, memory/flag SSA and source variables remain pending.
+Local validation passes on both backends: 20 CTest targets each, 38 Capstone / 13 LLVM C-like browser checks and 15 publication checks. The 711 independent cases check 6,999 instruction states, 8,629 SSA uses, 720 selected join edges and 1,680 exit values. P3 supplies the M7.1 integer GPR subset; ABI summaries are delivered separately in P4. Expression substitution is delivered separately in P5; memory/flag SSA and source variables remain pending.
 
 The [hosted matrix passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39360855137): 22 CTest targets per backend, all browser suites and 711 independent cases. Hosted compiler output exercised 7,283 instruction states, 8,574 SSA uses, 699 selected joins and 1,680 exit values. [Demo deployment passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39360855075); the live optimized x64 demo's 54 definitions/eight joins, embedded sources and offline navigation were verified. The [validation record](docs/register-ssa.md#validation) retains both local and hosted counts.
 
@@ -346,6 +346,17 @@ Local checks pass: 21 CTest targets on each backend, 53 Capstone / 13 LLVM C-lik
 
 The [hosted matrix passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39564735660) on 2026-10-21: 23 CTest targets per backend, all browser suites, 15 publication tests, 711 independent semantic cases and 36 call executions. Hosted call-path checks cover 738 caller states, 2,328 SSA uses, 144 selected joins and 576 exit values; both invalid ABI implementations are rejected. [Demo deployment passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39564735803). On 2026-10-22, the deployed eight-report manifest, embedded sources and six-call demo were verified by HTTPS download and offline browser checks, including export/CLI parity and assembly/history navigation. The [validation record](docs/call-summaries.md#validation) retains local and hosted counts. M7.2 remains the next slice.
 
+#### P5. Register-expression preview — completed subset
+
+- [x] **P5.1** Use SSA versions to substitute bounded constants, copies and pure register expressions inside each original basic block. Reject stale register inputs; preserve modular widths, high-byte reads and x64 zero extension. [Pass](web/register-expressions.js), [contract](docs/register-expressions.md).
+- [x] **P5.2** Keep original typed operations and flag updates; stop propagation at memory, calls, flag-dependent operations and block boundaries. Cap expression growth and discard all provisional rewrites on global budget exhaustion. [Focused contracts](tests/test_register_expressions.js).
+- [x] **P5.3** Add a reversible browser toggle, CLI `--simplified`, versioned overlay JSON and complete source/SSA-definition evidence. Raw effects, aliases, navigation and call assumptions remain independently inspectable. [Shared model](web/pseudocode-model.js), [browser checks](tests/test_pseudocode_browser.py).
+- [x] **P5.4** Compare original and simplified evaluation against independent instruction execution and source-known x86/x64 O0/O1 demos. Include stale-copy, partial-write, extension, overflow, identity and shift-count near misses. [Oracle](tests/test_pseudocode_oracle.py), [validation record](docs/register-expressions.md#validation).
+
+Local validation passes: 22 CTest targets on each backend, 225 focused expression checks, 118 decoder/recovery contracts, 61 Capstone / 13 LLVM browser checks and 15 publication checks. Original/simplified execution agrees across 987 independent semantic cases (276 new expression-chain cases), 8,109 instruction states, 9,739 SSA uses, 720 selected joins and 5,136 exit values. The existing 36 call executions still pass. See the [validation record](docs/register-expressions.md#validation) for fixture identity, budget behavior and the local timing/size measurement.
+
+P5 completes the constant/copy and pure-expression subset of M7.2. Dead register-write cleanup, cross-block/PHI substitution and broader expression recovery remain open. No instructions or observable effects are removed by this slice.
+
 ### M7. Function recovery and stronger entry-role recognition
 
 **Goal:** turn verified low-level effects into readable, inspectable function-level code.
@@ -354,6 +365,9 @@ The [hosted matrix passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/act
 
 - [x] **M7.1** Build def-use chains and register SSA with explicit merge nodes. Completed for the bounded supported integer GPR subset in [`a3c15bc`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/a3c15bcc95849ef6e79579e369283810ed5bd00b) (P3): [contract and validation](docs/register-ssa.md), [pass](web/register-ssa.js), [graph tests](tests/test_register_ssa.js). Memory/flag effects remain explicit; precise memory SSA waits for defined alias assumptions. Vector registers and unsupported forms are not claimed.
 - [ ] **M7.2** Add constant/copy propagation, dead-value cleanup, and width-correct expression simplification. Do not remove potentially observable loads, stores, traps, or calls solely because a register result is unused.
+
+  P5 supplies bounded constant/copy and pure-register expression substitution within basic blocks, with original effects and combined evidence retained. Dead-value cleanup and wider propagation remain pending; M7.2 stays open.
+
 - [ ] **M7.3** Recover stack-relative slots using tracked stack/frame state. Distinguish saved registers, return addresses, ABI home space, spills, outgoing arguments, and candidate locals. Unknown stack adjustment ends precise slot tracking.
 
   P2 now supplies conservative physical stack locations and optional memory aliases. Return/PUSH/POP/entry regions and overlap are exposed, but saved-register, spill, outgoing-argument and local roles are not inferred; this item stays open.
@@ -402,7 +416,8 @@ Keep changes small enough to review independently. Items 1–9 have implementati
 | 10 | M4.4–M4.6 bounded values and stack-slot candidates | Done for P2: [`5c61ae7`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/5c61ae739ef57ef22075873fb5c3d74db5ec36db) | [Contract and validation](docs/bounded-values.md); capped CFG fixed point, known bits, conservative memory aliases and independent concrete-state checks |
 | 11 | M7.1 register def-use/SSA joins | Done for P3: [`a3c15bc`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/a3c15bcc95849ef6e79579e369283810ed5bd00b) | [Contract and validation](docs/register-ssa.md); partial-register dependencies, explicit predecessor joins, all-register clobbers, source-linked inspection and independent execution checks |
 | 12 | M4.7 explicit ABI/call summaries | Done for P4: [`a19bc95`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/a19bc95a777df174149f023de6f19fc1e6cf9b01) | [Contract and validation](docs/call-summaries.md); per-site analyst selection, preserved GPR/SP state, unknown memory/flags, independent call-boundary checks and conservative fallback |
-| 13 | M7.2 bounded register-expression simplification | Next: `feat: simplify pure register expressions with SSA` | Start inside basic blocks; preserve widths/partial writes, flags and all observable effects. Retain every contributing source ID; test against independent execution before extending across joins or calls |
+| 13 | M7.2 bounded register-expression simplification | Done for P5 | [Contract and validation](docs/register-expressions.md); SSA-checked live inputs, modular widths, explicit original effects, bounded expression growth and complete source links |
+| 14 | M7.2 dead register-write cleanup | Next: `feat: prune dead register writes with SSA` | Start within basic blocks and retain every observable flag, memory, call, trap and machine-exit effect; validate independently before removing writes |
 
 Items 5 and 6 can proceed independently once the shared identities/reference contract is stable. Broader `main` recovery is deliberately not a prerequisite for discovering or browsing functions.
 
@@ -510,7 +525,7 @@ A task is complete only when its implementation, relevant tests, limitations, an
 
 When priorities change, update this document and explain why. Keep completed evidence, split overly broad tasks, and move experiments to section 8 until there is a bounded implementation proposal. Owners, issue numbers, and dates should be added when actually assigned, not invented in advance.
 
-**Recommended next work:** width-correct constant/copy and pure-register expression substitution using SSA within basic blocks (queue item 13 / M7.2). Retain all source IDs and observable flag/memory/call/trap effects; test independently before extending across joins or calls. P1 provides the scalar/memory/branch/loop preview and nested-loop demo; P2 adds bounded facts and physical stack aliases; P3 adds integer register SSA; P4 adds explicitly selected Windows x64 normal-return summaries. Other ABI profiles, original for/while spelling, C types, local storage roles, I/O signatures and full function completeness remain pending. Indirect discovery and product dynamic analysis remain deferred.
+**Recommended next work:** bounded dead register-write cleanup using SSA liveness (queue item 14 / remaining M7.2). Preserve flag, memory, call, trap and machine-exit effects, and retain combined source evidence. P1 provides scalar/memory/branch/loop recovery and the nested-loop demo; P2 adds bounded facts and physical stack aliases; P3 adds register SSA; P4 adds explicit Windows x64 normal-return summaries; P5 adds pure expression substitution within blocks. Cross-block/PHI substitution, other ABI profiles, original for/while spelling, C types, local storage roles, I/O signatures and full function completeness remain pending. Indirect discovery and product dynamic analysis remain deferred.
 
 ## 12. References
 

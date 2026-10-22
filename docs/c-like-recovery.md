@@ -1,4 +1,4 @@
-# C-like recovery preview v4
+# C-like recovery preview v5
 
 Open a function in a Capstone-generated HTML report and select **C-like**.
 Select an address to return to the exact instruction in whole-function assembly;
@@ -12,6 +12,7 @@ The shared [model](../web/pseudocode-model.js) also exports text or typed JSON:
 ./build/windows-exe-analyzer program.exe --json build/program.json
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --raw
+node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --simplified
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --ssa
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --json
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --calls call-assumptions.json --json
@@ -20,7 +21,7 @@ node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --calls call-assump
 Replace `0xFUNCTION_RVA` with an actual discovered function entry. This is a
 separate preview, not a redefinition of the CLI's `--ir` observation notes.
 The decoder's `instructionSemantics:false` capability is unchanged: decoding
-itself supplies operands, not this model's effects. Preview version 4 appears in
+itself supplies operands, not this model's effects. Preview version 5 appears in
 the export; report schema 2 and existing identities remain compatible.
 
 ## What the output means
@@ -34,11 +35,14 @@ access still reads/writes memory, and the raw address view remains available.
 Version 3 adds [register def-use chains and explicit joins](register-ssa.md).
 Expand **Register flow** to follow definitions, incoming predecessor values and
 reverse uses. The graph preserves full-family and partial-write dependencies;
-it does not yet substitute expressions into the displayed code.
+the original graph remains available when display expressions are simplified.
 Version 4 adds [explicit call summaries](call-summaries.md) at analyst-selected
 Windows x64 call sites. The default remains unknown; the UI displays all profile
 assumptions and supports portable selection files. This does not recover a
 function prototype or argument count.
+Version 5 adds [bounded register-expression simplification](register-expressions.md).
+The UI toggle and CLI `--simplified` expose constant/copy and pure arithmetic
+substitution within each block, retaining every instruction and effect.
 There is no invented function prototype, return type, local name, or I/O API.
 
 The normal-path domain is native x86/x64 Windows code with flat default segment
@@ -99,7 +103,7 @@ memory, `i` a normalized bit-pattern immediate. Equal widths are required unless
 an extension is explicit. Integer widths are 8/16/32/64 subject to the mode and
 the actual decoded form. No assembly operand string is parsed.
 
-| Family | Forms accepted by v1–v4 | Exclusions |
+| Family | Forms accepted by v1–v5 | Exclusions |
 | --- | --- | --- |
 | MOV / MOVABS | r←r/m/i, m←r/i | Segment/control/vector registers; memory-to-memory |
 | MOVZX / MOVSX | 8/16-bit r/m to wider r | Unsupported width combinations |
@@ -194,6 +198,7 @@ overlap and all-state call clobbers. Version 3 implements bounded integer GPR
 def-use/SSA with source-linked inspection and independent execution checks;
 see its [contract and validation](register-ssa.md). Version 4 adds an explicit
 Windows x64 call-summary subset with [independent boundary validation](call-summaries.md).
-Width-correct pure-register expression substitution is next. Broader ABI profiles,
+Preview v5 adds [bounded register expressions](register-expressions.md);
+dead-value cleanup remains next. Broader ABI profiles,
 full prototypes, I/O signatures, switches, exceptional paths, source types and
 indirect-target discovery remain pending.

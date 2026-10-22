@@ -54,6 +54,16 @@ def main():
             check(all(m['status'] == 'unavailable' for m in models([diamond, loop])), 'LLVM must not invent semantics')
         else:
             dm, lm = models([diamond, loop])
+            check(dm['version'] == 5 and dm['registerExpressions']['version'] == 1, 'versioned expression overlay')
+            chain = report(a.analyzer, root, 'b8ffffffff83c00289c2c3')
+            cm = models([chain])[0]
+            check(cm['registerExpressions']['status'] == 'available' and len(cm['registerExpressions']['rewrites']) == 2, 'constant chain rewrites two consuming operations')
+            check(cm['instructions'][2]['ops'][0]['value']['kind'] == 'register', 'raw typed input retained')
+            check(any('0x1' in line['text'] and len(line['sources']) == 3 for line in cm['simplifiedLines']), 'folded result carries every contributing instruction')
+            export.write_text(json.dumps(chain))
+            simplified_cli = subprocess.run(['node', str(ROOT / 'scripts/pseudocode.js'), str(export), '0x1000', '--raw', '--simplified'], capture_output=True, text=True, timeout=10)
+            check(simplified_cli.returncode == 0 and 'rdx = u32(0x1)' in simplified_cli.stdout, 'CLI exports the simplified model')
+            check([l['text'] for l in cm['lines']] != [l['text'] for l in cm['simplifiedLines']], 'both presentations available')
             check(dm['stats']['ifs'] == 1 and dm['stats']['gotos'] == 0, 'diamond becomes if/else')
             check(lm['stats']['loops'] == 1, 'backedge loop recovered')
             check('else' in '\n'.join(x['text'] for x in dm['lines']), 'else body retained')
@@ -70,6 +80,7 @@ def main():
             for model in models([shared, truncated]):
                 check(not model['structured'] and model['stats']['gotos'] > 0, 'shared/truncated graph keeps transfers')
                 check(model['registerSSA']['status'] == 'unavailable' and not model['registerSSA']['definitions'], 'unsafe graph cannot produce SSA')
+                check(model['registerExpressions']['status'] == 'unavailable' and model['simplifiedLines'] == model['lines'], 'unsafe graph falls back transactionally to original expressions')
             unresolved = copy.deepcopy(diamond)
             unresolved['edges'][0]['to'] = None
             check(any('unknown_control_transfer' in x['text'] for x in models([unresolved])[0]['lines']), 'unresolved edge preserved')
@@ -113,6 +124,7 @@ def main():
                         continue
                     check(m['status'] == 'supported_subset', path.name + ' ' + f['name'] + ': ' + repr([i for i in m['instructions'] if i['status'] == 'barrier']))
                     check(m['registerSSA']['status'] == 'available', path.name + ' ' + f['name'] + ': register SSA available')
+                    check(m['registerExpressions']['status'] == 'available', path.name + ' ' + f['name'] + ': expressions within budget')
                     if f['name'] == 'transform_demo':
                         check(m['stats']['loops'] >= 1, 'complex demo retains loops')
                         if '-o0' in path.name:

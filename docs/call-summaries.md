@@ -113,7 +113,7 @@ subset is silently applied. The browser shows the rejection with default
 effects; CLI returns status 2. File-size/JSON parse failures are reported by the
 CLI, and clear selections in the browser.
 
-Preview JSON is `version: 4`; native report schema 2, operand model version 1,
+Current preview JSON is `version: 5`; native report schema 2, operand model version 1,
 value-analysis version 1 and register-SSA version 1 remain unchanged. The new
 `callAnalysis` contains status (`default`, `applied`, `invalid`), call sites,
 normalized assumptions, selected count, profile and notice. Selected instructions
@@ -184,9 +184,9 @@ passed on 2026-10-21:
 
 ## Next slice
 
-M4.7 is complete for this explicit Windows x64 normal-return GPR subset. Start
-M7.2 with bounded, width-correct constant/copy and pure-register expression
-substitution within a basic block, using SSA and preserving all contributing
-source IDs. Keep flags, memory operations, traps, calls and unsupported effects
-observable. Broader interprocedural summaries, x86 profiles, arguments/returns,
+M4.7 is complete for this explicit Windows x64 normal-return GPR subset.
+Preview v5 implements the bounded [M7.2 expression subset](register-expressions.md),
+using SSA and preserving all contributing source IDs. It does not propagate
+expressions through selected calls. Dead-value cleanup remains next; flags,
+memory operations, traps, calls and unsupported effects remain observable. Broader interprocedural summaries, x86 profiles, arguments/returns,
 I/O prototypes, source locals/types and precise memory SSA remain pending.

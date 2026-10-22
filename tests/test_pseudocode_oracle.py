@@ -185,7 +185,7 @@ def oracle(bits, segments, start, state, single=False, model=None):
     if finish_registers: finish_registers(single)
     if not single:
         ip = uc.reg_read(uc_regs.UC_X86_REG_RIP if bits == 64 else uc_regs.UC_X86_REG_EIP)
-        assert ip == RETURN, 'oracle did not return within budget'
+        assert ip == RETURN, f'oracle did not return within budget: start={start:#x}, ip={ip:#x}'
     flags = uc.reg_read(uc_regs.UC_X86_REG_EFLAGS)
     return {'registers': {name: str(uc.reg_read(getattr(uc_regs, 'UC_X86_REG_' + name.upper()))) for name in state['registers']},
             'flags': {k: bool(flags & (1 << bit)) for k, bit in FLAGS.items()},
@@ -193,8 +193,14 @@ def oracle(bits, segments, start, state, single=False, model=None):
 
 
 def evaluate(requests):
-    return json.loads(subprocess.run(['node', str(ROOT / 'tests/pseudocode_eval.js')], input=json.dumps(requests),
+    # Execute the transformed overlay separately and compare every observable
+    # result with the original, which the caller checks against Unicorn.
+    expanded = [case for r in requests for case in (r, dict(r, simplified=True))]
+    results = json.loads(subprocess.run(['node', str(ROOT / 'tests/pseudocode_eval.js')], input=json.dumps(expanded),
         text=True, capture_output=True, check=True, timeout=60).stdout)
+    for raw, simplified in zip(results[::2], results[1::2]):
+        assert raw == simplified, 'simplified effects disagree with original operations'
+    return results[::2]
 
 
 def compare(actual, expected, label):
@@ -274,6 +280,34 @@ def main():
                 actual = evaluate([{'model': model, 'input': state}])[0]
                 compare(actual, oracle(64, [(start, bytes.fromhex(code))], start, state, model=model), 'structured authored CFG')
                 count += 1
+        # Multi-instruction expression chains exercise actual substitutions,
+        # stale dependencies, partial registers, sign extension and masked shifts.
+        chains = ['89c8 83c005 89c2', '89c8 83c101 89c2', '89c8 b101 89c2',
+                  'b8ffffffff 83c002 89c2', 'b880000000 0fbec0 89c2',
+                  'b834120000 0fb6d4 b456 89c3', '31c0 89c2', '29c0 89c2',
+                  '89c8 83e000 89c2', '89c8 6bc001 89c2', '89c8 c1e020 89c2',
+                  '89d0 d3e8 89c3', '89d0 d3f8 89c3', '89d0 f7d8 89c3',
+                  '89d0 f7d0 89c3', '89d0 ffc0 89c3', '89d0 ffc8 89c3',
+                  'b8ffffffff 66ffc0 89c2', 'b834120000 b456 0fb6d4',
+                  '89c8 83c005 894304 8b5304 89d0']
+        extra_chains = ['48b8ffffffffffffffff 4883c002 4889c2',
+                        'b8ffffffff 4889c2', '4889d0 48d3f8 4889c3',
+                        '4889c8 4883c005 4889c2', '4889c8 b501 4889c2',
+                        'b880000000 480fbec0 4889c2']
+        expression_cases = 0
+        for bits in (32, 64):
+            for body in chains + (extra_chains if bits == 64 else []):
+                code = body + ' c3'
+                data = report(args.analyzer, root, code, bits); model = models([data])[0]
+                assert model['registerExpressions']['status'] == 'available', model['registerExpressions']
+                start = int(data['module']['imageBase'], 16) + 0x1000
+                for edge, count_value in enumerate((0, 1, 31, 32, 63, 64)):
+                    state = initial(bits)
+                    state['registers']['rcx' if bits == 64 else 'ecx'] = str(count_value)
+                    state['registers']['rdx' if bits == 64 else 'edx'] = str([0, (1 << bits) - 1, 0x80000000, 0x7fffffff, 128, 0xffff][edge])
+                    actual = evaluate([{'model': model, 'input': state}])[0]
+                    compare(actual, oracle(bits, [(start, bytes.fromhex(code))], start, state, model=model), 'expression chain ' + code)
+                    count += 1; expression_cases += 1
         # O0/O1 source-known functions: compare every register, defined flag,
         # stack/data byte plus the independently written source-level result.
         values = [0, 1, 2, 7, 31, 63, 255, 0xffffffff]
@@ -312,13 +346,18 @@ def main():
                     else:
                         for i, v in enumerate(arguments): write_word(state, STACK + 4 + i * 4, v)
                     actual = evaluate([{'model': model, 'input': state}])[0]
-                    compare(actual, oracle(bits, segments, base + f['rva'], state, model=model), path.name + ' ' + name)
+                    try:
+                        expected = oracle(bits, segments, base + f['rva'], state, model=model)
+                    except AssertionError as error:
+                        raise AssertionError((path.name, name, n, str(error))) from error
+                    compare(actual, expected, path.name + ' ' + name)
                     assert int(actual['registers']['rax' if bits == 64 else 'eax']) & mask == result, (path.name, name, n, 'source result')
                     for address, v in (writes or {}).items():
                         got = sum(actual['memory'][str(address + j)] << (8 * j) for j in range(4))
                         assert got == v, (path.name, name, n, 'source memory')
                     count += 1
     print(f'PASS: {count} independent instruction/structured-CFG/source cases (registers, defined flags, memory)')
+    print(f'PASS: simplified/original evaluation parity for all cases, including {expression_cases} new expression-chain executions')
     assert VALUE_CHECKS['states'] > 0 and VALUE_CHECKS['aliases'] > 0
     print('PASS: abstract facts at %d executed instruction states; %d concrete stack-alias addresses' %
           (VALUE_CHECKS['states'], VALUE_CHECKS['aliases']))

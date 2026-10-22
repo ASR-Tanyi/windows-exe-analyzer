@@ -24,10 +24,11 @@ node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --raw
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --json
 ```
 
-The current JSON export has `version: 4`, raw `lines`, alias-aware `displayLines`,
+The current JSON export has `version: 5`, raw `lines`, alias-aware `displayLines`,
 the unchanged typed instructions/regions, and `valueAnalysis.version: 1`.
 Version 3 added [register SSA](register-ssa.md); version 4 adds
-[explicit call assumptions](call-summaries.md) alongside the v2 value analysis. Analysis
+[explicit call assumptions](call-summaries.md) alongside the v2 value analysis.
+Version 5 adds [register expressions](register-expressions.md) as a separate overlay. Analysis
 results are computed on demand by the shared browser/Node model; native report
 schema 2, `operandModelVersion: 1` and decoder capabilities are unchanged.
 LLVM/legacy reports still report unavailable semantic features.
@@ -172,7 +173,8 @@ Hosted validation for `96a8c60` on 2026-10-19:
 [Register def-use/SSA joins](register-ssa.md) are now implemented in preview v3
 for the bounded integer GPR subset (M7.1). Preview v4 also implements the explicit
 Windows x64 normal-return subset of [M4.7 call summaries](call-summaries.md).
-Width-correct pure-register expression substitution is next. Keep memory aliases
+Preview v5 implements bounded pure-register expression substitution within blocks
+([P5 contract](register-expressions.md)); dead-value cleanup remains open. Keep memory aliases
 observable until alias assumptions and storage roles are supported. Broader ABI
 profiles, I/O prototypes, indirect discovery, source local names/types,
 argument/return inference, switches and exceptional paths remain pending;

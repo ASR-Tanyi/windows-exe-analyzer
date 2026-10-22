@@ -4,7 +4,7 @@
     const prefix = D.module.id + '_c_', fnPrefix = D.module.id + '_fn_';
     const functions = new Map(D.functions.map(f => [f.id, f]));
     const byRva = new Map(D.functions.map(f => [f.rva, f]));
-    let active = null, aliasesEnabled = true;
+    let active = null, aliasesEnabled = true, expressionsEnabled = true;
     const callAssumptions = new Map();
     const idFor = f => prefix + f.rva.toString(16);
     function parse(id) {
@@ -34,9 +34,10 @@
         active = f; selected = f.id; setTab('functions');
         const model = WEAPseudocodeModel.recover(D, f.id, {callAssumptions: callAssumptions.get(f.id)}), s = model.stats, va = model.valueAnalysis;
         const sourceLink = id => I.has(id) ? link(assembly(f, id), hex(I.get(id).insn.rva) + ' ' + I.get(id).insn.mnemonic, idFor(f), 'pseudo-source') : E(id);
-        const lines = aliasesEnabled ? model.displayLines : model.lines;
+        const lines = expressionsEnabled ? (aliasesEnabled ? model.simplifiedDisplayLines : model.simplifiedLines) :
+            (aliasesEnabled ? model.displayLines : model.lines);
         let h = '<section class="blockcard pseudocode-overview"><div class="blockhead"><div class="blocktop">' +
-            '<span class="eyebrow">Assembly to C-like / preview v4</span><span class="pill warn">PARTIAL RECOVERY</span></div>' +
+            '<span class="eyebrow">Assembly to C-like / preview v5</span><span class="pill warn">PARTIAL RECOVERY</span></div>' +
             '<h2 class="blocktitle">' + E(label(B.get(f.id) || f)) + '</h2><div class="addressmeta">' +
             link(assembly(f), 'Whole-function assembly', idFor(f), 'pseudo-assembly') + ' / ' +
             link(D.module.id + '_cfg_' + f.rva.toString(16), 'Control-flow graph', idFor(f)) + '</div></div>';
@@ -60,6 +61,11 @@
                     (aliasesEnabled ? ' checked' : '') + '> Show stack memory aliases</label></p>';
             }
             h += WEARegisterFlowView.markup(model.registerSSA, model.instructions, E);
+            const expressions = model.registerExpressions;
+            if (expressions.status === 'available') h += '<p><label class="pseudo-alias-toggle"><input type="checkbox" id="pseudoExpressions"' +
+                (expressionsEnabled ? ' checked' : '') + '> Simplify register expressions (' + expressions.stats.changedOperations + ' operations)</label></p>' +
+                '<p class="summary">' + E(expressions.notice) + '</p>';
+            else h += '<p class="datawarning">' + E(expressions.reason) + ' Original effects shown.</p>';
             h += '<div class="pseudo-code" role="region" aria-label="C-like pseudocode"><table><thead><tr><th>Assembly</th><th>C-like effects</th><th>Evidence</th></tr></thead><tbody>';
             lines.forEach((line, n) => {
                 const source = line.sources.find(id => I.has(id));
@@ -75,11 +81,13 @@
             '<code>read32(base + index * 4)</code> and <code>write32</code> are little-endian, byte-addressed memory operations; an indexed address is not proof of an array type.</p>' +
             '<p><code>entry_sp</code> is the stack pointer on entry. A <code>slot_</code> name aliases the same memory on every use; it is not a cached value, original variable name or C local. Loads and stores still occur. Turn aliases off to see each original address expression.</p>' +
             '<p><code>uN</code> truncates to N bits; <code>sext</code> sign-extends; <code>insert</code> preserves the rest of a register. Arithmetic helpers wrap to their width and update <code>flags</code>. Undefined flags remain unknown.</p>' +
+            '<p>Expression simplification substitutes only pure values whose register inputs still match their SSA versions. Shift helpers ending in <code>_value</code> mask counts and compute a value without updating flags. Turn simplification off to inspect the original operations.</p>' +
             '<p>Comparisons update flags immediately, so later branches use a snapshot of the comparison. Loop headers stay inside the loop. Source <code>for</code> loops may appear as <code>while</code> or <code>do/while</code>.</p>' +
             '<p><code>return_to_caller</code> models the near-return boundary; no C return type is inferred. Calls, I/O APIs, exceptional paths and unsupported effects need further analysis.</p>';
         $('connections').innerHTML = help;
         $('renamebox').hidden = !B.has(f.id); $('labelname').value = label(B.get(f.id) || f); $('labelnote').value = labels[f.id]?.note || '';
         if ($('pseudoAliases')) $('pseudoAliases').onchange = e => {aliasesEnabled = e.target.checked; render(f);};
+        if ($('pseudoExpressions')) $('pseudoExpressions').onchange = e => {expressionsEnabled = e.target.checked; render(f);};
         if (model.callAnalysis) WEACallSummaryView.bind(model.callAnalysis, value => {
             callAssumptions.set(f.id, value);
             if (active?.id === f.id) render(f);
