@@ -6,7 +6,8 @@
     const SSA = typeof module === 'object' && module.exports ? require('./register-ssa.js') : root.WEARegisterSSA;
     const CALL = typeof module === 'object' && module.exports ? require('./call-summaries.js') : root.WEACallSummaries;
     const EXPR = typeof module === 'object' && module.exports ? require('./register-expressions.js') : root.WEARegisterExpressions;
-    const VERSION = 5, LIMITS = Object.freeze({blocks: 128, instructions: 2048, edges: 384});
+    const CLEAN = typeof module === 'object' && module.exports ? require('./register-cleanup.js') : root.WEARegisterCleanup;
+    const VERSION = 6, LIMITS = Object.freeze({blocks: 128, instructions: 2048, edges: 384});
     const widths = new Set([8, 16, 32, 64]);
     const conditions = {
         e: 'zero', z: 'zero', ne: '!zero', nz: '!zero',
@@ -249,12 +250,19 @@
         const valueAnalysis = VA.analyze(report, blocks, edges, liftedByBlock, functionId);
         const registerSSA = SSA.analyze(report, blocks, edges, liftedByBlock, functionId);
         const registerExpressions = EXPR.analyze(registerSSA, liftedByBlock, options.expressionLimits);
+        const registerCleanup = CLEAN.analyze(registerSSA, liftedByBlock, registerExpressions, options.cleanupLimits);
+        const cleanMaps = [registerCleanup.raw, registerCleanup.simplified].map(v => new Map(v.rewrites.map(r => [r.source + ':' + r.operation, r])));
         const rewrites = new Map(registerExpressions.rewrites.map(r => [r.source + ':' + r.operation, r]));
         for (const b of blocks) {
             const lifted = liftedByBlock.get(b.id);
             const body = lifted.flatMap(i => i.ops.map((op, index) => {
-                const r = rewrites.get(i.source + ':' + index);
-                return {kind: 'line', text: operation(op, i.source), operation: op, sources: [i.source],
+                const key = i.source + ':' + index, r = rewrites.get(key), cleaned = {};
+                for (const [n, prefix] of ['clean', 'simplifiedClean'].entries()) {
+                    const c = cleanMaps[n].get(key);
+                    if (c) Object.assign(cleaned, {[prefix + 'Operation']: c.replacement,
+                        [prefix + 'Text']: c.replacement ? operation(c.replacement, i.source) : null, [prefix + 'Sources']: c.sources});
+                }
+                return {kind: 'line', text: operation(op, i.source), operation: op, sources: [i.source], ...cleaned,
                     ...(r ? {simplifiedOperation: r.replacement, simplifiedText: operation(r.replacement, i.source), simplifiedSources: r.sources} : {})};
             }));
             const last = lifted[lifted.length - 1], outs = outgoing.get(b.id);
@@ -343,24 +351,35 @@
             if (!changed) break;
         }
         const lines = [], displayLines = [], simplifiedLines = [], simplifiedDisplayLines = [];
+        const cleanLines = [], cleanDisplayLines = [], simplifiedCleanLines = [], simplifiedCleanDisplayLines = [];
         for (const slot of valueAnalysis.slots.filter(s => s.aliasable)) {
             const offset = BigInt(slot.offset);
             displayLines.push({text: '/* ' + slot.id + ': read/write' + slot.width + '(entry_sp - 0x' + (-offset).toString(16) + ') */',
                 depth: 0, sources: slot.sources});
         }
         simplifiedDisplayLines.push(...displayLines);
+        cleanDisplayLines.push(...displayLines); simplifiedCleanDisplayLines.push(...displayLines);
         const add = (text, depth, sources = [], displayText = text, displaySources = sources,
             simplifiedText = text, simplifiedSources = sources, simplifiedDisplayText = displayText,
-            simplifiedDisplaySources = displaySources) => {
+            simplifiedDisplaySources = displaySources, node = {}) => {
             lines.push({text, depth, sources: [...new Set(sources)]});
             displayLines.push({text: displayText, depth, sources: [...new Set(displaySources)]});
             simplifiedLines.push({text: simplifiedText, depth, sources: [...new Set(simplifiedSources)]});
             simplifiedDisplayLines.push({text: simplifiedDisplayText, depth, sources: [...new Set(simplifiedDisplaySources)]});
+            const clean = (prefix, output, fallbackText, fallbackSources) => {
+                if (node[prefix + 'Operation'] === null) return;
+                output.push({text: node[prefix + 'Text'] ?? fallbackText, depth,
+                    sources: [...new Set(node[prefix + 'Sources'] ?? fallbackSources)]});
+            };
+            clean('clean', cleanLines, text, sources);
+            clean('clean', cleanDisplayLines, displayText, displaySources);
+            clean('simplifiedClean', simplifiedCleanLines, simplifiedText, simplifiedSources);
+            clean('simplifiedClean', simplifiedCleanDisplayLines, simplifiedDisplayText, simplifiedDisplaySources);
         };
         function render(body, depth) {
             for (const node of body) {
                 if (node.kind === 'line') add(node.text, depth, node.sources, node.displayText, node.displaySources,
-                    node.simplifiedText, node.simplifiedSources, node.simplifiedText ?? node.displayText, node.simplifiedSources ?? node.displaySources);
+                    node.simplifiedText, node.simplifiedSources, node.simplifiedText ?? node.displayText, node.simplifiedSources ?? node.displaySources, node);
                 else if (node.kind === 'if') {
                     add('if (' + node.condition + ') {', depth, node.sources); render(node.yes, depth + 1);
                     if (node.no.length) {add('} else {', depth, node.sources); render(node.no, depth + 1);}
@@ -386,7 +405,8 @@
             } else add(t.kind === 'goto' ? transfer(t.to) : t.text, 1, t.sources);
         }
         return {version: VERSION, status: stats.barriers ? 'partial' : stats.assumedCalls ? 'assumed_subset' : 'supported_subset', instructions, regions,
-            lines, displayLines, simplifiedLines, simplifiedDisplayLines, valueAnalysis, registerSSA, registerExpressions, callAnalysis, stats,
+            lines, displayLines, simplifiedLines, simplifiedDisplayLines, cleanLines, cleanDisplayLines, simplifiedCleanLines, simplifiedCleanDisplayLines,
+            valueAnalysis, registerSSA, registerExpressions, registerCleanup, callAnalysis, stats,
             structured: mayStructure, complete: false, functionId,
             notice: 'C-like preview of normal-path machine effects. Inferred function boundaries; complete recovery is not proven. Registers retain machine names. read/write addresses are byte addresses; helpers use fixed-width bit vectors. Calls without an explicit summary and unsupported forms invalidate all state. Selected call summaries are analyst assumptions. for/while source spelling, variable names, types and I/O prototypes are not recovered.'};
     }

@@ -187,6 +187,8 @@ passed on 2026-10-21:
 M4.7 is complete for this explicit Windows x64 normal-return GPR subset.
 Preview v5 implements the bounded [M7.2 expression subset](register-expressions.md),
 using SSA and preserving all contributing source IDs. It does not propagate
-expressions through selected calls. Dead-value cleanup remains next; flags,
-memory operations, traps, calls and unsupported effects remain observable. Broader interprocedural summaries, x86 profiles, arguments/returns,
+expressions through selected calls. Preview v6 adds bounded
+[dead register-write cleanup](register-cleanup.md); every selected or unknown call
+is still a full cleanup boundary. Flags, memory operations, traps, calls and
+unsupported effects remain observable. Stack storage roles are next. Broader interprocedural summaries, x86 profiles, arguments/returns,
 I/O prototypes, source locals/types and precise memory SSA remain pending.

@@ -195,12 +195,14 @@ def oracle(bits, segments, start, state, single=False, model=None):
 def evaluate(requests):
     # Execute the transformed overlay separately and compare every observable
     # result with the original, which the caller checks against Unicorn.
-    expanded = [case for r in requests for case in (r, dict(r, simplified=True))]
+    expanded = [case for r in requests for case in (r, dict(r, simplified=True), dict(r, cleanup=True), dict(r, simplified=True, cleanup=True))]
     results = json.loads(subprocess.run(['node', str(ROOT / 'tests/pseudocode_eval.js')], input=json.dumps(expanded),
         text=True, capture_output=True, check=True, timeout=60).stdout)
-    for raw, simplified in zip(results[::2], results[1::2]):
-        assert raw == simplified, 'simplified effects disagree with original operations'
-    return results[::2]
+    for n in range(0, len(results), 4):
+        raw = {k: v for k, v in results[n].items() if k != 'steps'}
+        for transformed in results[n + 1:n + 4]:
+            assert raw == {k: v for k, v in transformed.items() if k != 'steps'}, 'transformed effects disagree with original operations'
+    return results[::4]
 
 
 def compare(actual, expected, label):
@@ -270,6 +272,7 @@ def main():
         for code in ['83f9007e07b801000000eb05b802000000c3', 'b90300000031c001c8ffc975fac3',
                      '83f900ffc07507b801000000eb05b802000000c3',
                      '83f9007407b4010fb6d0eb03b40290c3',  # byte definitions join whole families
+                     '83c001b8000000007405ba01000000c3',  # flags survive a removed ALU register result
                      '83c00183f8037cf8c3']:  # actual entry backedge and initial incoming definition
             data = report(args.analyzer, root, code)
             model = models([data])[0]
@@ -294,12 +297,24 @@ def main():
                         'b8ffffffff 4889c2', '4889d0 48d3f8 4889c3',
                         '4889c8 4883c005 4889c2', '4889c8 b501 4889c2',
                         'b880000000 480fbec0 4889c2']
-        expression_cases = 0
+        cleanup_chains = ['b801000000 b802000000', '89c8 89c2 b807000000 ba08000000',
+                          '89c8 89c2 b807000000', '89c8 b905000000 89c2 b807000000',
+                          '83c001 b809000000', 'ffc0 b809000000', 'ffc8 b809000000',
+                          'f7d0 b809000000', 'f7d8 b809000000', '6bc003 b809000000',
+                          'd3e0 b809000000', 'd3e8 b809000000', 'd3f8 b809000000',
+                          'd2e4 b809000000', '66d3e8 b809000000',
+                          'b801000000 8b03 b809000000', 'b801000000 8903 b809000000']
+        cleanup64 = ['48d3e0 b809000000', '48d3f8 b809000000', '48b8ffffffffffffffff b809000000']
+        expression_cases = cleanup_cases = cleaned_writes = flags_only_writes = 0
         for bits in (32, 64):
-            for body in chains + (extra_chains if bits == 64 else []):
+            for body in chains + cleanup_chains + (extra_chains + cleanup64 if bits == 64 else []):
                 code = body + ' c3'
                 data = report(args.analyzer, root, code, bits); model = models([data])[0]
                 assert model['registerExpressions']['status'] == 'available', model['registerExpressions']
+                cleanup = model['registerCleanup']
+                assert cleanup['status'] == 'available', cleanup
+                cleaned_writes += cleanup['simplified']['stats']['removed']
+                flags_only_writes += cleanup['simplified']['stats']['flagsOnly']
                 start = int(data['module']['imageBase'], 16) + 0x1000
                 for edge, count_value in enumerate((0, 1, 31, 32, 63, 64)):
                     state = initial(bits)
@@ -307,7 +322,10 @@ def main():
                     state['registers']['rdx' if bits == 64 else 'edx'] = str([0, (1 << bits) - 1, 0x80000000, 0x7fffffff, 128, 0xffff][edge])
                     actual = evaluate([{'model': model, 'input': state}])[0]
                     compare(actual, oracle(bits, [(start, bytes.fromhex(code))], start, state, model=model), 'expression chain ' + code)
-                    count += 1; expression_cases += 1
+                    count += 1
+                    if body in cleanup_chains + cleanup64: cleanup_cases += 1
+                    else: expression_cases += 1
+        assert cleaned_writes > 0 and flags_only_writes > 0, 'cleanup corpus must exercise both transformations'
         # O0/O1 source-known functions: compare every register, defined flag,
         # stack/data byte plus the independently written source-level result.
         values = [0, 1, 2, 7, 31, 63, 255, 0xffffffff]
@@ -357,7 +375,8 @@ def main():
                         assert got == v, (path.name, name, n, 'source memory')
                     count += 1
     print(f'PASS: {count} independent instruction/structured-CFG/source cases (registers, defined flags, memory)')
-    print(f'PASS: simplified/original evaluation parity for all cases, including {expression_cases} new expression-chain executions')
+    print(f'PASS: original/simplified/clean/combined evaluation parity for all cases, including {expression_cases} expression-chain and {cleanup_cases} dead-write executions')
+    print(f'PASS: chain corpus exercises {cleaned_writes} removed pure writes and {flags_only_writes} flags-only destinations')
     assert VALUE_CHECKS['states'] > 0 and VALUE_CHECKS['aliases'] > 0
     print('PASS: abstract facts at %d executed instruction states; %d concrete stack-alias addresses' %
           (VALUE_CHECKS['states'], VALUE_CHECKS['aliases']))

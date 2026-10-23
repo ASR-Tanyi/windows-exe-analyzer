@@ -5,16 +5,17 @@ const fs = require('node:fs');
 const model = require('../web/pseudocode-model.js');
 function main() {
     const [path, entry, ...args] = process.argv.slice(2);
-    let format, calls, simplified = false;
-    const usage = 'Usage: node scripts/pseudocode.js report.json FUNCTION_RVA [--json|--raw|--ssa] [--simplified] [--calls assumptions.json]';
+    let format, calls, simplified = false, clean = false;
+    const usage = 'Usage: node scripts/pseudocode.js report.json FUNCTION_RVA [--json|--raw|--ssa] [--simplified] [--clean] [--calls assumptions.json]';
     if (!path || !entry) throw Error(usage);
     for (let n = 0; n < args.length; n++) {
         if (['--json', '--raw', '--ssa'].includes(args[n]) && !format) format = args[n];
         else if (args[n] === '--simplified' && !simplified) simplified = true;
+        else if (args[n] === '--clean' && !clean) clean = true;
         else if (args[n] === '--calls' && !calls && args[n + 1] && !args[n + 1].startsWith('--')) calls = args[++n];
         else throw Error(usage);
     }
-    if (simplified && ['--json', '--ssa'].includes(format)) throw Error('--simplified selects text output; JSON already includes both forms.');
+    if ((simplified || clean) && ['--json', '--ssa'].includes(format)) throw Error('--simplified and --clean select text output; JSON already includes all forms.');
     if (!/^(0x[0-9a-f]+|[0-9]+)$/i.test(entry)) throw Error('Function RVA must be decimal or 0x hexadecimal.');
     const report = JSON.parse(fs.readFileSync(path, 'utf8'));
     const f = report.functions.find(f => f.rva === Number(entry));
@@ -48,8 +49,10 @@ function main() {
         console.log('// ' + f.name.replace(/[\r\n]/g, ' ') + '\n// ' + result.notice);
         if (format !== '--raw') console.log('// Stack names alias memory at entry_sp (the incoming stack pointer); they are not independent C locals.');
         if (simplified) console.log('// ' + (result.registerExpressions.notice || result.registerExpressions.reason + ' Original effects shown.'));
-        const lines = simplified ? (format === '--raw' ? result.simplifiedLines : result.simplifiedDisplayLines) :
-            (format === '--raw' ? result.lines : result.displayLines);
+        if (clean) console.log('// ' + (result.registerCleanup.notice || result.registerCleanup.reason + ' Original writes retained.'));
+        const prefix = simplified ? (clean ? 'simplifiedClean' : 'simplified') : (clean ? 'clean' : '');
+        const key = prefix + (format === '--raw' ? (prefix ? 'Lines' : 'lines') : (prefix ? 'DisplayLines' : 'displayLines'));
+        const lines = result[key];
         for (const line of lines) console.log('    '.repeat(line.depth) + line.text);
     }
     if (result.status === 'unavailable') process.exitCode = 2;

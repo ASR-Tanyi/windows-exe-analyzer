@@ -1,4 +1,4 @@
-# C-like recovery preview v5
+# C-like recovery preview v6
 
 Open a function in a Capstone-generated HTML report and select **C-like**.
 Select an address to return to the exact instruction in whole-function assembly;
@@ -13,6 +13,7 @@ The shared [model](../web/pseudocode-model.js) also exports text or typed JSON:
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --raw
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --simplified
+node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --simplified --clean
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --ssa
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --json
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --calls call-assumptions.json --json
@@ -21,7 +22,7 @@ node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --calls call-assump
 Replace `0xFUNCTION_RVA` with an actual discovered function entry. This is a
 separate preview, not a redefinition of the CLI's `--ir` observation notes.
 The decoder's `instructionSemantics:false` capability is unchanged: decoding
-itself supplies operands, not this model's effects. Preview version 5 appears in
+itself supplies operands, not this model's effects. Preview version 6 appears in
 the export; report schema 2 and existing identities remain compatible.
 
 ## What the output means
@@ -43,6 +44,11 @@ function prototype or argument count.
 Version 5 adds [bounded register-expression simplification](register-expressions.md).
 The UI toggle and CLI `--simplified` expose constant/copy and pure arithmetic
 substitution within each block, retaining every instruction and effect.
+Version 6 adds a separate [dead register-write cleanup](register-cleanup.md)
+overlay. The UI enables both overlays initially; disabling both restores all
+original operations. CLI `--clean` selects cleanup independently of `--simplified`.
+Unused assignments disappear; unused arithmetic destinations become flags-only
+helpers. Memory, calls, unknown effects and every block exit retain their state.
 There is no invented function prototype, return type, local name, or I/O API.
 
 The normal-path domain is native x86/x64 Windows code with flat default segment
@@ -103,7 +109,7 @@ memory, `i` a normalized bit-pattern immediate. Equal widths are required unless
 an extension is explicit. Integer widths are 8/16/32/64 subject to the mode and
 the actual decoded form. No assembly operand string is parsed.
 
-| Family | Forms accepted by v1–v5 | Exclusions |
+| Family | Forms accepted by v1–v6 | Exclusions |
 | --- | --- | --- |
 | MOV / MOVABS | r←r/m/i, m←r/i | Segment/control/vector registers; memory-to-memory |
 | MOVZX / MOVSX | 8/16-bit r/m to wider r | Unsupported width combinations |
@@ -199,6 +205,7 @@ def-use/SSA with source-linked inspection and independent execution checks;
 see its [contract and validation](register-ssa.md). Version 4 adds an explicit
 Windows x64 call-summary subset with [independent boundary validation](call-summaries.md).
 Preview v5 adds [bounded register expressions](register-expressions.md);
-dead-value cleanup remains next. Broader ABI profiles,
+preview v6 adds [dead register-write cleanup](register-cleanup.md). Stack storage
+roles are next. Broader ABI profiles,
 full prototypes, I/O signatures, switches, exceptional paths, source types and
 indirect-target discovery remain pending.

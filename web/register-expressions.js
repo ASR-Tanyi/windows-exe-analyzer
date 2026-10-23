@@ -138,7 +138,7 @@
             }
             return {version: 1, status: 'available', complete: false, rewrites,
                 stats: {changedOperations: rewrites.length, propagatedReads, cappedExpressions, outputNodes, work},
-                notice: 'Pure register expressions are simplified within each basic block using SSA versions. Calls, memory and flag-dependent operations stop propagation. Every instruction, flag update and machine-state write remains; source links include contributing definitions.'};
+                notice: 'Pure register expressions are simplified within each basic block using SSA versions. Calls, memory and flag-dependent operations stop propagation. This expression pass retains every instruction and effect; dead-write cleanup is separate. Source links include contributing definitions.'};
         } catch (e) {return empty('unavailable', e.message);}
     }
     const api = {LIMITS, analyze};

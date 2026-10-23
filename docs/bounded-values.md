@@ -174,8 +174,10 @@ Hosted validation for `96a8c60` on 2026-10-19:
 for the bounded integer GPR subset (M7.1). Preview v4 also implements the explicit
 Windows x64 normal-return subset of [M4.7 call summaries](call-summaries.md).
 Preview v5 implements bounded pure-register expression substitution within blocks
-([P5 contract](register-expressions.md)); dead-value cleanup remains open. Keep memory aliases
+([P5 contract](register-expressions.md)); preview v6 adds bounded
+[dead register-write cleanup](register-cleanup.md), completing the block-local
+M7.2 subset. Keep memory aliases
 observable until alias assumptions and storage roles are supported. Broader ABI
 profiles, I/O prototypes, indirect discovery, source local names/types,
 argument/return inference, switches and exceptional paths remain pending;
-M7.2–M7.4 stay open.
+M7.3–M7.4 stay open.

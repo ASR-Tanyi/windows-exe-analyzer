@@ -182,6 +182,8 @@ M7.1 is complete for this bounded integer GPR subset. Preview v4 implements the
 explicit Windows x64 normal-return subset of [M4.7](call-summaries.md), with
 independent call-boundary checks. Preview v5 uses SSA for bounded
 [pure-register expression substitution](register-expressions.md) within basic
-blocks, retaining every instruction and observable effect. Dead-value cleanup
-and wider propagation remain open in M7.2. Other ABI profiles, source locals/types, argument/return
+blocks. Preview v6 adds bounded [dead register-write cleanup](register-cleanup.md),
+while preserving the original SSA graph and every observable effect. M7.2 is
+complete for this block-local subset; cross-block/PHI propagation remains deferred.
+Stack storage roles (M7.3) are next. Other ABI profiles, source locals/types, argument/return
 inference and I/O signatures remain pending.

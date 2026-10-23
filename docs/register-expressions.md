@@ -4,7 +4,9 @@ Implemented in [`e09e9df`](https://github.com/ASR-Tanyi/windows-exe-analyzer/com
 
 Preview v5 adds a separate expression overlay to the original lifted operations.
 Open **C-like → Simplify register expressions** (enabled initially) to see it;
-turn the checkbox off to recover the original operations. The existing optimized
+turn it off to recover the original expressions. Preview v6 also enables a
+separate [dead-write cleanup](register-cleanup.md); turn both checkboxes off to
+recover every original operation. The existing optimized
 `scalar_ops` demo shows propagation through arithmetic; `transform_demo` exercises
 branches, loops and memory boundaries. Source links include the consuming
 instruction and every contributing definition.
@@ -65,7 +67,8 @@ receive `&flags`. BigInt arithmetic avoids JavaScript Number rounding.
 ## Export and fallback
 
 The native report remains schema 2; SSA and value analysis remain version 1.
-Preview JSON is version 5 with these additive fields:
+The overlay was introduced in preview JSON version 5 (current version 6), with
+these additive fields:
 
 | Field | Contract |
 | --- | --- |

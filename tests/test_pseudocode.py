@@ -54,7 +54,8 @@ def main():
             check(all(m['status'] == 'unavailable' for m in models([diamond, loop])), 'LLVM must not invent semantics')
         else:
             dm, lm = models([diamond, loop])
-            check(dm['version'] == 5 and dm['registerExpressions']['version'] == 1, 'versioned expression overlay')
+            check(dm['version'] == 6 and dm['registerExpressions']['version'] == 1, 'versioned expression overlay')
+            check(dm['registerCleanup']['version'] == 1, 'versioned cleanup overlay')
             chain = report(a.analyzer, root, 'b8ffffffff83c00289c2c3')
             cm = models([chain])[0]
             check(cm['registerExpressions']['status'] == 'available' and len(cm['registerExpressions']['rewrites']) == 2, 'constant chain rewrites two consuming operations')
@@ -64,6 +65,14 @@ def main():
             simplified_cli = subprocess.run(['node', str(ROOT / 'scripts/pseudocode.js'), str(export), '0x1000', '--raw', '--simplified'], capture_output=True, text=True, timeout=10)
             check(simplified_cli.returncode == 0 and 'rdx = u32(0x1)' in simplified_cli.stdout, 'CLI exports the simplified model')
             check([l['text'] for l in cm['lines']] != [l['text'] for l in cm['simplifiedLines']], 'both presentations available')
+            check(cm['registerCleanup']['simplified']['stats']['removed'] == 1 and cm['registerCleanup']['raw']['stats']['removed'] == 0, 'cleanup accounts for substituted operands')
+            for switches, key in [(['--clean'],'cleanLines'), (['--clean','--simplified'],'simplifiedCleanLines')]:
+                cleaned_cli = subprocess.run(['node', str(ROOT / 'scripts/pseudocode.js'), str(export), '0x1000', '--raw', *switches], capture_output=True, text=True, timeout=10)
+                expected_text = '\n'.join('    ' * l['depth'] + l['text'] for l in cm[key]) + '\n'
+                check(cleaned_cli.returncode == 0 and cleaned_cli.stdout.endswith(expected_text), 'CLI cleanup exactly matches shared model ' + key)
+            flags_only = models([report(a.analyzer, root, '83c001b809000000c3')])[0]
+            check(flags_only['registerCleanup']['raw']['stats']['flagsOnly'] == 1 and any(l['text'].startswith('add32(') for l in flags_only['cleanLines']), 'dead ALU destination keeps displayed flag helper')
+            check({s for l in flags_only['cleanLines'] for s in l['sources']} == {i['source'] for i in flags_only['instructions']}, 'cleaned presentation retains all source evidence')
             check(dm['stats']['ifs'] == 1 and dm['stats']['gotos'] == 0, 'diamond becomes if/else')
             check(lm['stats']['loops'] == 1, 'backedge loop recovered')
             check('else' in '\n'.join(x['text'] for x in dm['lines']), 'else body retained')
@@ -80,6 +89,7 @@ def main():
             for model in models([shared, truncated]):
                 check(not model['structured'] and model['stats']['gotos'] > 0, 'shared/truncated graph keeps transfers')
                 check(model['registerSSA']['status'] == 'unavailable' and not model['registerSSA']['definitions'], 'unsafe graph cannot produce SSA')
+                check(model['registerCleanup']['status'] == 'unavailable' and model['cleanLines'] == model['lines'] and model['simplifiedCleanLines'] == model['simplifiedLines'], 'unsafe graph retains every original write')
                 check(model['registerExpressions']['status'] == 'unavailable' and model['simplifiedLines'] == model['lines'], 'unsafe graph falls back transactionally to original expressions')
             unresolved = copy.deepcopy(diamond)
             unresolved['edges'][0]['to'] = None

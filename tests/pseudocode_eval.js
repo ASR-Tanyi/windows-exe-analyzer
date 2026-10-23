@@ -4,7 +4,7 @@
 const fs = require('node:fs');
 const BV = require('../web/bitvectors.js');
 const u = (v, n) => BigInt.asUintN(n, v), s = (v, n) => BigInt.asIntN(n, v);
-function execute(model, input, maxSteps = 100000, simplified = false) {
+function execute(model, input, maxSteps = 100000, simplified = false, cleanup = false) {
     const regs = Object.fromEntries(Object.entries(input.registers).map(([k, v]) => [k, BigInt(v)]));
     const memory = new Map(Object.entries(input.memory || {}).map(([k, v]) => [BigInt(k), v]));
     const flags = {...input.flags}; let steps = 0, returned = false;
@@ -75,7 +75,7 @@ function execute(model, input, maxSteps = 100000, simplified = false) {
             flags.zero = flags.sign = flags.parity = flags.auxiliary = null;
         } else if (['shl', 'shr', 'sar'].includes(kind)) {
             const count = Number(b & BigInt(n === 64 ? 63 : 31));
-            if (!count) {write(op.target, result); return;}
+            if (!count) {if (op.target) write(op.target, result); return;}
             flags.carry = count >= n && kind !== 'sar' ? null : kind === 'shl' ? !!(a & (1n << BigInt(n - count))) : !!(a & (1n << BigInt(Math.min(count, n) - 1)));
             flags.overflow = count !== 1 ? null : kind === 'sar' ? false : kind === 'shr' ? !!(a & sign) : !!(result & sign) !== flags.carry;
             flags.auxiliary = null;
@@ -102,7 +102,11 @@ function execute(model, input, maxSteps = 100000, simplified = false) {
     function body(nodes) {
         for (const n of nodes) {
             tick();
-            if (n.kind === 'line' && n.operation) operation(simplified && n.simplifiedOperation || n.operation);
+            if (n.kind === 'line' && n.operation) {
+                const key = simplified ? 'simplifiedCleanOperation' : 'cleanOperation';
+                const op = cleanup && Object.hasOwn(n, key) ? n[key] : simplified && n.simplifiedOperation || n.operation;
+                if (op) operation(op);
+            }
             else if (n.kind === 'if') body(test(n.test) ? n.yes : n.no);
             else if (n.kind === 'while') {while (true) {tick(); body(n.head); if (!test(n.test)) break; body(n.body);}}
             else if (n.kind === 'do') {do {tick(); body(n.body);} while (test(n.test));}
@@ -131,5 +135,5 @@ function execute(model, input, maxSteps = 100000, simplified = false) {
 module.exports = {execute};
 if (require.main === module) {
     const requests = JSON.parse(fs.readFileSync(0, 'utf8'));
-    console.log(JSON.stringify(requests.map(r => execute(r.model, r.input, 100000, r.simplified))));
+    console.log(JSON.stringify(requests.map(r => execute(r.model, r.input, 100000, r.simplified, r.cleanup))));
 }
