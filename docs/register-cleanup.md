@@ -1,5 +1,7 @@
 # Bounded dead register-write cleanup
 
+Implemented in [`d8dc5b2`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/d8dc5b2615b11d74d54edb713addb4b06ce9fa14).
+
 Preview v6 adds a separate cleanup overlay. **C-like → Remove dead register
 writes** starts enabled alongside **Simplify register expressions**. Cleanup can
 also operate without expression substitution. Turn both off to inspect every
@@ -137,7 +139,32 @@ this machine; these are fixture measurements, not large-binary guarantees.
 [decoder contracts](../tests/test_pseudocode.py),
 [independent oracle](../tests/test_pseudocode_oracle.py), and
 [browser checks](../tests/test_pseudocode_browser.py) are committed together with
-the implementation. Hosted CI/deployment evidence is recorded after publication.
+the implementation.
+
+Hosted validation on 2026-10-23:
+
+- [Analysis model tests](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39896686969)
+  passed on both decoder backends: 25 CTest targets each (including clang/lld
+  linked fixtures), every browser suite, 72 Capstone / 13 LLVM C-like checks and
+  15 publication tests. LLVM explicitly skips unsupported semantic execution.
+- Capstone passed all 1,212 independent cases and four-mode parity. Hosted
+  compiler fixtures produce 9,156 concrete instruction states, 10,260 SSA uses,
+  702 selected joins and 7,920 exit values. Call checks pass 36 executions,
+  108 boundaries, 738 caller states, 2,328 SSA uses, 144 joins and 576 exits;
+  both invalid ABI implementations are rejected.
+- [HTML build and Pages deployment](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39896686970)
+  passed for the implementation revision. The live eight-report manifest and
+  optimized report returned HTTP 200. Embedded JSON matched the separate JSON,
+  and all four changed embedded modules matched committed source text exactly.
+- The downloaded self-contained
+  [scalar demo](https://asr-tanyi.github.io/windows-exe-analyzer/recovery64-o1.html#m_b2c773e4cf51a9a6_c_1000)
+  and [nested-loop demo](https://asr-tanyi.github.io/windows-exe-analyzer/recovery64-o1.html#m_b2c773e4cf51a9a6_c_1080)
+  passed offline browser/model/CLI parity for all four presentations. The scalar
+  has one removed assignment; the transform has two removed assignments and
+  three flags-only destinations. Every cleanup row is present; original-write
+  and overwrite links open exact assembly, and Back preserves cleanup settings.
+  No JavaScript errors occurred. These checks validate the deployed payload;
+  workflow artifacts retain the tested snapshot when the public site advances.
 
 ## Next slice
 

@@ -361,12 +361,16 @@ P5 completes the constant/copy and pure-expression subset of M7.2. P6 supplies d
 
 #### P6. Dead register-write cleanup — completed subset
 
+Implemented in [`d8dc5b2`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/d8dc5b2615b11d74d54edb713addb4b06ce9fa14).
+
 - [x] **P6.1** Scan actual raw/simplified operands backwards within each SSA block. Preserve every GPR at block exits, partial-register preservation and full state at memory/call/unknown boundaries. [Pass](web/register-cleanup.js), [contract](docs/register-cleanup.md).
 - [x] **P6.2** Omit dead pure assignments/NOT operations and retain flags-only arithmetic helpers. Record each original definition and its later retained full overwrite; discard both variants on budget failure. [752 focused checks](tests/test_register_cleanup.js).
 - [x] **P6.3** Add independent cleanup/expression toggles, source-linked cleanup inspection, CLI `--clean` and preview v6 exports. Preserve original operations/SSA and assembly/history navigation. [Shared model](web/pseudocode-model.js), [browser checks](tests/test_pseudocode_browser.py).
 - [x] **P6.4** Compare all four presentations against independent execution and the x86/x64 O0/O1 C demos. Exercise stale inputs, partial writes, zero-count shifts, flags-only branch conditions and memory/call boundaries. [Oracle](tests/test_pseudocode_oracle.py), [validation](docs/register-cleanup.md#validation).
 
 Local validation passes: 23 CTest targets per backend, 126 recovery contracts, 72 Capstone / 13 LLVM browser checks and 15 publication tests. All four evaluation modes agree across 1,212 independent cases, including 222 new dead-write executions and three flags-only branch executions. The tests check 8,872 instruction states, 10,315 SSA uses, 723 selected joins and 7,920 exit values. Existing 36 call executions also pass. The optimized nested-loop C demo loses two assignments while retaining three flags-only operations; the [validation record](docs/register-cleanup.md#validation) separates fixture measurements from broader guarantees.
+
+The [hosted matrix passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39896686969) on 2026-10-23: 25 CTest targets per backend, all browser suites, 1,212 independent semantic cases and 36 call executions. Hosted fixtures cover 9,156 instruction states, 10,260 SSA uses, 702 selected joins and 7,920 exit values. [Pages deployment passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39896686970); the deployed scalar/nested-loop reports were verified by HTTPS download, exact embedded-source matching and offline browser checks for all four presentations, CLI parity and original/overwrite assembly navigation. See the [validation record](docs/register-cleanup.md#validation).
 
 ### M7. Function recovery and stronger entry-role recognition
 
@@ -428,7 +432,7 @@ Keep changes small enough to review independently. Items 1–9 have implementati
 | 11 | M7.1 register def-use/SSA joins | Done for P3: [`a3c15bc`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/a3c15bcc95849ef6e79579e369283810ed5bd00b) | [Contract and validation](docs/register-ssa.md); partial-register dependencies, explicit predecessor joins, all-register clobbers, source-linked inspection and independent execution checks |
 | 12 | M4.7 explicit ABI/call summaries | Done for P4: [`a19bc95`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/a19bc95a777df174149f023de6f19fc1e6cf9b01) | [Contract and validation](docs/call-summaries.md); per-site analyst selection, preserved GPR/SP state, unknown memory/flags, independent call-boundary checks and conservative fallback |
 | 13 | M7.2 bounded register-expression simplification | Done for P5: [`e09e9df`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/e09e9dfaf2e10f35f7e5647ccac43a535ba06a61) | [Contract and validation](docs/register-expressions.md); SSA-checked live inputs, modular widths, explicit original effects, bounded expression growth and complete source links |
-| 14 | M7.2 dead register-write cleanup | Done for P6 | [Contract and validation](docs/register-cleanup.md); separate raw/simplified liveness, retained flag effects, all-state boundaries, bounded fallback and complete overwrite evidence |
+| 14 | M7.2 dead register-write cleanup | Done for P6: [`d8dc5b2`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/d8dc5b2615b11d74d54edb713addb4b06ce9fa14) | [Contract and validation](docs/register-cleanup.md); separate raw/simplified liveness, retained flag effects, all-state boundaries, bounded fallback and complete overwrite evidence |
 | 15 | M7.3 conservative stack storage roles | Next: `feat: classify proven stack storage roles` | Build on physical aliases and explicit ABI assumptions; distinguish saved-register/return/ABI regions from candidate locals, retaining unknown and conflicting roles |
 
 Items 5 and 6 can proceed independently once the shared identities/reference contract is stable. Broader `main` recovery is deliberately not a prerequisite for discovering or browsing functions.
