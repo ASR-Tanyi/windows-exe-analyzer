@@ -1,5 +1,7 @@
 # Bounded register-expression simplification
 
+Implemented in [`e09e9df`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/e09e9dfaf2e10f35f7e5647ccac43a535ba06a61).
+
 Preview v5 adds a separate expression overlay to the original lifted operations.
 Open **C-like → Simplify register expressions** (enabled initially) to see it;
 turn the checkbox off to recover the original operations. The existing optimized
@@ -129,6 +131,33 @@ Local validation on 2026-10-22 passed:
   recovery). The largest expression overlay was 6,140 bytes, with at most 353
   counted expression-pass work units. This is a corpus measurement, not a
   worst-case guarantee.
+
+Hosted validation for [`e09e9df`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/e09e9dfaf2e10f35f7e5647ccac43a535ba06a61) passed on 2026-10-22;
+the completed results were recorded on 2026-10-23:
+
+- The [regression matrix](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39745313511)
+  passed 24 CTest targets and 15 publication tests on each backend, all browser
+  suites, and 61 Capstone / 13 LLVM C-like browser checks. LLVM tests the
+  unavailable-semantics fallback; independent execution uses Capstone's
+  structured operands.
+- All 987 independent semantic cases passed original/simplified parity,
+  including 276 expression-chain executions. Hosted compiler output exercised
+  8,393 instruction states, 2,017 stack-alias addresses, 9,684 SSA uses,
+  699 selected joins and 5,136 exit values. The existing 36 call executions
+  passed across 108 boundaries, 738 caller states, 2,328 SSA uses, 144 joins and
+  576 exit values; both invalid-ABI negative cases were rejected. The full hosted
+  run completed without the earlier local return-budget failure.
+- [Report generation and Pages deployment](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39745313485)
+  passed. HTTPS downloads on 2026-10-22 confirmed the tested commit and eight
+  manifest reports. The downloaded optimized x64 HTML's expression/model/view/SSA
+  scripts matched the committed sources, and embedded report JSON matched the
+  separate JSON file.
+- Offline Chromium checks of that exact published artifact passed for the
+  [optimized scalar demo](https://asr-tanyi.github.io/windows-exe-analyzer/recovery64-o1.html#m_b2c773e4cf51a9a6_c_1000):
+  three simplified operations, original/simplified toggling, combined source
+  evidence, exact assembly navigation and Back, CLI parity, and no JavaScript
+  errors. The site serves the latest deployment; workflow artifacts retain the
+  tested snapshot.
 
 ## Next slice
 
