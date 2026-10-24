@@ -374,12 +374,14 @@ The [hosted matrix passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/act
 
 #### Report readability refinement
 
+Implemented in [`4bac898`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/4bac89809f6b33450d07b08542d5d7c8657fa3b0).
+
 - [x] Put code first; group module metadata and function details, remove empty reference groups and single-page pagination, and collapse symbol browsing on phones.
 - [x] Split the C-like view into Code, Register flow and Analysis details. Keep unknown effects and active call assumptions visible.
 - [x] Explain register reads/writes, origins, later uses and merge alternatives; provide source-linked tracing and preserve the selected value across assembly navigation and Back.
 - [x] Validate keyboard access, phone layout, history, escaping and the existing report views. See the [report guide and validation record](docs/report-layout.md).
 
-This requested UI refinement preserves the analysis models, schema and exports. M7.3 remains the next analysis milestone.
+The [hosted matrix](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40076357172) and [Pages deployment](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40076357173) passed on 2026-10-24: 25 CTest targets per backend, all browser suites and 1,212 independent recovery cases. All eight published reports contain the new views; the deployed recovery reports pass 86 C-like browser checks. This requested UI refinement preserves the analysis models, schema and exports. M7.3 remains the next analysis milestone.
 
 ### M7. Function recovery and stronger entry-role recognition
 
