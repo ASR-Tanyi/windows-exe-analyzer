@@ -79,11 +79,12 @@ def main():
         check(p.locator('.function-overview .blocktitle').inner_text() == 'main', 'main whole-function heading')
         check(p.locator('.function-block').count() == len(owned), 'all owned blocks rendered')
         check(p.locator('.function-block tbody tr').count() == expected_rows, 'all owned instructions rendered')
-        check(p.locator('.function-overview .statvalue').nth(2).inner_text() == str(sum(i['size'] for b in owned for i in b['instructions'])), 'byte count, not address envelope')
-        check('not proven' in p.locator('.function-overview .summary').inner_text(), 'uncertainty visible')
+        check(p.locator('.function-metrics b').nth(2).inner_text() == str(sum(i['size'] for b in owned for i in b['instructions'])), 'byte count, not address envelope')
+        check('inferred membership' in p.locator('.function-context').inner_text(), 'uncertainty visible')
+        check(not p.locator('.function-pagebar').is_visible(), 'single page has no disabled pagination clutter')
         check(p.locator('#prevFunctionPage').is_disabled() and p.locator('#nextFunctionPage').is_disabled(), 'small function page bounds')
         check(p.locator('#connections [data-function-detail="evidence"]').count() == 1, 'function evidence available')
-        check(p.locator('#connections [data-function-detail="metadata"]').count() == 1, 'metadata separate from decoded spans')
+        check(p.locator('#connections [data-function-detail="metadata"]').count() == bool(main_fn.get('metadataRecords')), 'metadata shown separately only when present')
         call = next(e for e in data['edges'] if e['from'] in {b['id'] for b in owned} and e['kind'] == 'call' and e['to'])
         p.locator('.function-block .function-target[data-from="' + call['source'] + '"]').first.click()
         check(p.locator('.function-overview .blocktitle').inner_text() == 'checksum_bytes', 'call opens callee whole function')
@@ -109,6 +110,7 @@ def main():
         p.locator('[data-tab="functions"]').click();p.locator('#search').fill('main')
         check('_fn_' in p.locator('#symbols a.symbol').first.get_attribute('href'), 'search preserves whole-function URLs')
         p.locator('#symbols a.symbol').first.click();p.locator('#search').fill('')
+        p.locator('[data-function-detail="overview"] > summary').click()
         p.locator('[data-function-detail="data"] summary').click()
         source = p.locator('.function-block .memoperand').first.get_attribute('data-from')
         p.locator('.function-block .memoperand').first.click();p.wait_for_selector('.datacard')
@@ -147,6 +149,7 @@ def main():
         for button, selector in [('exceptionMetadata','#exceptionRecords'),('unwindInfo','#unwindOperations'),('tlsMetadata','#tlsCallbacks')]:
             if not p.locator('#'+button).count() or p.locator('#'+button).is_disabled():
                 continue
+            p.locator('#reportDetails').evaluate('(e) => e.open = true')
             p.locator('#'+button).click();p.wait_for_selector(selector);back(p)
             check(p.locator('.function-overview').count() == 1, button + ' history interoperability')
         p.locator('#notes').click()

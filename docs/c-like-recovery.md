@@ -34,8 +34,11 @@ variable. Registers keep their machine names. Version 2 adds optional
 [stack memory aliases and bounded value facts](bounded-values.md); every aliased
 access still reads/writes memory, and the raw address view remains available.
 Version 3 adds [register def-use chains and explicit joins](register-ssa.md).
-Expand **Register flow** to follow definitions, incoming predecessor values and
-reverse uses. The graph preserves full-family and partial-write dependencies;
+Select the **Register flow** tab or click **Trace value** beside a code line.
+Reads and writes link to each value's origin and later uses; branch/loop merges
+show incoming alternatives. Stack locations, call assumptions and cleanup
+evidence are grouped under **Analysis details**. See the [report guide](report-layout.md).
+The graph preserves full-family and partial-write dependencies;
 the original graph remains available when display expressions are simplified.
 Version 4 adds [explicit call summaries](call-summaries.md) at analyst-selected
 Windows x64 call sites. The default remains unknown; the UI displays all profile

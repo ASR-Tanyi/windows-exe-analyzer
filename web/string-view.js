@@ -108,7 +108,7 @@
         if(location.hash!=='#'+id)history.pushState({via:from||null},'','#'+id);route();
     };
     const button=document.createElement('button');button.id='browseStrings';button.textContent='Strings ('+index.candidates.length+')';button.onclick=()=>navigate(prefix);
-    $('notes').before(button);
+    $('browseData').after(button);
     const style=document.createElement('style');style.textContent='.string-text{white-space:normal;min-width:180px;max-width:520px;overflow-wrap:anywhere}.string-hint{font-size:11px;color:var(--muted);padding:0 20px}#stringQuery{width:230px;max-width:100%}.string-source{color:var(--accent)}.string-inline{display:block;font:10px/1.6 var(--mono);color:#9ac5ff;margin-top:4px}';
     document.head.appendChild(style);route();
 })();

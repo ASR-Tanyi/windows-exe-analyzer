@@ -9,12 +9,21 @@ that executed. These are machine register versions, not recovered C variables.
 The existing code, memory aliases, flags and observable effects are retained.
 
 Open a Capstone report, select a function, then **C-like → Register flow**.
-Choose an instruction to inspect its reads, definitions and effects. Definition
-buttons open their inputs and reverse uses; **Inspect use** returns to the
-consuming instruction. **Branch / loop join** lists incoming definitions with
-predecessor transfer links to exact assembly. Cyclic joins are explored one click
-at a time. The existing optimized `transform_demo` is useful for inspecting
-loop-carried versions; O0 also exposes joins in the machine exit state.
+Alternatively, click **Trace value** beside a code line to start at its source
+instruction. **Reads** lists inputs and **Writes** lists newly created values.
+Select one to see **Where it comes from** and **Used later**; **Trace instruction**
+continues at a consumer. Labels such as `rax after 0x10e9` identify a particular
+write, rather than the register's current runtime contents.
+
+**Explore branch and loop merges** lists incoming alternatives and predecessor
+transfers with exact assembly links. A merge selects one incoming value; it does
+not add the values together. Cyclic joins are explored one click at a time.
+Machine exit observations and raw SSA identities are grouped separately from
+instruction uses. **How to read register flow** includes a short MOV/ADD example.
+The existing optimized `transform_demo` is useful for inspecting loop-carried
+versions; O0 also exposes joins in the machine exit state. The tab, selected
+instruction and value survive assembly navigation and Back within the open report.
+See the [report guide](report-layout.md) for the layout and validation record.
 
 ```sh
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --ssa

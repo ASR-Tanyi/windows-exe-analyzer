@@ -36,7 +36,7 @@ def main():
         html=generate('chain',records=[(0x1010,0x1030,0x3000),(0x1040,0x1050,0x3020)],nodes=nodes,
                       code={0x1000:b'\xc3',0x1010:b'\xc3',0x1040:b'\xc3',0x1060:b'\xc3'})
         page=open_page(html);check(page.locator('.blocktitle').inner_text()=='pe_entry','initial entry')
-        page.locator('#exceptionMetadata').click()
+        page.locator('#reportDetails').evaluate('(e) => e.open = true');page.locator('#exceptionMetadata').click()
         check(page.locator('#exceptionRecords tbody tr').count()==2,'metadata rows retained')
         check(page.locator('.exception-code').count()==2,'newly decoded candidates linked')
         check('decoded_candidate' in page.locator('#exceptionRecords').inner_text(),'discovery result visible')
@@ -75,11 +75,11 @@ def main():
         check(page.locator('#unwindInfo').is_visible(),'mobile toolbar')
         check(page.locator('.blocktitle').inner_text()=='Unwind info 0x3000','mobile node retained')
         unsupported=open_page(generate('unsupported',nodes={0x3000:bytes([3,255,255,255])}))
-        unsupported.locator('#unwindInfo').click()
+        unsupported.locator('#reportDetails').evaluate('(e) => e.open = true');unsupported.locator('#unwindInfo').click()
         check('Opaque unsupported version' in unsupported.locator('#content').inner_text(),'unsupported scope')
         check(unsupported.locator('#unwindOperations tbody tr').count()==0,'no fabricated opcodes')
         cycle=open_page(generate('cycle',nodes={0x3000:info(flags=4,trailer=struct.pack('<III',0x1010,0x1030,0x3000))}))
-        cycle.locator('#unwindInfo').click()
+        cycle.locator('#reportDetails').evaluate('(e) => e.open = true');cycle.locator('#unwindInfo').click()
         check('unwind_chain_cycle' in cycle.locator('#connections').inner_text(),'cycle reason')
         check('blocked' in cycle.locator('#connections').inner_text(),'blocked discovery visible')
         match=re.search(r'(<script id="report-data" type="application/json">)(.*?)(</script>)',html,re.S)
@@ -88,10 +88,10 @@ def main():
         legacy=html[:match.start(2)]+json.dumps(data).replace('<','\\u003c')+html[match.end(2):]
         old=open_page(legacy)
         check(old.locator('#unwindInfo').count()==0,'older reports require no new extension')
-        old.locator('#exceptionMetadata').click();check(old.locator('#exceptionRecords').count()==1,'older metadata view')
+        old.locator('#reportDetails').evaluate('(e) => e.open = true');old.locator('#exceptionMetadata').click();check(old.locator('#exceptionRecords').count()==1,'older metadata view')
         data=json.loads(match[2]);data['unwindInfo']['nodes'][0]['issues']=['<img src=x onerror="window.injected=1">']
         malicious=html[:match.start(2)]+json.dumps(data).replace('<','\\u003c')+html[match.end(2):]
-        evil=open_page(malicious);evil.locator('#unwindInfo').click()
+        evil=open_page(malicious);evil.locator('#reportDetails').evaluate('(e) => e.open = true');evil.locator('#unwindInfo').click()
         check(evil.locator('#content img').count()==0,'issue escaping')
         check(evil.evaluate('window.injected === undefined'),'no script injection')
         check(not errors,'JavaScript errors: '+repr(errors));check(not network,'Network requests: '+repr(network))

@@ -46,6 +46,7 @@
         return id ? link(id, text, e.source, 'function-target') : '<span class="muted">' + E(text) + ' (unresolved)</span>';
     }
     function section(key, title, items, render) {
+        if (!items.length) return '';
         let h = '<details class="info function-detail" data-function-detail="' + key + '"><summary>' + E(title) + ' (' + items.length + ')</summary>';
         h += items.slice(0, listLimit).map(render).join('') || '<p class="muted">None in the discovered report facts.</p>';
         if (items.length > listLimit) h += '<p class="muted">First ' + listLimit + ' shown; full facts remain in the embedded report. Assembly pages retain all owned instructions.</p>';
@@ -99,16 +100,16 @@
             '<span class="eyebrow">Whole function / inferred membership</span><span class="pill blue">FUNCTION CANDIDATE</span></div>' +
             '<h2 class="blocktitle">' + E(shownName(f)) + '</h2><div class="addressmeta">Entry RVA ' + E(hex(f.rva)) +
             ' / VA ' + E(vaFor(f.rva)) + ' / ' + link(f.id, 'Open entry block', view.id, 'function-plain') + '</div></div>' +
-            '<div class="summary">Address order, not execution order. Membership comes from the existing inferred block owners; ' +
-            'complete function recovery is not proven. Gaps are not filled and shared blocks retain all owners.' +
-            (note ? '<br><br><b>Analyst note:</b> ' + E(note) : '') + '</div>';
+            '<p class="function-context">Address order · inferred membership' +
+            (m.sharedBlocks.length ? ' · ' + m.sharedBlocks.length + ' shared blocks' : '') +
+            (note ? '<br><b>Analyst note:</b> ' + E(note) : '') + '</p>';
         if (D.module.truncated || m.unresolved.length || m.ownershipMissing) h += '<div class="datawarning">' +
             (D.module.truncated ? 'Instruction discovery hit its budget. ' : '') +
             (m.unresolved.length ? m.unresolved.length + ' unresolved control-flow reference(s). ' : '') +
             (m.ownershipMissing ? 'Entry ownership is missing; no membership has been invented. ' : '') + '</div>';
-        h += '<div class="function-stats">' + [[m.blocks.length,'Owned blocks'],[m.rows.length,'Instructions'],[m.byteCount,'Unique decoded bytes'],[m.callSites,'Call sites']]
-            .map(([n,t]) => '<div class="stat"><div class="statvalue">' + n.toLocaleString() + '</div><div class="statlabel">' + t + '</div></div>').join('') + '</div>';
-        h += '<div class="function-sections">' + section('coverage','Decoded coverage spans',m.ranges,r =>
+        h += '<div class="function-metrics">' + [[m.blocks.length,'Owned blocks'],[m.rows.length,'Instructions'],[m.byteCount,'Unique decoded bytes'],[m.callSites,'Call sites']]
+            .filter(([n]) => n).map(([n,t]) => '<span><b>' + n.toLocaleString() + '</b> ' + t.toLowerCase() + '</span>').join('') + '</div>';
+        h += '<details class="function-sections function-detail info" data-function-detail="overview"><summary>Function details</summary><p class="small muted">Gaps are not filled; decoded coverage does not prove complete function boundaries.</p>' + section('coverage','Decoded coverage spans',m.ranges,r =>
             '<p class="mono">[' + E(hex(r[0])) + ', ' + E(hex(r[1])) + ')</p>');
         h += section('blocks','Owned blocks / ' + m.sharedBlocks.length + ' shared',m.blocks,b => {
             const i = b.instructions[0];
@@ -120,10 +121,10 @@
             '<p>' + link(idFor(f,x.insn.id),x.insn.va,view.id) + ' / ' + E(x.ref.access) +
             (x.ref.width ? ' ' + E(x.ref.width) + ' B' : '') + ' : ' +
             (x.ref.to && isDataId(x.ref.to) ? link(x.ref.to,label(dataObject(x.ref.rva)),x.insn.id,'function-data') : E(x.ref.va)) + '</p>');
-        h += '</div><form id="functionGo" class="datatools"><label for="functionAddress">Go to instruction RVA</label>' +
+        h += '</details><form id="functionGo" class="datatools"><label for="functionAddress">Go to instruction RVA</label>' +
             '<input id="functionAddress" placeholder="0x..." aria-label="Function instruction RVA"><button>Go</button>' +
             '<span class="small muted">Exact decoded instruction starts only.</span></form></section>';
-        h += '<div class="function-pagebar"><button id="prevFunctionPage" ' + (view.page ? '' : 'disabled') + '>Previous instructions</button>' +
+        h += '<div class="function-pagebar"' + (m.rows.length <= pageSize ? ' hidden' : '') + '><button id="prevFunctionPage" ' + (view.page ? '' : 'disabled') + '>Previous instructions</button>' +
             '<span id="functionPageStatus">' + first + '-' + (first + rows.length) + ' / ' + m.rows.length + ' instructions</span>' +
             '<button id="nextFunctionPage" ' + (first + rows.length < m.rows.length ? '' : 'disabled') + '>Next instructions</button></div>';
         let group = null;
@@ -246,7 +247,7 @@
     window.addEventListener('popstate',onHistory,true); window.addEventListener('hashchange',onHistory,true);
     window.addEventListener('pagehide',() => save());
     const style = document.createElement('style');
-    style.textContent = '.function-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:0 20px 18px}.function-sections{padding:0 20px}.function-detail{margin:8px 0;overflow-wrap:anywhere}.function-pagebar{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:18px 0;font-size:12px}.function-pagebar button{font-size:12px}.function-block{margin:14px 0;overflow:visible}.function-block-head{position:sticky;top:0;z-index:1;background:var(--panel2);padding:12px 15px;border-bottom:1px solid var(--line);border-radius:10px 10px 0 0;font-family:var(--mono);overflow-wrap:anywhere}.function-block-head a{float:right;font:11px var(--sans)}.function-edge{margin-top:5px;color:var(--muted)}.function-target{color:var(--accent)}#functionOwner{max-width:170px;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:7px}#functionOwner[hidden]{display:none}@media(max-width:720px){.function-stats{grid-template-columns:repeat(2,minmax(0,1fr));padding:0 13px 13px}.function-sections{padding:0 13px}.function-pagebar{flex-wrap:wrap}.function-block-head{font-size:12px}}';
+    style.textContent = '.function-sections.function-detail{margin:0 20px 8px;padding:10px 12px}.function-detail{margin:8px 0;overflow-wrap:anywhere}.function-pagebar{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:18px 0;font-size:12px}.function-pagebar button{font-size:12px}.function-block{margin:14px 0;overflow:visible}.function-block-head{position:sticky;top:0;z-index:1;background:var(--panel2);padding:12px 15px;border-bottom:1px solid var(--line);border-radius:10px 10px 0 0;font-family:var(--mono);overflow-wrap:anywhere}.function-block-head a{float:right;font:11px var(--sans)}.function-edge{margin-top:5px;color:var(--muted)}.function-target{color:var(--accent)}#functionOwner{max-width:170px;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:7px}#functionOwner[hidden]{display:none}@media(max-width:720px){.function-sections.function-detail{margin:0 12px 8px}.function-pagebar{flex-wrap:wrap}.function-block-head{font-size:12px}}';
     document.head.appendChild(style);
     route();
 })();

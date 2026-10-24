@@ -88,6 +88,6 @@
     const button = document.createElement('button');
     button.id = 'unwindInfo'; button.textContent = 'Unwind validation'; button.disabled = !nodes.size;
     button.onclick = () => navigate(nodes.keys().next().value,I.has(location.hash.slice(1)) ? location.hash.slice(1) : undefined);
-    $('notes').before(button);
+    $('metadataTools').append(button);
     route();
 })();

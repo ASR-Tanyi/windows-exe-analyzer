@@ -88,6 +88,10 @@ Search, rename, and annotate blocks/data. Export annotations as JSON for portabl
 storage; browser localStorage is best-effort. The legacy annotation storage
 prefix is retained so previous labels remain compatible.
 
+The report opens with code. **Report details** holds module counts and PE
+metadata; **Function details** groups membership, coverage and references.
+The symbol browser starts collapsed on phones; press `/` to open search.
+
 Select **C-like** for an initial assembly-to-pseudocode preview: assignments,
 integer arithmetic, memory reads/writes, indexed addresses, supported if/else
 and loops, with exact assembly links. It keeps machine register names and
@@ -97,17 +101,20 @@ Proven stack locations now get optional readable memory aliases, with bounded
 register-value facts and source evidence. The stack table explains ambiguous or
 overlapping locations; the toggle restores raw addresses. These are memory
 aliases, not inferred C locals. See the [value-analysis contract](docs/bounded-values.md).
-Expand **Register flow** to follow each register read to its defining write,
-inspect branch/loop joins and browse reverse uses with assembly evidence.
+The C-like view has **Code**, **Register flow**, and **Analysis details** tabs.
+Click **Trace value** beside a code line to inspect the source instruction's
+**Reads** and **Writes**. Select a value to see **Where it comes from** and
+**Used later**; merges explain the alternative values from incoming paths.
 Partial writes and unknown call clobbers stay explicit; see the
-[register SSA contract](docs/register-ssa.md).
-**Simplify register expressions** combines bounded constants, copies and pure
+[register SSA contract](docs/register-ssa.md) and [report guide](docs/report-layout.md).
+**Simplify expressions** combines bounded constants, copies and pure
 arithmetic within each basic block; see the [expression contract](docs/register-expressions.md).
-**Remove dead register writes** omits unused pure writes while keeping arithmetic
+**Remove dead writes** omits unused pure writes while keeping arithmetic
 flag updates and all memory/call effects. Its evidence table links each removed
 write to a retained overwrite. Both toggles start enabled; turn both off to see
 every original operation. See the [cleanup contract](docs/register-cleanup.md).
-For reviewed x64 call sites, **Call assumptions** can explicitly select a
+**Analysis details** groups stack locations, cleanup evidence and coverage limits.
+For reviewed x64 call sites, its **Call assumptions** can explicitly select a
 Windows x64 normal-return summary. It preserves nonvolatile GPR/SP facts while
 keeping volatile registers, flags and memory unknown. Export/import selections
 for reuse; unselected calls retain all-state barriers. See the

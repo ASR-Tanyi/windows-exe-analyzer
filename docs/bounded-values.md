@@ -4,10 +4,10 @@ Implemented in [`5c61ae7`](https://github.com/ASR-Tanyi/windows-exe-analyzer/com
 
 C-like preview v2 adds entry-relative register facts and readable stack memory
 aliases to the existing typed operations. Open `transform_demo` in an O0 report,
-select **C-like**, and expand **stack locations**. **Show stack memory aliases**
-switches between named accesses and the original address expressions.
-**source(s)** shows the contributing instructions and before/after facts at the
-first instruction in that list. All original assembly links and rename IDs stay
+select **C-like → Analysis details**, and expand **Stack locations**.
+**Stack aliases** in the **Code** tab switches between named accesses and the original address expressions.
+**Sources** shows the contributing instructions; expand **Value facts** for
+before/after facts at the first instruction in that list. All original assembly links and rename IDs stay
 stable.
 
 For example, a proven 32-bit access at incoming SP minus 28 bytes can display as

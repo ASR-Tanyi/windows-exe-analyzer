@@ -47,7 +47,7 @@ def main():
         html = generate('valid', records=[(0x1000, 0x1001, None), (0x1010, 0x1011, None)])
         page = open_page(html)
         check(page.locator('.blocktitle').inner_text() == 'pe_entry', 'default code view')
-        page.locator('#exceptionMetadata').click()
+        page.locator('#reportDetails').evaluate('(e) => e.open = true');page.locator('#exceptionMetadata').click()
         check(page.locator('#exceptionRecords tbody tr').count() == 2, 'metadata rows')
         check('not decoded' in page.locator('#exceptionRecords').inner_text(), 'unknown code stays unknown')
         check('No discovery seeds' in page.locator('.summary').inner_text(), 'scope is explicit')
@@ -62,7 +62,7 @@ def main():
         page.locator('.exception-code').click(); page.wait_for_selector('tr.focused')
         check(page.locator('tr.focused').count() == 1, 'known metadata entry to exact instruction')
         check(page.locator('tr.focused').get_attribute('id').endswith('_i_1000'), 'instruction identity')
-        page.locator('#exceptionMetadata').click()
+        page.locator('#reportDetails').evaluate('(e) => e.open = true');page.locator('#exceptionMetadata').click()
         page.locator('#back').click(); page.wait_for_selector('tr.focused')
         check(page.locator('tr.focused').get_attribute('id').endswith('_i_1000'), 'metadata shortcut preserves instruction')
         page.locator('#forward').click(); page.wait_for_selector('#exceptionRecords')
@@ -78,7 +78,7 @@ def main():
         check(page.locator('#exceptionRecords tbody tr').count() == 2, 'mobile metadata retained')
 
         many = open_page(generate('many', records=[(0x1010, 0x1011, None)]*205))
-        many.locator('#exceptionMetadata').click()
+        many.locator('#reportDetails').evaluate('(e) => e.open = true');many.locator('#exceptionMetadata').click()
         check(many.locator('#exceptionRecords tbody tr').count() == 100, 'DOM row budget')
         many.locator('#nextMetadata').click()
         check(many.locator('#exceptionRecords tbody tr').count() == 100, 'second page')
@@ -93,13 +93,13 @@ def main():
         check(many.locator('#prevMetadata').is_disabled(), 'first page bound')
 
         bad = open_page(generate('bad', records=[(0, 0, 0)]))
-        bad.locator('#exceptionMetadata').click()
+        bad.locator('#reportDetails').evaluate('(e) => e.open = true');bad.locator('#exceptionMetadata').click()
         check('issues_present' in bad.locator('#exceptionRecords').inner_text(), 'invalid records are explicit')
         check(bad.locator('.exception-code').count() == 0, 'no fabricated code link')
         absent = open_page(generate('absent', records=[], directory_rva=0))
-        absent.locator('#exceptionMetadata').click()
+        absent.locator('#reportDetails').evaluate('(e) => e.open = true');absent.locator('#exceptionMetadata').click()
         check('No exception directory' in absent.locator('#content').inner_text(), 'absent is not no functions')
-        x86 = open_page(generate('x86', bits=32)); x86.locator('#exceptionMetadata').click()
+        x86 = open_page(generate('x86', bits=32)); x86.locator('#reportDetails').evaluate('(e) => e.open = true');x86.locator('#exceptionMetadata').click()
         check('unsupported_architecture' in x86.locator('#content').inner_text(), 'architecture gate')
 
         match = re.search(r'(<script id="report-data" type="application/json">)(.*?)(</script>)', html, re.S)
@@ -110,7 +110,7 @@ def main():
         check(old.locator('.blocktitle').inner_text() == 'pe_entry', 'legacy initial view')
         data = json.loads(match[2]); data['exceptionDirectory']['issues'] = ['<img src=x onerror="window.injected=1">']
         escaped = html[:match.start(2)] + json.dumps(data).replace('<', '\\u003c') + html[match.end(2):]
-        evil = open_page(escaped); evil.locator('#exceptionMetadata').click()
+        evil = open_page(escaped); evil.locator('#reportDetails').evaluate('(e) => e.open = true');evil.locator('#exceptionMetadata').click()
         check(evil.locator('#content img').count() == 0, 'metadata escaping')
         check(evil.evaluate('window.injected === undefined'), 'no injected script')
         check(not errors, 'no JavaScript errors: ' + repr(errors))

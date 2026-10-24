@@ -3,7 +3,7 @@
 Implemented in [`e09e9df`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/e09e9dfaf2e10f35f7e5647ccac43a535ba06a61).
 
 Preview v5 adds a separate expression overlay to the original lifted operations.
-Open **C-like → Simplify register expressions** (enabled initially) to see it;
+Open **C-like → Code → Simplify expressions** (enabled initially) to see it;
 turn it off to recover the original expressions. Preview v6 also enables a
 separate [dead-write cleanup](register-cleanup.md); turn both checkboxes off to
 recover every original operation. The existing optimized

@@ -7,7 +7,7 @@ the analyst explicitly selects the reviewed `windows-x64-normal-return-v1`
 contract at that instruction. The default is still an all-state barrier. PE
 bitness, import names, exports and nearby code never activate a profile.
 
-Open **C-like → Call assumptions** and select a contract for each reviewed call.
+Open **C-like → Analysis details → Call assumptions** and select a contract for each reviewed call.
 The report index's **Call assumptions demo** opens the existing `pe_entry`
 ladder, which calls all six functions in [recovery.c](../tests/fixtures/recovery.c).
 Selecting all six allows SP facts to survive the whole chain. The nested-loop

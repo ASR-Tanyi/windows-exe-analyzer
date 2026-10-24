@@ -372,6 +372,15 @@ Local validation passes: 23 CTest targets per backend, 126 recovery contracts, 7
 
 The [hosted matrix passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39896686969) on 2026-10-23: 25 CTest targets per backend, all browser suites, 1,212 independent semantic cases and 36 call executions. Hosted fixtures cover 9,156 instruction states, 10,260 SSA uses, 702 selected joins and 7,920 exit values. [Pages deployment passed](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/39896686970); the deployed scalar/nested-loop reports were verified by HTTPS download, exact embedded-source matching and offline browser checks for all four presentations, CLI parity and original/overwrite assembly navigation. See the [validation record](docs/register-cleanup.md#validation).
 
+#### Report readability refinement
+
+- [x] Put code first; group module metadata and function details, remove empty reference groups and single-page pagination, and collapse symbol browsing on phones.
+- [x] Split the C-like view into Code, Register flow and Analysis details. Keep unknown effects and active call assumptions visible.
+- [x] Explain register reads/writes, origins, later uses and merge alternatives; provide source-linked tracing and preserve the selected value across assembly navigation and Back.
+- [x] Validate keyboard access, phone layout, history, escaping and the existing report views. See the [report guide and validation record](docs/report-layout.md).
+
+This requested UI refinement preserves the analysis models, schema and exports. M7.3 remains the next analysis milestone.
+
 ### M7. Function recovery and stronger entry-role recognition
 
 **Goal:** turn verified low-level effects into readable, inspectable function-level code.

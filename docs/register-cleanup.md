@@ -2,14 +2,14 @@
 
 Implemented in [`d8dc5b2`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/d8dc5b2615b11d74d54edb713addb4b06ce9fa14).
 
-Preview v6 adds a separate cleanup overlay. **C-like → Remove dead register
-writes** starts enabled alongside **Simplify register expressions**. Cleanup can
+Preview v6 adds a separate cleanup overlay. **C-like → Code → Remove dead
+writes** starts enabled alongside **Simplify expressions**. Cleanup can
 also operate without expression substitution. Turn both off to inspect every
 original operation; the original instruction list and register SSA never change.
 
 The optimized `scalar_ops` demo loses one redundant LEA assignment after its
 value is substituted into a later XOR. The nested-loop `transform_demo` also
-exercises cleanup alongside branches and array reads/writes. The cleanup table
+exercises cleanup alongside branches and array reads/writes. The cleanup table under **Analysis details**
 lists every omitted write, every flags-only operation and the later retained
 overwrite, with exact assembly links and history navigation.
 

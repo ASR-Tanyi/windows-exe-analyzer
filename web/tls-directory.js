@@ -106,6 +106,6 @@
     const button = document.createElement('button'); button.id = 'tlsMetadata';
     button.textContent = 'TLS callbacks (' + tls.callbacks.length + ')';
     button.onclick = () => navigate(prefix, I.has(location.hash.slice(1)) ? location.hash.slice(1) : undefined);
-    $('notes').before(button);
+    $('metadataTools').append(button);
     route();
 })();

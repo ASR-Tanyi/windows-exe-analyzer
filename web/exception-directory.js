@@ -85,6 +85,6 @@
     button.id = 'exceptionMetadata';
     button.textContent = 'Exception metadata (' + meta.records.length + ')';
     button.onclick = () => navigate(prefix, I.has(location.hash.slice(1)) ? location.hash.slice(1) : undefined);
-    $('notes').before(button);
+    $('metadataTools').append(button);
     route();
 })();
