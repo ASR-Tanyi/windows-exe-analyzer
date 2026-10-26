@@ -396,6 +396,15 @@ Local validation passes: 25 CTest targets per backend, 94 Capstone / 15 LLVM sto
 
 The [hosted matrix](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40283334985) and [Pages deployment](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40283334967) passed on 2026-10-26: 27 CTest targets per backend, all browser suites, 1,260 recovery cases and 36 call executions. Hosted storage evidence covers 133 concrete reloads and 41 saved entry values. All eight published reports embed the tested sources; the deployed reports pass 90 C-like browser checks, and the scalar storage model matches CLI JSON with verified evidence/history links.
 
+#### P8. Explicit function ABI register evidence — completed subset
+
+- [x] **P8.1** Add a versioned per-function Windows x64 GPR contract, separate from call-site summaries and display annotations. Reject invalid bindings transactionally; preserve default unknown conventions. [Contract](docs/function-abi.md).
+- [x] **P8.2** Track possible unchanged entry-register reads through PHIs and partial writes; exclude same-register zeroing. Retain separate RAX definitions at actual RET sites, unknown alternatives and contradictory RET cleanup. [Pass](web/function-abi.js).
+- [x] **P8.3** Inspect bounded direct callers with diagnostic input reads while retaining all raw CALL clobbers. Group candidates and source links in Analysis details; add contract import/export and CLI `--function-contract` / `--abi` without changing code effects.
+- [x] **P8.4** Validate decoded operands, actual ceilings, cross-function links and concrete values with the existing O0/O1 C ladder. [Graph checks](tests/test_function_abi.js), [decoder/CLI contracts](tests/test_function_abi.py), [browser checks](tests/test_function_abi_browser.py), [independent execution](tests/test_function_abi_oracle.py).
+
+Local validation: 27 CTest targets per backend, 100 graph checks, 77 Capstone / 2 LLVM decoder/CLI contracts, and independent ABI evidence across 60 executions (194 input reads, 60 returns, 100 caller values and 32 call-result reads). See the [validation record](docs/function-abi.md#validation). M7.4 remains open for stack/floating-point arguments, prototype/type annotations, conflicting declarations, varargs and hidden-parameter handling. This subset never emits a C signature or infers a parameter count.
+
 ### M7. Function recovery and stronger entry-role recognition
 
 **Goal:** turn verified low-level effects into readable, inspectable function-level code.
@@ -411,6 +420,8 @@ The [hosted matrix](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/ru
 
   Completed for the bounded P2/P7 normal-flow subset: [physical stack locations](docs/bounded-values.md) plus [storage-role evidence](docs/stack-storage.md). Matching entry-register save/reload pairs are proven within the documented alias/lifetime rules; spill, outgoing-argument and local roles remain candidates. ABI call areas require explicit call assumptions. No independent C locals, original types, actual parameter counts or whole-function register-preservation guarantee are inferred. Incoming function ABI regions, copy-chain restores and broader lifetime splitting remain deferred.
 - [ ] **M7.4** Infer arguments and return candidates from supported ABI profiles and callers. Preserve conflicting prototypes, varargs uncertainty, hidden parameters, and analyst-supplied types.
+
+  P8 completes the explicit Windows x64 register-evidence subset: possible entry GPR reads, per-RET RAX alternatives and bounded direct-caller observations. Full M7.4 stays unchecked: incoming stack arguments and analyst prototypes/types, with conflict and hidden/variadic parameter handling, remain open. [Scope and validation](docs/function-abi.md).
 - [ ] **M7.5** Emit readable labeled low-level pseudocode first. Preserve `goto` for unsupported or irreducible structure; recover `if`, loops, and supported switches only when the graph/effects justify the transformation.
 - [ ] **M7.6** Link each pseudocode expression to all contributing instructions, including transformations that combine multiple instructions. Renaming must update displays without rewriting the evidence.
 - [ ] **M7.7** Revisit application-entry recognition using call arguments, return-value use, matched symbols, and versioned CRT profiles. Cover console/GUI and narrow/wide variants separately; retain custom entry and no-candidate outcomes.
@@ -458,7 +469,8 @@ Keep changes small enough to review independently. Items 1–9 have implementati
 | 13 | M7.2 bounded register-expression simplification | Done for P5: [`e09e9df`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/e09e9dfaf2e10f35f7e5647ccac43a535ba06a61) | [Contract and validation](docs/register-expressions.md); SSA-checked live inputs, modular widths, explicit original effects, bounded expression growth and complete source links |
 | 14 | M7.2 dead register-write cleanup | Done for P6: [`d8dc5b2`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/d8dc5b2615b11d74d54edb713addb4b06ce9fa14) | [Contract and validation](docs/register-cleanup.md); separate raw/simplified liveness, retained flag effects, all-state boundaries, bounded fallback and complete overwrite evidence |
 | 15 | M7.3 conservative stack storage roles | Done for P7: [`946b913`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/946b9137552358282c9cb732006dfd81e32bb7df) | [Contract and validation](docs/stack-storage.md); definite store/reload evidence, explicit ABI call regions, candidates and mixed uses, immutable memory effects and bounded fallback |
-| 16 | M7.4 explicit function ABI and argument/return candidates | Next: `feat: add explicit function ABI evidence` | Keep per-function contracts separate from call-site assumptions; infer only supported candidates with caller evidence and retain conflicts, varargs and unknown prototypes |
+| 16 | M7.4 explicit function ABI register evidence | Done for P8 | [Contract and validation](docs/function-abi.md); opt-in per-function profile, entry-bit reads, separate return alternatives, direct-caller observations, contradictory cleanup and bounded fallback |
+| 17 | M7.4 incoming stack arguments and prototype annotations | Next: `feat: add conservative incoming stack argument evidence` | Require explicit function ABI and sound alias/lifetime evidence for incoming stack reads and caller stores; then retain analyst declarations and conflicts without guessing varargs, hidden parameters or original C types |
 
 Items 5 and 6 can proceed independently once the shared identities/reference contract is stable. Broader `main` recovery is deliberately not a prerequisite for discovering or browsing functions.
 

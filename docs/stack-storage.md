@@ -137,7 +137,7 @@ open **Analysis details → Stack locations** to see the saved EBP pair and a
 spill/reload candidate. The site follows the latest deployment; workflow
 artifacts retain the tested snapshot.
 
-The next milestone is M7.4: explicit function ABI contracts and conservative
-argument/return candidates. Original variable names/types, actual outgoing
+Preview v8 adds the [M7.4 function ABI register subset](function-abi.md). Incoming
+stack arguments and prototype reconciliation remain next. Original variable names/types, actual outgoing
 argument counts, whole-function register preservation, other ABI profiles and
 general memory/flag SSA remain outside this slice.

@@ -5,17 +5,18 @@ const fs = require('node:fs');
 const model = require('../web/pseudocode-model.js');
 function main() {
     const [path, entry, ...args] = process.argv.slice(2);
-    let format, calls, simplified = false, clean = false;
-    const usage = 'Usage: node scripts/pseudocode.js report.json FUNCTION_RVA [--json|--raw|--ssa|--storage] [--simplified] [--clean] [--calls assumptions.json]';
+    let format, calls, contract, simplified = false, clean = false;
+    const usage = 'Usage: node scripts/pseudocode.js report.json FUNCTION_RVA [--json|--raw|--ssa|--storage|--abi] [--simplified] [--clean] [--calls assumptions.json] [--function-contract contract.json]';
     if (!path || !entry) throw Error(usage);
     for (let n = 0; n < args.length; n++) {
-        if (['--json', '--raw', '--ssa', '--storage'].includes(args[n]) && !format) format = args[n];
+        if (['--json', '--raw', '--ssa', '--storage', '--abi'].includes(args[n]) && !format) format = args[n];
         else if (args[n] === '--simplified' && !simplified) simplified = true;
         else if (args[n] === '--clean' && !clean) clean = true;
         else if (args[n] === '--calls' && !calls && args[n + 1] && !args[n + 1].startsWith('--')) calls = args[++n];
+        else if (args[n] === '--function-contract' && !contract && args[n + 1] && !args[n + 1].startsWith('--')) contract = args[++n];
         else throw Error(usage);
     }
-    if ((simplified || clean) && ['--json', '--ssa', '--storage'].includes(format)) throw Error('--simplified and --clean select code output; JSON already includes all forms.');
+    if ((simplified || clean) && ['--json', '--ssa', '--storage', '--abi'].includes(format)) throw Error('--simplified and --clean select code output; JSON already includes all forms.');
     if (!/^(0x[0-9a-f]+|[0-9]+)$/i.test(entry)) throw Error('Function RVA must be decimal or 0x hexadecimal.');
     const report = JSON.parse(fs.readFileSync(path, 'utf8'));
     const f = report.functions.find(f => f.rva === Number(entry));
@@ -25,13 +26,35 @@ function main() {
         if (fs.statSync(calls).size > 65536) throw Error('Call-assumption file exceeds 64 KiB.');
         callAssumptions = JSON.parse(fs.readFileSync(calls, 'utf8')) ?? {};
     }
-    const result = model.recover(report, f.id, {callAssumptions});
+    let functionContract;
+    if (contract) {
+        if (fs.statSync(contract).size > 65536) throw Error('Function-contract file exceeds 64 KiB.');
+        functionContract = JSON.parse(fs.readFileSync(contract, 'utf8')) ?? {};
+    }
+    const result = model.recover(report, f.id, {callAssumptions, functionContract});
+    if (result.functionABI?.status === 'invalid') {
+        console.error('Invalid function contract: ' + result.functionABI.reason); process.exitCode = 2;
+    }
     if (result.callAnalysis?.status === 'invalid') {
         console.error('No call summaries applied: ' + result.callAnalysis.reason); process.exitCode = 2;
     }
     if (format !== '--json' && result.callAnalysis?.applied) console.log('// ' + result.callAnalysis.notice);
+    if (format !== '--json' && result.functionABI?.contract.profile) console.log('// ' + result.functionABI.notice);
     if (format === '--json') console.log(JSON.stringify(result, null, 2));
     else if (result.status === 'unavailable') console.log('// ' + result.reason);
+    else if (format === '--abi') {
+        const a = result.functionABI;
+        if (a.status !== 'available') {console.log('// Function ABI evidence unavailable: ' + a.reason); process.exitCode = 2; return;}
+        console.log('// Function ABI evidence v' + a.version);
+        for (const c of a.conflicts) console.log('Contract conflict @ ' + c.source + ': ' + c.reason);
+        for (const p of a.arguments) console.log('Input candidate ' + p.position + ': ' + p.register + '; entry-bit mask ' + p.mask + ' @ ' + p.sources.join(', '));
+        for (const r of a.returns) console.log('RAX at RET ' + r.source + ': ' + r.status + '; ' + r.alternatives.map(d => d.definition).join(' or ') + ' @ ' + r.sources.join(', '));
+        for (const c of a.callers) {
+            console.log('Caller ' + c.functionId + ' @ ' + c.source + ': ' + c.status + (c.reason ? '; ' + c.reason : ''));
+            for (const p of c.arguments) console.log('  ' + p.position + ': ' + p.register + '; ' + p.status + ' @ ' + p.sources.join(', '));
+            for (const u of c.returnUses) console.log('  RAX read mask ' + u.mask + ' @ ' + u.source);
+        }
+    }
     else if (format === '--storage') {
         const s = result.stackStorage;
         if (s.status !== 'available') {console.log('// Stack storage unavailable: ' + s.reason); process.exitCode = 2; return;}

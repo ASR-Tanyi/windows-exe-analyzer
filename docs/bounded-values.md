@@ -24,7 +24,7 @@ node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --raw
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --json
 ```
 
-The current JSON export has `version: 7`, raw `lines`, alias-aware `displayLines`,
+The current JSON export has `version: 8`, raw `lines`, alias-aware `displayLines`,
 the unchanged typed instructions/regions, and `valueAnalysis.version: 1`.
 Version 3 added [register SSA](register-ssa.md); version 4 adds
 [explicit call assumptions](call-summaries.md) alongside the v2 value analysis.
@@ -180,4 +180,4 @@ M7.2 subset. Keep memory aliases
 observable until alias assumptions and storage roles are supported. Broader ABI
 profiles, I/O prototypes, indirect discovery, source local names/types,
 argument/return inference, switches and exceptional paths remain pending;
-Preview v7 adds [bounded storage roles](stack-storage.md) for the M7.3 subset without changing this value domain or forwarding loads. M7.4 remains open.
+Preview v7 adds [bounded storage roles](stack-storage.md) for the M7.3 subset without changing this value domain or forwarding loads. Preview v8 adds [function ABI register evidence](function-abi.md); M7.4 remains open.

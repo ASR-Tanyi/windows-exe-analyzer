@@ -118,6 +118,11 @@ Stack locations now show proven saved-entry-register pairs, spill/reload and
 local candidates, return-address regions and explicitly assumed call storage.
 Each role links to its assembly evidence; overlapping or uncertain uses remain
 marked. See the [stack storage contract](docs/stack-storage.md).
+**Function contract and candidates** lets you explicitly select Windows x64 to
+inspect possible register inputs, RAX values at returns and direct-caller
+evidence. Unknown values and conflicting return cleanup stay visible. This
+does not infer a C signature or change the code. See the
+[function ABI contract](docs/function-abi.md).
 For reviewed x64 call sites, its **Call assumptions** can explicitly select a
 Windows x64 normal-return summary. It preserves nonvolatile GPR/SP facts while
 keeping volatile registers, flags and memory unknown. Export/import selections
@@ -136,6 +141,7 @@ node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --simplified
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --simplified --clean
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --ssa
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --storage
+node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --function-contract function-contract.json --abi
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --calls call-assumptions.json --json
 ```
 

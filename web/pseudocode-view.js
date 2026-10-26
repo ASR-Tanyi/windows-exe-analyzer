@@ -6,6 +6,7 @@
     const byRva = new Map(D.functions.map(f => [f.rva, f]));
     let active = null, aliasesEnabled = true, expressionsEnabled = true, cleanupEnabled = true;
     const callAssumptions = new Map();
+    const functionContracts = new Map();
     const idFor = f => prefix + f.rva.toString(16);
     function parse(id) {
         if (!id.startsWith(prefix)) return null;
@@ -35,9 +36,13 @@
         active = f; selected = f.id; setTab('functions');
         if (!viewStates.has(f.id)) viewStates.set(f.id,{tab:'code',source:null,definition:null,open:new Map()});
         const state = viewStates.get(f.id);
-        const model = WEAPseudocodeModel.recover(D,f.id,{callAssumptions:callAssumptions.get(f.id)}), s = model.stats, va = model.valueAnalysis;
+        const model = WEAPseudocodeModel.recover(D,f.id,{callAssumptions:callAssumptions.get(f.id),functionContract:functionContracts.get(f.id)}), s = model.stats, va = model.valueAnalysis;
         const instructionText = id => {const i = I.get(id)?.insn; return i ? hex(i.rva) + ' ' + i.mnemonic + (i.operands ? ' ' + i.operands : '') : id;};
-        const sourceLink = id => I.has(id) ? link(assembly(f,id),instructionText(id),idFor(f),'pseudo-source') : E(id);
+        const sourceLink = id => {
+            const record = I.get(id), owners = [...new Set(record?.block.owners || [])];
+            const owner = owners.length === 1 ? functions.get(owners[0]) : null;
+            return record ? link(owner ? assembly(owner,id) : id,instructionText(id),idFor(f),'pseudo-source') : E(id);
+        };
         const prefix = expressionsEnabled ? (cleanupEnabled ? 'simplifiedClean' : 'simplified') : (cleanupEnabled ? 'clean' : '');
         const lines = model[prefix + (aliasesEnabled ? (prefix ? 'DisplayLines' : 'displayLines') : (prefix ? 'Lines' : 'lines'))];
         const flowAvailable = model.registerSSA?.status === 'available';
@@ -56,6 +61,8 @@
             const warnings = [];
             if (s.barriers) warnings.push(s.barriers + ' instruction(s) have unknown effects.');
             if (model.callAnalysis.applied) warnings.push(model.callAnalysis.applied + ' call assumption(s) are active; these contracts are not verified.');
+            if (model.functionABI.contract.profile) warnings.push('The function calling convention is assumed; argument and return roles remain candidates.');
+            if (model.functionABI.conflicts.length) warnings.push('Observed instructions conflict with the selected function convention.');
             if (!model.structured) warnings.push('Shared blocks or truncated discovery: explicit transfers retained.');
             if (!flowAvailable) warnings.push(model.registerSSA.reason + ' Original effects shown; original writes retained.');
             else if (expressions.status !== 'available' || cleanup.status !== 'available') warnings.push('Some display transformations are unavailable; original effects are retained.');
@@ -86,6 +93,7 @@
             h += '</tbody></table></div></div>' + panel('flow') + WEARegisterFlowView.markup(model.registerSSA,model.instructions,E,instructionText) + '</div>' + panel('analysis');
             h += '<h3>Evidence and assumptions</h3><p class="muted">Inspect the facts behind this function and the changes made to its display.</p>';
             h += WEACallSummaryView.markup(model.callAnalysis,E,sourceLink);
+            h += WEAFunctionABIView.markup(model.functionABI,E,sourceLink);
             const storage = model.stackStorage, storageSlots = new Map(storage.slots.map(s => [s.id,s]));
             const storageEvidence = slot => {
                 const s = storageSlots.get(slot.id);
@@ -113,7 +121,7 @@
                     '</td><td>' + r.sources.map(sourceLink).join('<br>') + '</td></tr>').join('') + '</tbody></table></div></details>';
             h += '<details id="pseudoScope" class="pseudo-detail"><summary>Coverage, transformations and limits</summary><p>Preview v' + model.version +
                 ' · ' + s.supported + ' supported instruction(s) · ' + s.barriers + ' unknown effect(s).</p><p>' + E(model.notice) + '</p>' +
-                [['Value analysis',va],['Register flow',model.registerSSA],['Stack storage roles',storage],['Expression simplification',expressions],['Dead-write cleanup',cleanup]].map(([title,pass]) =>
+                [['Value analysis',va],['Register flow',model.registerSSA],['Stack storage roles',storage],['Function ABI evidence',model.functionABI],['Expression simplification',expressions],['Dead-write cleanup',cleanup]].map(([title,pass]) =>
                     '<h4>' + title + '</h4><p>' + E(pass.reason || pass.notice) + '</p>').join('') +
                 '<p>' + (expressions.stats.changedOperations || 0) + ' operation(s) have simplified expressions. Disable both code transformations to inspect all original effects.</p></details></div>';
         }
@@ -144,6 +152,7 @@
         if ($('pseudoExpressions')) $('pseudoExpressions').onchange = e => {expressionsEnabled = e.target.checked; render(f);};
         if ($('pseudoCleanup')) $('pseudoCleanup').onchange = e => {cleanupEnabled = e.target.checked; render(f);};
         if (model.callAnalysis) WEACallSummaryView.bind(model.callAnalysis,value => {callAssumptions.set(f.id,value); if (active?.id === f.id) render(f);},message);
+        if (model.functionABI) WEAFunctionABIView.bind(model.functionABI,value => {functionContracts.set(f.id,value); if (active?.id === f.id) render(f);},message);
         const inspectFlow = model.registerSSA ? WEARegisterFlowView.bind(model.registerSSA,{escape:E,sourceLink,instructionText,
             selection:state,onSelect:value => Object.assign(state,value)}) : () => {};
         for (const detail of document.querySelectorAll('.pseudocode-overview details[id]')) {
@@ -196,6 +205,7 @@
     const style = document.createElement('style');
     style.textContent = `
 .pseudo-context{display:flex;gap:8px 16px;flex-wrap:wrap;margin:12px 20px;color:var(--muted);font-size:12px}.pseudo-context>span:last-child{flex-basis:100%}.pseudo-tabs{display:flex;gap:5px;padding:0 20px;border-bottom:1px solid var(--line)}.pseudo-tabs button{border-radius:6px 6px 0 0;border-bottom:0;background:transparent;padding:9px 12px;font-size:12px}.pseudo-tabs button[aria-selected="true"]{color:var(--accent);background:#17302e;border-color:#367d6c}.pseudo-panel{padding:16px 20px}.pseudo-panel h3{margin:0 0 8px;font-size:16px}.pseudo-panel h4{margin:16px 0 8px;font-size:13px}.pseudo-panel p{font-size:12px;line-height:1.7}.pseudo-options{display:flex;gap:10px 18px;flex-wrap:wrap;margin-bottom:14px;font-size:12px}.pseudo-alias-toggle{display:inline-flex;align-items:center;gap:7px}.pseudo-alias-toggle input{width:auto;margin:0;accent-color:var(--accent)}.pseudo-code{overflow:auto;max-height:75vh;border:1px solid var(--line);border-radius:6px}.pseudo-code table{font:12px/1.8 var(--mono)}.pseudo-code td{vertical-align:top;padding:7px 10px}.pseudo-code code{white-space:pre}.pseudo-code th{position:sticky;top:0;background:var(--panel2);z-index:2}.pseudo-code th:last-child{right:0;z-index:3}.pseudo-actions{position:sticky;right:0;background:var(--panel);box-shadow:-1px 0 var(--line);z-index:1}.pseudo-actions button{display:inline-block;font:11px var(--sans);white-space:nowrap;padding:4px 6px}.pseudo-actions button+button{margin-left:4px}.pseudo-trace{color:var(--accent)}.pseudo-slot-table,.pseudo-flow-table{overflow:auto;max-height:28em}.pseudo-slot-table table,.pseudo-flow-table table{white-space:normal;font-size:12px}.pseudo-slot-table td,.pseudo-flow-table td{overflow-wrap:anywhere;vertical-align:top}.pseudo-detail,.pseudo-calls{margin:12px 0;padding:12px;border:1px solid var(--line);border-radius:7px;font-size:12px}.pseudo-detail>summary,.pseudo-calls>summary{cursor:pointer;font-size:13px}.pseudo-flow label{display:block;margin:14px 0 5px;color:var(--muted);font-size:12px}.pseudo-flow select{width:100%;max-width:100%;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:9px;font:12px var(--mono)}.pseudo-selected-instruction{padding:10px 12px;border-left:2px solid var(--accent);background:#122b29;overflow-wrap:anywhere}.pseudo-flow-io{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:18px}.pseudo-flow-io>section{min-width:0}.pseudo-flow-io h4{margin-top:0}.pseudo-def,.pseudo-use{font:11px var(--mono);padding:5px 7px;margin:2px 0;white-space:normal;text-align:left}.pseudo-def{color:var(--blue)}.pseudo-def[aria-pressed="true"]{color:var(--accent);border-color:#367d6c}.pseudo-written-value{margin-bottom:10px}.pseudo-written-value p{margin:2px 0 0}.pseudo-value-trail{border-top:1px solid var(--line);margin-top:18px;padding-top:18px}.pseudo-value-trail h3{margin-top:5px}.pseudo-value-inputs>div{margin:6px 0}.pseudo-value-inputs span{font-size:12px;margin-right:5px}.pseudo-calls table{white-space:normal}.pseudo-calls select{max-width:100%;font-size:12px}.pseudo-calls button{font-size:12px;margin:3px 0}.pseudo-warning{font-size:12px;margin:12px 20px}.pseudo-warning button{font-size:11px}.pseudo-source-item{padding:9px 0;border-bottom:1px solid var(--line);font:12px/1.7 var(--mono)}.pseudo-source-item button{display:block;font:11px var(--sans);margin-top:5px}
+#pseudoFunctionProfile{max-width:100%;padding:7px 9px;margin:4px 0;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;outline-offset:4px}.pseudo-abi-value+.pseudo-abi-value{border-top:1px solid var(--line);margin-top:8px;padding-top:8px}
 @media(max-width:1000px){.pseudo-flow-io{grid-template-columns:1fr}}@media(max-width:720px){.pseudo-actions{position:static;box-shadow:none}.pseudo-code th:last-child{right:auto}.pseudo-panel{padding:12px}.pseudo-tabs{padding:0 12px}.pseudo-tabs button{padding:9px 8px}.pseudo-context{margin:12px}.pseudo-warning{margin:12px}}
 `;
     document.head.appendChild(style); route();

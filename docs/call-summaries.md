@@ -113,7 +113,7 @@ subset is silently applied. The browser shows the rejection with default
 effects; CLI returns status 2. File-size/JSON parse failures are reported by the
 CLI, and clear selections in the browser.
 
-Current preview JSON is `version: 5`; native report schema 2, operand model version 1,
+Current preview JSON is `version: 8`; native report schema 2, operand model version 1,
 value-analysis version 1 and register-SSA version 1 remain unchanged. The new
 `callAnalysis` contains status (`default`, `applied`, `invalid`), call sites,
 normalized assumptions, selected count, profile and notice. Selected instructions
@@ -190,5 +190,5 @@ using SSA and preserving all contributing source IDs. It does not propagate
 expressions through selected calls. Preview v6 adds bounded
 [dead register-write cleanup](register-cleanup.md); every selected or unknown call
 is still a full cleanup boundary. Flags, memory operations, traps, calls and
-unsupported effects remain observable. Stack storage roles are next. Broader interprocedural summaries, x86 profiles, arguments/returns,
+unsupported effects remain observable. Preview v7 adds [stack storage roles](stack-storage.md), and v8 adds [function ABI register evidence](function-abi.md) through a separate per-function contract. Broader interprocedural summaries, x86 profiles, stack arguments,
 I/O prototypes, source locals/types and precise memory SSA remain pending.

@@ -1,4 +1,4 @@
-# C-like recovery preview v7
+# C-like recovery preview v8
 
 Open a function in a Capstone-generated HTML report and select **C-like**.
 Select an address to return to the exact instruction in whole-function assembly;
@@ -22,7 +22,7 @@ node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --calls call-assump
 Replace `0xFUNCTION_RVA` with an actual discovered function entry. This is a
 separate preview, not a redefinition of the CLI's `--ir` observation notes.
 The decoder's `instructionSemantics:false` capability is unchanged: decoding
-itself supplies operands, not this model's effects. Preview version 7 appears in
+itself supplies operands, not this model's effects. Preview version 8 appears in
 the export; report schema 2 and existing identities remain compatible.
 
 ## What the output means
@@ -53,6 +53,8 @@ original operations. CLI `--clean` selects cleanup independently of `--simplifie
 Unused assignments disappear; unused arithmetic destinations become flags-only
 helpers. Memory, calls, unknown effects and every block exit retain their state.
 Version 7 adds [stack storage roles](stack-storage.md) as separate evidence: saved-entry-register pairs, spill/reload candidates, explicit ABI call areas and mixed/unknown uses. It does not forward loads or change code effects.
+
+Version 8 adds [explicit function ABI evidence](function-abi.md): register input candidates, separate RAX return alternatives and direct caller observations. It changes no original effects or code presentations; full M7.4 remains open.
 There is no invented function prototype, return type, local name, or I/O API.
 
 The normal-path domain is native x86/x64 Windows code with flat default segment
@@ -210,6 +212,6 @@ see its [contract and validation](register-ssa.md). Version 4 adds an explicit
 Windows x64 call-summary subset with [independent boundary validation](call-summaries.md).
 Preview v5 adds [bounded register expressions](register-expressions.md);
 preview v6 adds [dead register-write cleanup](register-cleanup.md); preview v7 adds
-[stack storage roles](stack-storage.md). Explicit function ABI contracts and argument/return candidates are next. Broader ABI profiles,
+[stack storage roles](stack-storage.md). Preview v8 adds the bounded [function ABI register subset](function-abi.md). Incoming stack arguments and prototype reconciliation are next. Broader ABI profiles,
 full prototypes, I/O signatures, switches, exceptional paths, source types and
 indirect-target discovery remain pending.

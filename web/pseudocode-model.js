@@ -8,7 +8,8 @@
     const EXPR = typeof module === 'object' && module.exports ? require('./register-expressions.js') : root.WEARegisterExpressions;
     const CLEAN = typeof module === 'object' && module.exports ? require('./register-cleanup.js') : root.WEARegisterCleanup;
     const STORAGE = typeof module === 'object' && module.exports ? require('./stack-storage.js') : root.WEAStackStorage;
-    const VERSION = 7, LIMITS = Object.freeze({blocks: 128, instructions: 2048, edges: 384});
+    const ABI = typeof module === 'object' && module.exports ? require('./function-abi.js') : root.WEAFunctionABI;
+    const VERSION = 8, LIMITS = Object.freeze({blocks: 128, instructions: 2048, edges: 384});
     const widths = new Set([8, 16, 32, 64]);
     const conditions = {
         e: 'zero', z: 'zero', ne: '!zero', nz: '!zero',
@@ -250,6 +251,15 @@
         const callAnalysis = CALL.apply(report, blocks, edges, liftedByBlock, functionId, options.callAssumptions);
         const valueAnalysis = VA.analyze(report, blocks, edges, liftedByBlock, functionId);
         const registerSSA = SSA.analyze(report, blocks, edges, liftedByBlock, functionId);
+        const functionABI = ABI.analyze(report, registerSSA, liftedByBlock, functionId, options.functionContract, id => {
+            const owned = report.blocks.filter(b => b.owners?.includes(id)), ids = new Set(owned.map(b => b.id));
+            const edges = report.edges.filter(e => ids.has(e.from));
+            if (owned.length > LIMITS.blocks || owned.reduce((n,b) => n + b.instructions.length,0) > LIMITS.instructions || edges.length > LIMITS.edges)
+                return {graph:{status:'unavailable',reason:'Caller recovery budget exceeded.'}};
+            const lifted = new Map(owned.map(b => [b.id,b.instructions.map(i => lift(i,report))]));
+            const calls = CALL.apply(report,owned,edges,lifted,id);
+            return {lifted,calls,graph:SSA.analyze(report,owned,edges,lifted,id,{observeCallInputs:true})};
+        }, options.functionAbiLimits);
         const stackStorage = STORAGE.analyze(valueAnalysis, registerSSA, liftedByBlock, options.storageLimits);
         const registerExpressions = EXPR.analyze(registerSSA, liftedByBlock, options.expressionLimits);
         const registerCleanup = CLEAN.analyze(registerSSA, liftedByBlock, registerExpressions, options.cleanupLimits);
@@ -408,7 +418,7 @@
         }
         return {version: VERSION, status: stats.barriers ? 'partial' : stats.assumedCalls ? 'assumed_subset' : 'supported_subset', instructions, regions,
             lines, displayLines, simplifiedLines, simplifiedDisplayLines, cleanLines, cleanDisplayLines, simplifiedCleanLines, simplifiedCleanDisplayLines,
-            valueAnalysis, registerSSA, registerExpressions, registerCleanup, stackStorage, callAnalysis, stats,
+            valueAnalysis, registerSSA, registerExpressions, registerCleanup, stackStorage, callAnalysis, functionABI, stats,
             structured: mayStructure, complete: false, functionId,
             notice: 'C-like preview of normal-path machine effects. Inferred function boundaries; complete recovery is not proven. Registers retain machine names. read/write addresses are byte addresses; helpers use fixed-width bit vectors. Calls without an explicit summary and unsupported forms invalidate all state. Selected call summaries are analyst assumptions. for/while source spelling, variable names, types and I/O prototypes are not recovered.'};
     }

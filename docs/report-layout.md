@@ -94,4 +94,4 @@ Hosted validation on 2026-10-24:
 
 Try the [updated nested-loop demo](https://asr-tanyi.github.io/windows-exe-analyzer/recovery64-o1.html#m_b2c773e4cf51a9a6_c_1080).
 
-This was a presentation change. [Preview v7](stack-storage.md) subsequently adds bounded stack storage roles (M7.3); explicit function ABI contracts and argument/return candidates (M7.4) are next.
+This was a presentation change. [Preview v7](stack-storage.md) subsequently adds bounded stack storage roles (M7.3); [preview v8](function-abi.md) adds explicit function ABI register evidence within Analysis details. M7.4 remains open for stack arguments and prototypes.

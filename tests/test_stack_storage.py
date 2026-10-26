@@ -45,7 +45,7 @@ def main():
                 check(model['status'] == 'unavailable' and 'stackStorage' not in model, name + ': no invented LLVM storage roles')
                 continue
             storage = model['stackStorage']
-            check(model['version'] == 7 and storage['version'] == 1 and storage['status'] == 'available', name + ': versioned storage analysis')
+            check(model['version'] == 8 and storage['version'] == 1 and storage['status'] == 'available', name + ': versioned storage analysis')
             check(len(storage['pairs']) == CASES[name][1], name + ': exact save/reload classification')
             if CASES[name][1]:
                 check(all(p['entryValue'] == CASES[name][2] for p in storage['pairs']), name + ': whole-entry versus temporary slice')

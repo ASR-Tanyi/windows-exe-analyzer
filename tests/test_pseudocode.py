@@ -54,7 +54,7 @@ def main():
             check(all(m['status'] == 'unavailable' for m in models([diamond, loop])), 'LLVM must not invent semantics')
         else:
             dm, lm = models([diamond, loop])
-            check(dm['version'] == 7 and dm['registerExpressions']['version'] == 1, 'versioned expression overlay')
+            check(dm['version'] == 8 and dm['registerExpressions']['version'] == 1, 'versioned expression overlay')
             check(dm['registerCleanup']['version'] == 1, 'versioned cleanup overlay')
             chain = report(a.analyzer, root, 'b8ffffffff83c00289c2c3')
             cm = models([chain])[0]

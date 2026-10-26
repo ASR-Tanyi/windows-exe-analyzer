@@ -71,7 +71,7 @@ normal-path domain and uncertainty rules remain those of the
 
 ## Export, evidence and fallback
 
-The native report remains schema 2. Preview JSON is version 7 (cleanup was introduced in v6); SSA, value and
+The native report remains schema 2. Preview JSON is version 8 (cleanup was introduced in v6); SSA, value and
 expression overlays remain version 1. Cleanup adds:
 
 | Field | Contract |
@@ -170,4 +170,4 @@ Hosted validation on 2026-10-23:
 
 P5 and P6 complete M7.2 for the documented block-local integer-register subset.
 Cross-block/PHI substitution, bit-level dead-write precision, flag SSA and memory
-SSA remain deferred. Preview v7 implements the [bounded M7.3 stack-storage subset](stack-storage.md), preserving every memory effect. Next is M7.4: explicit function ABI contracts and conservative argument/return candidates.
+SSA remain deferred. Preview v7 implements the [bounded M7.3 stack-storage subset](stack-storage.md), preserving every memory effect. Preview v8 adds [function ABI register evidence](function-abi.md); incoming stack arguments and prototypes remain open.

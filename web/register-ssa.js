@@ -10,7 +10,7 @@
     const full = bits => (1n << BigInt(bits)) - 1n;
     // Read/write ordering and partial-register preservation come from typed
     // effects, not decoder access lists or formatted assembly text.
-    function effects(instruction, bits) {
+    function effects(instruction, bits, observeCallInputs = false) {
         const regs = new Set(families(bits)), sp = bits === 64 ? 'rsp' : 'esp';
         const native = name => ({kind: 'register', name, offset: 0, width: bits, familyWidth: bits});
         return [...instruction.ops, ...(instruction.control ? [instruction.control] : [])].map((op, index) => {
@@ -81,6 +81,11 @@
                 for (const r of profile.clobbered) write(native(r), [], false, 'clobber');
             }
             else if (op.kind === 'barrier') {
+                // Optional diagnostic observations for caller evidence. The
+                // original all-state CALL clobber is unchanged. These reads
+                // never assert a prototype or enable a call summary.
+                if (observeCallInputs && index === 0 && instruction.call?.width === bits)
+                    for (const r of ['rcx', 'rdx', 'r8', 'r9']) if (regs.has(r)) read(native(r), 'call-observation');
                 step.memory.unknown = step.flags.unknown = true;
                 for (const r of regs) write(native(r), [], false, 'clobber');
             } else if (!['nop', 'jump'].includes(op.kind)) throw Error('Unsupported typed operation.');
@@ -122,7 +127,7 @@
                 if (!instructions || instructions.length !== b.instructions.length) throw Error('Missing typed instructions.');
                 const steps = instructions.map(i => {
                     if (seen.has(i.source)) throw Error('Duplicate instruction identity.'); seen.add(i.source);
-                    return {instruction: i, steps: effects(i, bits)};
+                    return {instruction: i, steps: effects(i, bits, options.observeCallInputs === true)};
                 });
                 const uses = new Set(), defs = new Set();
                 for (const i of steps) for (const s of i.steps) {spend();
