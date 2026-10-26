@@ -1,5 +1,7 @@
 # Conservative stack storage roles
 
+Implemented in [`946b913`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/946b9137552358282c9cb732006dfd81e32bb7df).
+
 Preview v7 adds `stackStorage.version: 1` beside the existing value analysis and
 register SSA. Open **C-like → Analysis details → Stack locations** to inspect
 roles, qualifications and exact instruction evidence. This is the bounded P7
@@ -113,6 +115,27 @@ On the 28 local C-demo candidates, 20 role-pass repetitions per function average
 The Node 24.22.1 process peaked at about 78 MiB RSS, including the existing
 analysis models, on a shared Linux x64 / Xeon Platinum 8573C host. This is a
 fixture measurement, not a worst-case bound.
+
+Hosted validation on 2026-10-26:
+
+- The [Capstone/LLVM matrix](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40283334985)
+  passed all 27 CTest targets per backend, 15 publication tests and every browser
+  suite, including 90 Capstone / 13 LLVM C-like checks.
+- All 1,260 independent recovery cases and 36 call executions passed. With the
+  hosted Clang 18 fixtures, the storage oracle checks 133 concrete reloads and
+  41 saved entry-register values. The broader oracle checks 9,451 instruction
+  states, 2,057 stack-alias addresses and 10,612 SSA uses. Counts differ from the
+  local Zig fixtures because their emitted prologues and instructions differ.
+- [Pages deployment](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40283334967)
+  passed. HTTPS downloads confirmed the tested commit and exact current model/view
+  sources in all eight reports. The published reports passed all 90 C-like browser
+  checks offline. The x86 scalar demo's v7 storage model exactly matches CLI JSON;
+  proven-pair source links, assembly/Back navigation and phone layout were checked.
+
+In the [published scalar demo](https://asr-tanyi.github.io/windows-exe-analyzer/recovery32-o0.html#m_6d2d785961232386_c_1000),
+open **Analysis details → Stack locations** to see the saved EBP pair and a
+spill/reload candidate. The site follows the latest deployment; workflow
+artifacts retain the tested snapshot.
 
 The next milestone is M7.4: explicit function ABI contracts and conservative
 argument/return candidates. Original variable names/types, actual outgoing

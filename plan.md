@@ -385,12 +385,16 @@ The [hosted matrix](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/ru
 
 #### P7. Conservative stack storage roles — completed subset
 
+Implemented in [`946b913`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/946b9137552358282c9cb732006dfd81e32bb7df).
+
 - [x] **P7.1** Track definitely preceding stack stores across discovered normal-flow joins and loops; connect direct MOV/PUSH saves to matching MOV/POP reloads with exact register slices and source witnesses. [Pass](web/stack-storage.js), [contract](docs/stack-storage.md).
 - [x] **P7.2** Distinguish full saved-entry-register pairs, spill/reload candidates, entry/RET storage, explicitly assumed call regions and local/outgoing-argument candidates. Keep mixed uses and incoming ABI uncertainty explicit; invalidate contents at possible alias writes, calls, deallocation and unknown SP.
 - [x] **P7.3** Add versioned `stackStorage` evidence and CLI `--storage`; group roles and assembly links in the existing Stack locations inspector. Preserve physical aliases and all original effects. [Browser checks](tests/test_pseudocode_browser.py).
 - [x] **P7.4** Validate positive and negative paths, actual resource ceilings and evidence against decoded bytes and independent memory observations. [180 focused checks](tests/test_stack_storage.js), [decoder/CLI contracts](tests/test_stack_storage.py), [independent oracle](tests/test_pseudocode_oracle.py).
 
 Local validation passes: 25 CTest targets per backend, 94 Capstone / 15 LLVM storage decoder/CLI contracts, 90 Capstone / 13 LLVM browser checks and 15 publication tests. All four code presentations agree across 1,260 independent cases, including 48 new storage executions; the emulator checks 148 claimed reloads and 56 saved entry values. Existing 36 call executions also pass. See the [validation record](docs/stack-storage.md#validation) for scope and corpus measurements.
+
+The [hosted matrix](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40283334985) and [Pages deployment](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40283334967) passed on 2026-10-26: 27 CTest targets per backend, all browser suites, 1,260 recovery cases and 36 call executions. Hosted storage evidence covers 133 concrete reloads and 41 saved entry values. All eight published reports embed the tested sources; the deployed reports pass 90 C-like browser checks, and the scalar storage model matches CLI JSON with verified evidence/history links.
 
 ### M7. Function recovery and stronger entry-role recognition
 
@@ -453,7 +457,7 @@ Keep changes small enough to review independently. Items 1–9 have implementati
 | 12 | M4.7 explicit ABI/call summaries | Done for P4: [`a19bc95`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/a19bc95a777df174149f023de6f19fc1e6cf9b01) | [Contract and validation](docs/call-summaries.md); per-site analyst selection, preserved GPR/SP state, unknown memory/flags, independent call-boundary checks and conservative fallback |
 | 13 | M7.2 bounded register-expression simplification | Done for P5: [`e09e9df`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/e09e9dfaf2e10f35f7e5647ccac43a535ba06a61) | [Contract and validation](docs/register-expressions.md); SSA-checked live inputs, modular widths, explicit original effects, bounded expression growth and complete source links |
 | 14 | M7.2 dead register-write cleanup | Done for P6: [`d8dc5b2`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/d8dc5b2615b11d74d54edb713addb4b06ce9fa14) | [Contract and validation](docs/register-cleanup.md); separate raw/simplified liveness, retained flag effects, all-state boundaries, bounded fallback and complete overwrite evidence |
-| 15 | M7.3 conservative stack storage roles | Done for P7 | [Contract and validation](docs/stack-storage.md); definite store/reload evidence, explicit ABI call regions, candidates and mixed uses, immutable memory effects and bounded fallback |
+| 15 | M7.3 conservative stack storage roles | Done for P7: [`946b913`](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/946b9137552358282c9cb732006dfd81e32bb7df) | [Contract and validation](docs/stack-storage.md); definite store/reload evidence, explicit ABI call regions, candidates and mixed uses, immutable memory effects and bounded fallback |
 | 16 | M7.4 explicit function ABI and argument/return candidates | Next: `feat: add explicit function ABI evidence` | Keep per-function contracts separate from call-site assumptions; infer only supported candidates with caller evidence and retain conflicts, varargs and unknown prototypes |
 
 Items 5 and 6 can proceed independently once the shared identities/reference contract is stable. Broader `main` recovery is deliberately not a prerequisite for discovering or browsing functions.
