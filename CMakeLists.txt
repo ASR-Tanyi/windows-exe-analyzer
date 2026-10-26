@@ -25,7 +25,7 @@ file(READ "${CMAKE_CURRENT_SOURCE_DIR}/web/tls-directory.js" TLS_DIRECTORY_SCRIP
 string(REPLACE "</body>" "<script>\n${TLS_DIRECTORY_SCRIPT}\n</script></body>" VIEWER_TEMPLATE "${VIEWER_TEMPLATE}")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_SOURCE_DIR}/web/tls-directory.js")
-foreach(WEA_FUNCTION_SCRIPT IN ITEMS string-model string-view function-model function-view cfg-model cfg-view operand-view bitvectors value-domain call-summaries value-analysis register-ssa register-expressions register-cleanup pseudocode-model register-flow-view call-summary-view pseudocode-view)
+foreach(WEA_FUNCTION_SCRIPT IN ITEMS string-model string-view function-model function-view cfg-model cfg-view operand-view bitvectors value-domain call-summaries value-analysis register-ssa register-expressions register-cleanup stack-storage pseudocode-model register-flow-view call-summary-view pseudocode-view)
   file(READ "${CMAKE_CURRENT_SOURCE_DIR}/web/${WEA_FUNCTION_SCRIPT}.js" WEA_FUNCTION_CONTENT)
   string(REPLACE "</body>" "<script>\n${WEA_FUNCTION_CONTENT}\n</script></body>" VIEWER_TEMPLATE "${VIEWER_TEMPLATE}")
   set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
@@ -78,6 +78,7 @@ if(BUILD_TESTING)
     add_test(NAME register_ssa COMMAND "${WEA_NODE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_register_ssa.js")
     add_test(NAME register_cleanup COMMAND "${WEA_NODE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_register_cleanup.js")
     add_test(NAME register_expressions COMMAND "${WEA_NODE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_register_expressions.js")
+    add_test(NAME stack_storage COMMAND "${WEA_NODE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_stack_storage.js")
   else()
     message(STATUS "Node.js unavailable: function-model checks not registered; report generation is unaffected")
   endif()
@@ -137,12 +138,16 @@ if(BUILD_TESTING)
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_value_analysis.py"
         "$<TARGET_FILE:windows-exe-analyzer>" ${WEA_RECOVERY_ARGS})
       set_tests_properties(value_analysis_regression PROPERTIES TIMEOUT 90)
+      add_test(NAME stack_storage_regression COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_stack_storage.py"
+        "$<TARGET_FILE:windows-exe-analyzer>" ${WEA_RECOVERY_ARGS})
+      set_tests_properties(stack_storage_regression PROPERTIES TIMEOUT 90)
       add_test(NAME call_summaries_regression COMMAND "${Python3_EXECUTABLE}"
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_call_summaries.py"
         "$<TARGET_FILE:windows-exe-analyzer>" ${WEA_RECOVERY_ARGS})
       set_tests_properties(call_summaries_regression PROPERTIES TIMEOUT 90)
       if(WEA_CLANG AND WEA_LLD_LINK)
-        set_tests_properties(pseudocode_regression value_analysis_regression call_summaries_regression PROPERTIES FIXTURES_REQUIRED recovery_fixtures)
+        set_tests_properties(pseudocode_regression value_analysis_regression stack_storage_regression call_summaries_regression PROPERTIES FIXTURES_REQUIRED recovery_fixtures)
       endif()
     endif()
     set(WEA_TLS_TOOL_ARGS)

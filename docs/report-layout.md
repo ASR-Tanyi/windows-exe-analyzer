@@ -20,7 +20,7 @@ explanations. All views remain offline and use the same native report facts.
 Unknown effects, unavailable transformations and active call assumptions remain
 visible above the C-like tabs. Empty call/stack/cleanup groups are omitted. The
 unverified Main button is omitted; an analyst-supplied main remains available.
-Report schema 2, preview v6, analysis algorithms and exported JSON are unchanged.
+The layout refinement kept report schema 2, preview v6, analysis algorithms and exports unchanged. Later analysis additions have their own versioned contracts.
 
 ## Follow one value
 
@@ -94,5 +94,4 @@ Hosted validation on 2026-10-24:
 
 Try the [updated nested-loop demo](https://asr-tanyi.github.io/windows-exe-analyzer/recovery64-o1.html#m_b2c773e4cf51a9a6_c_1080).
 
-This is a presentation change. Conservative stack storage roles (M7.3) remain
-the next analysis milestone; no additional source-recovery capability is claimed.
+This was a presentation change. [Preview v7](stack-storage.md) subsequently adds bounded stack storage roles (M7.3); explicit function ABI contracts and argument/return candidates (M7.4) are next.

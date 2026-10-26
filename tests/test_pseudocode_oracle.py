@@ -20,6 +20,7 @@ DATA, STACK, RETURN = 0x200000, 0x300800, 0x500000
 RNG = random.Random(73191)
 VALUE_CHECKS = {'states': 0, 'aliases': 0}
 SSA_CHECKS = {'states': 0, 'uses': 0, 'joins': 0, 'exits': 0}
+STORAGE_CHECKS = {'reloads': 0, 'entry_values': 0}
 
 
 def registers(bits):
@@ -145,6 +146,12 @@ def oracle(bits, segments, start, state, single=False, model=None):
         by_va = {image_base + i['rva']: i for i in model['instructions']}
         accesses = {}
         for a in va['accesses']: accesses.setdefault(a['source'], []).append(a)
+        storage_pairs = model.get('stackStorage', {}).get('pairs', [])
+        saves, reloads, saved_values = {}, {}, {}
+        for pair in storage_pairs:
+            reloads.setdefault(pair['loadSource'], []).append(pair)
+            for source in pair['saveSources']:
+                saves.setdefault(source, []).append(pair)
         def concrete(e, regs):
             width, kind = e['width'], e['kind']
             if kind == 'constant': result = int(e['value'])
@@ -168,6 +175,17 @@ def oracle(bits, segments, start, state, single=False, model=None):
             insn = by_va.get(address)
             assert insn, ('executed instruction outside recovered function', hex(address))
             regs = {r: machine.reg_read(getattr(uc_regs, 'UC_X86_REG_' + r.upper())) for r in registers(bits)}
+            for pair in reloads.get(insn['source'], []):
+                address = (entry_sp + int(pair['offset'])) & ((1 << bits) - 1)
+                value = int.from_bytes(machine.mem_read(address, pair['width'] // 8), 'little')
+                candidates = [saved_values[(s, pair['slot'])] for s in pair['saveSources'] if (s, pair['slot']) in saved_values]
+                assert candidates and value in candidates, ('unsound stack store/reload pair', pair, value, candidates)
+                STORAGE_CHECKS['reloads'] += 1
+                if pair['entryValue']:
+                    assert value == int(state['registers'][pair['register']]), ('unsound entry-register save', pair, value)
+                    STORAGE_CHECKS['entry_values'] += 1
+            for pair in saves.get(insn['source'], []):
+                saved_values[(insn['source'], pair['slot'])] = (regs[pair['register']] >> pair['registerOffset']) & ((1 << pair['width']) - 1)
             for r, value in facts[insn['source']]['before'].items():
                 assert contained(value, regs[r]), ('unsound abstract fact', insn['rva'], r, value, regs[r])
             VALUE_CHECKS['states'] += 1
@@ -326,6 +344,18 @@ def main():
                     if body in cleanup_chains + cleanup64: cleanup_cases += 1
                     else: expression_cases += 1
         assert cleaned_writes > 0 and flags_only_writes > 0, 'cleanup corpus must exercise both transformations'
+        # New role evidence must agree with real memory contents at reloads,
+        # including conditional paths, unknown writes and partial-register data.
+        from test_stack_storage import CASES as storage_cases
+        for name, (code, pairs, entry_value) in storage_cases.items():
+            data = report(args.analyzer, root, code); model = models([data])[0]
+            assert len(model['stackStorage']['pairs']) == pairs, name
+            start = int(data['module']['imageBase'], 16) + 0x1000
+            for condition in (0, 1, 2, 7):
+                state = initial(64); state['registers']['rcx'] = str(condition); state['registers']['rdi'] = str(DATA)
+                actual = evaluate([{'model':model, 'input':state}])[0]
+                compare(actual, oracle(64, [(start, bytes.fromhex(code))], start, state, model=model), 'stack storage ' + name)
+                count += 1
         # O0/O1 source-known functions: compare every register, defined flag,
         # stack/data byte plus the independently written source-level result.
         values = [0, 1, 2, 7, 31, 63, 255, 0xffffffff]
@@ -382,6 +412,8 @@ def main():
           (VALUE_CHECKS['states'], VALUE_CHECKS['aliases']))
     assert all(SSA_CHECKS.values())
     print('PASS: register SSA at {states} states, {uses} uses, {joins} selected PHI edges and {exits} exit values'.format(**SSA_CHECKS))
+    assert all(STORAGE_CHECKS.values())
+    print('PASS: stack storage at {reloads} concrete reloads, including {entry_values} saved entry-register values'.format(**STORAGE_CHECKS))
 
 
 if __name__ == '__main__':

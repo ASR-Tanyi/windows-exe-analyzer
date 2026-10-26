@@ -114,6 +114,10 @@ flag updates and all memory/call effects. Its evidence table links each removed
 write to a retained overwrite. Both toggles start enabled; turn both off to see
 every original operation. See the [cleanup contract](docs/register-cleanup.md).
 **Analysis details** groups stack locations, cleanup evidence and coverage limits.
+Stack locations now show proven saved-entry-register pairs, spill/reload and
+local candidates, return-address regions and explicitly assumed call storage.
+Each role links to its assembly evidence; overlapping or uncertain uses remain
+marked. See the [stack storage contract](docs/stack-storage.md).
 For reviewed x64 call sites, its **Call assumptions** can explicitly select a
 Windows x64 normal-return summary. It preserves nonvolatile GPR/SP facts while
 keeping volatile registers, flags and memory unknown. Export/import selections
@@ -131,6 +135,7 @@ node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --raw
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --simplified
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --simplified --clean
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --ssa
+node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --storage
 node scripts/pseudocode.js build/program.json 0xFUNCTION_RVA --calls call-assumptions.json --json
 ```
 

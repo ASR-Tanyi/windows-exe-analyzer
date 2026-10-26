@@ -65,6 +65,13 @@ def main():
             page.click('#pseudoTabanalysis')
             page.locator('#pseudoSlots > summary').click()
             check('frame slot' in page.locator('.pseudo-slots:not(#pseudoCleanupDetails)').inner_text() and 'return address region' in page.locator('.pseudo-slots:not(#pseudoCleanupDetails)').inner_text(), 'stack candidates show classification and exclusions')
+            check(page.locator('#pseudoSlots .pseudo-storage-role').count() > 0 and 'original purpose is not established' in page.locator('#pseudoSlots').inner_text(), 'storage roles distinguish evidence from candidates')
+            page.locator('#pseudoSlots .pseudo-storage-evidence > summary').first.click()
+            storage_target = page.locator('#pseudoSlots .pseudo-source').first.get_attribute('href')
+            page.locator('#pseudoSlots .pseudo-source').first.click(); page.wait_for_selector('.function-overview')
+            check(page.evaluate('location.hash') == storage_target, 'stack-role evidence opens exact assembly')
+            page.go_back(); page.wait_for_selector('#pseudoSlots')
+            check(page.locator('#pseudoPanelanalysis').is_visible() and page.locator('#pseudoSlots').evaluate('(e) => e.open'), 'Back restores stack analysis details')
             page.click('#pseudoTabcode')
             page.uncheck('#pseudoAliases')
             raw = page.locator('.pseudo-code').inner_text()
@@ -226,6 +233,8 @@ def main():
             for source in sources:
                 page.locator('.pseudo-call-profile[data-source="' + source + '"]').select_option(profile)
             check('6 selected' in page.locator('#pseudoCalls summary').inner_text(), 'each call requires its own explicit selection')
+            page.locator('#pseudoSlots > summary').click()
+            check('Callee home space' in page.locator('#pseudoSlots').inner_text() and page.locator('#pseudoSlots [data-certainty="assumed"]').count() > 0 and 'explicit call assumptions' in page.locator('#pseudoSlots').inner_text(), 'call storage roles keep explicit ABI provenance')
             check(page.locator('.pseudo-code').text_content().count('assume_windows_x64_call') == 6, 'summaries appear as assumed call boundaries')
             check('assumed, not verified' in page.locator('#pseudoCalls').inner_text() and 'net RSP change zero' in page.locator('#pseudoCalls').inner_text(), 'alignment, home-space and net return assumptions visible')
             with page.expect_download() as downloaded:

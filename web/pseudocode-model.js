@@ -7,7 +7,8 @@
     const CALL = typeof module === 'object' && module.exports ? require('./call-summaries.js') : root.WEACallSummaries;
     const EXPR = typeof module === 'object' && module.exports ? require('./register-expressions.js') : root.WEARegisterExpressions;
     const CLEAN = typeof module === 'object' && module.exports ? require('./register-cleanup.js') : root.WEARegisterCleanup;
-    const VERSION = 6, LIMITS = Object.freeze({blocks: 128, instructions: 2048, edges: 384});
+    const STORAGE = typeof module === 'object' && module.exports ? require('./stack-storage.js') : root.WEAStackStorage;
+    const VERSION = 7, LIMITS = Object.freeze({blocks: 128, instructions: 2048, edges: 384});
     const widths = new Set([8, 16, 32, 64]);
     const conditions = {
         e: 'zero', z: 'zero', ne: '!zero', nz: '!zero',
@@ -249,6 +250,7 @@
         const callAnalysis = CALL.apply(report, blocks, edges, liftedByBlock, functionId, options.callAssumptions);
         const valueAnalysis = VA.analyze(report, blocks, edges, liftedByBlock, functionId);
         const registerSSA = SSA.analyze(report, blocks, edges, liftedByBlock, functionId);
+        const stackStorage = STORAGE.analyze(valueAnalysis, registerSSA, liftedByBlock, options.storageLimits);
         const registerExpressions = EXPR.analyze(registerSSA, liftedByBlock, options.expressionLimits);
         const registerCleanup = CLEAN.analyze(registerSSA, liftedByBlock, registerExpressions, options.cleanupLimits);
         const cleanMaps = [registerCleanup.raw, registerCleanup.simplified].map(v => new Map(v.rewrites.map(r => [r.source + ':' + r.operation, r])));
@@ -406,7 +408,7 @@
         }
         return {version: VERSION, status: stats.barriers ? 'partial' : stats.assumedCalls ? 'assumed_subset' : 'supported_subset', instructions, regions,
             lines, displayLines, simplifiedLines, simplifiedDisplayLines, cleanLines, cleanDisplayLines, simplifiedCleanLines, simplifiedCleanDisplayLines,
-            valueAnalysis, registerSSA, registerExpressions, registerCleanup, callAnalysis, stats,
+            valueAnalysis, registerSSA, registerExpressions, registerCleanup, stackStorage, callAnalysis, stats,
             structured: mayStructure, complete: false, functionId,
             notice: 'C-like preview of normal-path machine effects. Inferred function boundaries; complete recovery is not proven. Registers retain machine names. read/write addresses are byte addresses; helpers use fixed-width bit vectors. Calls without an explicit summary and unsupported forms invalidate all state. Selected call summaries are analyst assumptions. for/while source spelling, variable names, types and I/O prototypes are not recovered.'};
     }

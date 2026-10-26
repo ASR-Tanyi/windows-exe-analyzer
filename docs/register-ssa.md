@@ -109,7 +109,7 @@ definition with an explicit truncation message; JSON retains every bounded use.
 
 ## Additive export contract
 
-Current preview JSON is `version: 5`, with `registerSSA.version: 1` alongside the
+Current preview JSON is `version: 7`, with `registerSSA.version: 1` alongside the
 unchanged raw `lines`, alias-aware `displayLines`, typed instructions/regions and
 `valueAnalysis.version: 1`. Native report schema 2, operand model version 1 and
 existing annotation/navigation identities are unchanged.
@@ -194,5 +194,4 @@ independent call-boundary checks. Preview v5 uses SSA for bounded
 blocks. Preview v6 adds bounded [dead register-write cleanup](register-cleanup.md),
 while preserving the original SSA graph and every observable effect. M7.2 is
 complete for this block-local subset; cross-block/PHI propagation remains deferred.
-Stack storage roles (M7.3) are next. Other ABI profiles, source locals/types, argument/return
-inference and I/O signatures remain pending.
+Preview v7 adds [stack storage roles](stack-storage.md) using the unchanged register graph. Explicit function ABI contracts and argument/return candidates (M7.4) are next. Other ABI profiles, source locals/types and I/O signatures remain pending.

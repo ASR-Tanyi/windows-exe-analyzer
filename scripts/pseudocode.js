@@ -6,16 +6,16 @@ const model = require('../web/pseudocode-model.js');
 function main() {
     const [path, entry, ...args] = process.argv.slice(2);
     let format, calls, simplified = false, clean = false;
-    const usage = 'Usage: node scripts/pseudocode.js report.json FUNCTION_RVA [--json|--raw|--ssa] [--simplified] [--clean] [--calls assumptions.json]';
+    const usage = 'Usage: node scripts/pseudocode.js report.json FUNCTION_RVA [--json|--raw|--ssa|--storage] [--simplified] [--clean] [--calls assumptions.json]';
     if (!path || !entry) throw Error(usage);
     for (let n = 0; n < args.length; n++) {
-        if (['--json', '--raw', '--ssa'].includes(args[n]) && !format) format = args[n];
+        if (['--json', '--raw', '--ssa', '--storage'].includes(args[n]) && !format) format = args[n];
         else if (args[n] === '--simplified' && !simplified) simplified = true;
         else if (args[n] === '--clean' && !clean) clean = true;
         else if (args[n] === '--calls' && !calls && args[n + 1] && !args[n + 1].startsWith('--')) calls = args[++n];
         else throw Error(usage);
     }
-    if ((simplified || clean) && ['--json', '--ssa'].includes(format)) throw Error('--simplified and --clean select text output; JSON already includes all forms.');
+    if ((simplified || clean) && ['--json', '--ssa', '--storage'].includes(format)) throw Error('--simplified and --clean select code output; JSON already includes all forms.');
     if (!/^(0x[0-9a-f]+|[0-9]+)$/i.test(entry)) throw Error('Function RVA must be decimal or 0x hexadecimal.');
     const report = JSON.parse(fs.readFileSync(path, 'utf8'));
     const f = report.functions.find(f => f.rva === Number(entry));
@@ -32,6 +32,16 @@ function main() {
     if (format !== '--json' && result.callAnalysis?.applied) console.log('// ' + result.callAnalysis.notice);
     if (format === '--json') console.log(JSON.stringify(result, null, 2));
     else if (result.status === 'unavailable') console.log('// ' + result.reason);
+    else if (format === '--storage') {
+        const s = result.stackStorage;
+        if (s.status !== 'available') {console.log('// Stack storage unavailable: ' + s.reason); process.exitCode = 2; return;}
+        console.log('// Stack storage v' + s.version + '\n// ' + s.notice);
+        for (const slot of s.slots) {
+            console.log(slot.id + ' (entry_sp ' + slot.offset + ', ' + slot.width + ' bits)' + (slot.mixed ? ' [mixed/overlapping]' : ''));
+            for (const role of slot.roles) console.log('  ' + role.label + (role.register ? ': ' + role.register : '') + ' [' + role.certainty + '] @ ' + role.sources.join(', '));
+            for (const reason of slot.reasons) console.log('  ' + reason);
+        }
+    }
     else if (format === '--ssa') {
         const s = result.registerSSA;
         if (s.status !== 'available') {console.log('// Register SSA unavailable: ' + s.reason); process.exitCode = 2; return;}

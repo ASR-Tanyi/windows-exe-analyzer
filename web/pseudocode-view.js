@@ -86,11 +86,24 @@
             h += '</tbody></table></div></div>' + panel('flow') + WEARegisterFlowView.markup(model.registerSSA,model.instructions,E,instructionText) + '</div>' + panel('analysis');
             h += '<h3>Evidence and assumptions</h3><p class="muted">Inspect the facts behind this function and the changes made to its display.</p>';
             h += WEACallSummaryView.markup(model.callAnalysis,E,sourceLink);
+            const storage = model.stackStorage, storageSlots = new Map(storage.slots.map(s => [s.id,s]));
+            const storageEvidence = slot => {
+                const s = storageSlots.get(slot.id);
+                if (!s) return '<p>' + E(storage.reason) + '</p>';
+                return s.roles.map(r => '<div class="pseudo-storage-role" data-certainty="' + E(r.certainty) + '"><b>' + E(r.label) +
+                    (r.register ? ' · <code>' + E(r.register) + '</code>' : '') + '</b>' +
+                    (r.certainty === 'proven_pair' ? ' <span class="small muted">(proven pair)</span>' : r.certainty === 'assumed' ? ' <span class="small muted">(assumed)</span>' : '') +
+                    '<details class="pseudo-storage-evidence"><summary>Sources (' + r.sources.length + ')</summary>' +
+                    r.sources.map(id => '<p>' + sourceLink(id) + '</p>').join('') + '</details></div>').join('') +
+                    (s.mixed ? '<p class="datawarning">Overlapping or mixed uses. Do not treat this as one independent local.</p>' : '');
+            };
             if (va.slots.length) h += '<details id="pseudoSlots" class="pseudo-slots pseudo-detail"><summary>Stack locations (' + va.slots.length + ')</summary>' +
                 '<p>Aliases name physical memory locations, not recovered C locals. ' + va.slots.filter(s => s.aliasable).length + ' location(s) can be shown as aliases.</p>' +
-                '<div class="pseudo-slot-table"><table><thead><tr><th>Location</th><th>Width</th><th>Evidence</th></tr></thead><tbody>' +
+                '<p>Saved-entry-register pairs require matching stores/reloads with no possible overwrite; they do not prove preservation at every exit. Calls invalidate contents. Spill, local and outgoing-argument roles are candidates; original purpose is not established. ABI regions require explicit call assumptions.</p>' +
+                '<div class="pseudo-slot-table"><table><thead><tr><th>Location</th><th>Width</th><th>Role and evidence</th></tr></thead><tbody>' +
                 va.slots.map(slot => '<tr><td><code>' + E(slot.id) + '</code><br>entry_sp ' + E(slot.offset) + ' bytes</td><td>' + slot.width +
-                    ' bits</td><td>' + E(slot.kind.replaceAll('_',' ')) + ': ' + E(slot.reasons.length ? slot.reasons.join('; ') : slot.note) + '</td></tr>').join('') + '</tbody></table></div></details>';
+                    ' bits</td><td>' + storageEvidence(slot) + '<p class="muted">' + E(slot.kind.replaceAll('_',' ')) + ': ' +
+                    E(slot.reasons.length ? slot.reasons.join('; ') : 'Memory alias available') + '</p></td></tr>').join('') + '</tbody></table></div></details>';
             if (variant.rewrites.length) h += '<details class="pseudo-slots pseudo-detail" id="pseudoCleanupDetails"><summary>Cleanup: ' +
                 variant.rewrites.length + ' changes / ' + (cleanupEnabled ? 'applied' : 'available, disabled') + '</summary><p>' +
                 variant.stats.removed + ' pure writes removed; ' + variant.stats.flagsOnly + ' operations retain flags only.</p>' +
@@ -100,7 +113,7 @@
                     '</td><td>' + r.sources.map(sourceLink).join('<br>') + '</td></tr>').join('') + '</tbody></table></div></details>';
             h += '<details id="pseudoScope" class="pseudo-detail"><summary>Coverage, transformations and limits</summary><p>Preview v' + model.version +
                 ' · ' + s.supported + ' supported instruction(s) · ' + s.barriers + ' unknown effect(s).</p><p>' + E(model.notice) + '</p>' +
-                [['Value analysis',va],['Register flow',model.registerSSA],['Expression simplification',expressions],['Dead-write cleanup',cleanup]].map(([title,pass]) =>
+                [['Value analysis',va],['Register flow',model.registerSSA],['Stack storage roles',storage],['Expression simplification',expressions],['Dead-write cleanup',cleanup]].map(([title,pass]) =>
                     '<h4>' + title + '</h4><p>' + E(pass.reason || pass.notice) + '</p>').join('') +
                 '<p>' + (expressions.stats.changedOperations || 0) + ' operation(s) have simplified expressions. Disable both code transformations to inspect all original effects.</p></details></div>';
         }
