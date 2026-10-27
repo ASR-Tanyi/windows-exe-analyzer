@@ -163,6 +163,10 @@ with a 50.1 ms observed maximum on the shared Linux x64 host. The process
 peaked at about 111 MiB RSS including all recovery models. This is a corpus
 measurement, not a worst-case bound or an isolated peak-memory measurement.
 
+### Hosted validation follow-up (2026-10-27)
+
+The initial [matrix run](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40348928866) passed LLVM but stopped Capstone at the existing CFG keyboard test. Arrow selection replaced the canvas and deferred focus until an animation frame, allowing a following Enter to be lost. The follow-up restores focus synchronously and adds a same-task regression that fails on the old implementation and passes with the fix (15 CFG checks). The downloaded published ABI demo passes all 28 function-contract browser checks, including export/CLI parity and cross-function links. [Report deployment](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40348928401) succeeded. The replacement full matrix is pending; the initial Capstone run is not counted as complete.
+
 ## Next slice
 
 M7.4 remains open. Next recover incoming stack-argument candidates and matching

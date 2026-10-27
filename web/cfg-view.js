@@ -83,7 +83,9 @@
                 const s=Math.abs(dx)+(2*Math.abs(dy));if(s<score){score=s;best=id;}}
             if(best){e.preventDefault();refocusGraph=true;navigate(idFor(view.f,B.get(best)));}
         });
-        if(refocusGraph&&canvas){refocusGraph=false;requestAnimationFrame(()=>canvas.focus({preventScroll:true}));}
+        // The replacement canvas is already attached. Restore focus before the
+        // next key event; deferring to a frame can lose rapid Arrow/Enter input.
+        if(refocusGraph&&canvas){refocusGraph=false;canvas.focus({preventScroll:true});}
     }
     const button=document.createElement('button');button.id='functionCfg';button.textContent='CFG';
     $('wholeFunction')?.after(button);

@@ -24,7 +24,17 @@ def main():
         first=page.locator('.cfg-node').first;first.click();check('_cfg_' in page.evaluate('location.hash'),'node selection route')
         check(page.locator('.cfg-node.selected').count()==1,'selected block')
         before=page.locator('#cfgZoomReset').inner_text();page.click('#cfgZoomIn');check(page.locator('#cfgZoomReset').inner_text()!=before,'zoom')
-        page.locator('.cfg-canvas').focus();page.keyboard.press('ArrowRight');check('_cfg_' in page.evaluate('location.hash'),'keyboard selection')
+        page.locator('.cfg-canvas').focus()
+        # Dispatch within one task so a deferred animation-frame focus cannot
+        # hide a gap between replacing the canvas and accepting the next key.
+        moved_and_focused=page.evaluate('''() => {
+            const old = document.querySelector('.cfg-canvas');
+            old.dispatchEvent(new KeyboardEvent('keydown', {key:'ArrowRight', bubbles:true}));
+            const current = document.querySelector('.cfg-canvas');
+            return current !== old && document.activeElement === current;
+        }''')
+        check(moved_and_focused,'keyboard selection immediately focuses replacement canvas')
+        check('_cfg_' in page.evaluate('location.hash'),'keyboard selection')
         page.keyboard.press('Enter');page.wait_for_selector('.function-overview:not(.cfg-overview)');check('_fn_' in page.evaluate('location.hash'),'enter opens whole-function assembly')
         page.evaluate('history.back()');page.wait_for_selector('.cfg-overview');check(page.locator('.cfg-node.selected').count()==1,'back restores graph selection')
         check('outside / unknown exits' in page.locator('#connections').inner_text().lower(),'unknown exit panel')
