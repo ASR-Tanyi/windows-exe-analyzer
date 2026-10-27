@@ -171,6 +171,8 @@ The [replacement deployment](https://github.com/ASR-Tanyi/windows-exe-analyzer/a
 
 ## P9: bounded incoming stack arguments and caller stores
 
+Implementation: [a77efe6](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/a77efe6f28879dc990f02dca0799656459123240).
+
 The explicit function contract also enables read-only stack evidence. The
 contract schema and profile ID remain unchanged for import compatibility;
 `functionABI.version` advances to 2 with additive `stackArguments`, `stackStatus`,
@@ -213,6 +215,28 @@ unknown pointers, deallocation, entry backedges and cross-block fallback. The 35
 browser test generates a source-known machine-code caller/callee demo, verifies
 both tables and assembly navigation, and checks phone layout. A same-task
 expand/change test covers the queued details-toggle race.
+
+### P9 hosted validation (2026-10-27)
+
+The [full matrix](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40442270503)
+passed all 29 CTest targets on both Capstone and LLVM, plus every browser suite.
+Capstone passed 35 function-ABI and 90 C-like browser checks; LLVM passed its
+three ABI and 13 C-like fallback checks. LLVM's semantic oracles are explicitly
+skipped because that decoder does not provide structured operands.
+
+Capstone's independent execution passed 1,260 recovery cases across all four
+presentations, 36 call executions across 108 boundaries, and 80 ABI executions.
+The ABI oracle checked 194 register-input reads, 80 returns, 180 caller values,
+52 call-result reads, 16 incoming stack reads and 12 matched caller stores.
+The hosted storage corpus checked 133 reloads, including 41 saved entry values.
+
+[Pages deployment](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40442270402)
+also passed. The published manifest identifies implementation commit `a77efe6`;
+all eight downloaded HTML reports contain the exact committed ABI model,
+ABI view, pseudocode model and pseudocode view. This publication check verifies
+source parity; interactive behavior is covered by the hosted browser suites.
+The stack-specific browser fixture is generated from authored machine code;
+the existing published C ladder does not add a new stack-parameter showcase.
 
 ## Next slice
 

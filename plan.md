@@ -396,13 +396,6 @@ Local validation passes: 25 CTest targets per backend, 94 Capstone / 15 LLVM sto
 
 The [hosted matrix](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40283334985) and [Pages deployment](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40283334967) passed on 2026-10-26: 27 CTest targets per backend, all browser suites, 1,260 recovery cases and 36 call executions. Hosted storage evidence covers 133 concrete reloads and 41 saved entry values. All eight published reports embed the tested sources; the deployed reports pass 90 C-like browser checks, and the scalar storage model matches CLI JSON with verified evidence/history links.
 
-#### P9. Block-local stack argument evidence — completed subset
-
-- [x] Identify untouched aligned entry-stack reads under an explicit x64 contract; reject entry backedges and stop at alias/lifetime barriers.
-- [x] Match covering stores in the direct call block using the eight-byte CALL offset; retain unknown matches and source links.
-- [x] Expose candidates in the contract inspector and CLI without rewriting code effects; preserve expanded panels during immediate option changes.
-- [x] Validate positive/negative decoded cases, concrete memory addresses/bytes and browser navigation. [Scope and validation](docs/function-abi.md#p9-bounded-incoming-stack-arguments-and-caller-stores).
-
 #### P8. Explicit function ABI register evidence — completed subset
 
 - [x] **P8.1** Add a versioned per-function Windows x64 GPR contract, separate from call-site summaries and display annotations. Reject invalid bindings transactionally; preserve default unknown conventions. [Contract](docs/function-abi.md).
@@ -411,6 +404,22 @@ The [hosted matrix](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/ru
 - [x] **P8.4** Validate decoded operands, actual ceilings, cross-function links and concrete values with the existing O0/O1 C ladder. [Graph checks](tests/test_function_abi.js), [decoder/CLI contracts](tests/test_function_abi.py), [browser checks](tests/test_function_abi_browser.py), [independent execution](tests/test_function_abi_oracle.py).
 
 Implementation: [4c1dde6](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/4c1dde6ab06b4bfbf9627b14e788b173482790a8). [Hosted follow-up](docs/function-abi.md#hosted-validation-follow-up-2026-10-27): CFG focus race fixed in [c0ca1e7](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/c0ca1e7829806d8232970d40120dbd8789b175bb); replacement Capstone CI and live demo checks pass, and LLVM subsequently passed its 29 hosted targets and browser/fallback suites. Local validation: 27 CTest targets per backend, 100 graph checks, 77 Capstone / 2 LLVM decoder/CLI contracts, and independent ABI evidence across 60 executions (194 input reads, 60 returns, 100 caller values and 32 call-result reads). See the [validation record](docs/function-abi.md#validation). M7.4 remains open for stack/floating-point arguments, prototype/type annotations, conflicting declarations, varargs and hidden-parameter handling. This subset never emits a C signature or infers a parameter count.
+
+#### P9. Block-local stack argument evidence — completed subset
+
+Implementation: [a77efe6](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/a77efe6f28879dc990f02dca0799656459123240).
+
+- [x] Identify untouched aligned entry-stack reads under an explicit x64 contract; reject entry backedges and stop at alias/lifetime barriers.
+- [x] Match covering stores in the direct call block using the eight-byte CALL offset; retain unknown matches and source links.
+- [x] Expose candidates in the contract inspector and CLI without rewriting code effects; preserve expanded panels during immediate option changes.
+- [x] Validate positive/negative decoded cases, concrete memory addresses/bytes and browser navigation. [Scope and validation](docs/function-abi.md#p9-bounded-incoming-stack-arguments-and-caller-stores).
+
+The [P9 hosted matrix](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40442270503)
+passed 29 CTest targets per backend, every browser suite, 1,260 recovery cases,
+36 call executions and 80 ABI executions (including 16 incoming stack reads and
+12 matched stores). [Deployment](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40442270402)
+passed; all eight published reports contain the committed model/view sources.
+[Validation details](docs/function-abi.md#p9-hosted-validation-2026-10-27).
 
 ### M7. Function recovery and stronger entry-role recognition
 
