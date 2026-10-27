@@ -33,6 +33,11 @@
     }
     const viewStates = new Map();
     function render(f) {
+        // toggle events are queued: capture live state before replacing details
+        // when a user opens a panel and immediately changes an analysis option.
+        if (active?.id === f.id && viewStates.has(f.id))
+            for (const detail of document.querySelectorAll('.pseudocode-overview details[id]'))
+                viewStates.get(f.id).open.set(detail.id, detail.open);
         active = f; selected = f.id; setTab('functions');
         if (!viewStates.has(f.id)) viewStates.set(f.id,{tab:'code',source:null,definition:null,open:new Map()});
         const state = viewStates.get(f.id);

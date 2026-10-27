@@ -8,8 +8,8 @@ import shutil
 import subprocess
 import tempfile
 from playwright.sync_api import sync_playwright
-from test_function_abi import PROFILE
-from test_pseudocode import ROOT
+from test_function_abi import PROFILE, call_program
+from test_pseudocode import ROOT, report
 
 
 def main():
@@ -97,6 +97,32 @@ def main():
             page.screenshot(path=str(a.fixtures/'function-abi-desktop.png'),full_page=True)
             page.reload();page.click('#pseudoTabanalysis');page.locator('#pseudoFunctionABI > summary').click()
             check(page.locator('#pseudoFunctionProfile').input_value()=='','reload clears the contract')
+        if data['module']['decoderInfo']['capabilities']['structuredOperands']:
+            generated=Path(temp)
+            sd=report(a.analyzer,generated,call_program(prefix='c74424202a000000',callee='8b442428c3'))
+            subprocess.run([str(a.analyzer.resolve()),str(generated/'case.exe'),'--html',str(generated/'stack.html')],check=True,capture_output=True)
+            sf=max(sd['functions'],key=lambda f:f['rva'])
+            page.goto((generated/'stack.html').as_uri()+'#'+sd['module']['id']+'_c_'+format(sf['rva'],'x'))
+            page.click('#pseudoTabanalysis')
+            page.evaluate('''profile => {
+                document.querySelector('#pseudoFunctionABI').open = true;
+                const select = document.querySelector('#pseudoFunctionProfile');
+                select.value = profile;
+                select.dispatchEvent(new Event('change', {bubbles:true}));
+            }''',PROFILE)
+            check(page.locator('#pseudoFunctionABI').evaluate('(e)=>e.open'),'same-task contract change preserves open details')
+            check(page.locator('.pseudo-abi-stack tbody tr').count()==1,'one incoming stack input in authored demo')
+            check('40' in page.locator('.pseudo-abi-stack').inner_text(),'entry-relative address remains visible')
+            page.locator('.pseudo-abi-caller > summary').click()
+            check('matching preceding store' in page.locator('.pseudo-abi-stack-match').inner_text(),'caller store evidence exposed')
+            page.locator('.pseudo-abi-caller details > summary').last.click()
+            source=page.locator('.pseudo-abi-caller details').last.locator('.pseudo-source').first
+            target=source.get_attribute('href'); source.click();page.wait_for_selector('.function-overview')
+            check(page.evaluate('location.hash')==target,'stack evidence links to exact assembly')
+            page.go_back();page.wait_for_selector('#pseudoFunctionProfile')
+            check(page.locator('.pseudo-abi-stack tbody tr').count()==1,'Back retains stack contract')
+            page.set_viewport_size({'width':390,'height':844})
+            check(page.evaluate('document.documentElement.scrollWidth <= innerWidth'),'stack table fits phone layout')
         check(not errors,'no browser errors: '+str(errors));browser.close()
     print(f'PASS: {checks} function-ABI browser checks')
 

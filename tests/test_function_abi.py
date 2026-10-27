@@ -50,7 +50,7 @@ def main():
             check(cli.returncode == 2, 'unavailable ABI CLI returns failure')
             print(f'PASS: {checks} function-ABI decoder/CLI contracts (backend unavailable)'); return
         abi = model['functionABI']
-        check(model['version'] == 8 and abi['version'] == 1 and abi['status'] == 'available', 'versioned opt-in evidence')
+        check(model['version'] == 8 and abi['version'] == 2 and abi['status'] == 'available', 'versioned opt-in evidence')
         check([x['register'] for x in abi['arguments']] == ['rcx','rdx'], 'callee uses two ABI register locations')
         check(abi['returns'][0]['alternatives'][0]['slice']['width'] == 32, 'observed return write width is retained')
         caller = abi['callers'][0]
@@ -62,6 +62,45 @@ def main():
         for key in ['instructions','lines','displayLines','simplifiedLines','cleanLines','simplifiedCleanLines',
                     'valueAnalysis','registerSSA','stackStorage','registerExpressions','registerCleanup','callAnalysis']:
             check(model[key] == original[key], 'ABI selection does not change ' + key)
+        # Entry-relative fifth argument and caller's pre-CALL home-space offset.
+        stack_code = call_program(prefix='c74424202a000000', callee='8b442428c3')
+        stack_data = report(a.analyzer,root,stack_code)
+        stack_fn = max(stack_data['functions'],key=lambda f:f['rva'])
+        stack_abi = recover(stack_data,stack_fn['id'])['functionABI']
+        check([(r['position'],r['entryOffset'],r['width']) for r in stack_abi['stackArguments']]==[(5,'40',32)],'fifth incoming stack slot')
+        match = stack_abi['callers'][0]['stackArguments'][0]
+        check(match['status']=='matched_store' and match['stores'][0]['stackOffset']=='-8','CALL return address shifts caller/callee offsets by eight')
+        for code, expected in [
+            ('8b442420c3',0), # home space, not fifth argument
+            ('8b442429c3',0), # interior byte excluded in this subset
+            ('c7442428010000008b442428c3',0),
+            ('c6442429018b442428c3',0), # partial overlapping write
+            ('89018b442428c3',0), # unknown pointer may alias incoming storage
+            ('c7442430010000008b442428c3',1), # disjoint write
+            ('50488b44243059c3',1), # stable SP adjustment
+            ('4889e5488b4528c3',1), # stable frame pointer
+            ('4883c4304883ec30488b442428c3',0), # deallocation/reallocation
+            ('eb008b442428c3',0), # successor-block read out of scope
+            ('488b442428ebf9',0), # entry backedge
+        ]:
+            b = recover(report(a.analyzer,root,code))['functionABI']
+            check(len(b['stackArguments'])==expected,'incoming stack boundary: '+code)
+        for prefix, expected in [
+            ('c74424202a000000', 'matched_store'),
+            ('48c74424202a000000', 'matched_store'),
+            ('c64424202a', 'unknown'), # cannot cover four-byte read
+            ('c74424202a000000c644242101', 'unknown'),
+            ('c74424202a0000008901', 'unknown'),
+            ('c74424202a0000004883c4284883ec28', 'unknown'),
+            ('c74424202a000000eb00', 'unknown'), # prior block store
+        ]:
+            d = report(a.analyzer,root,call_program(prefix=prefix,callee='8b442428c3'))
+            b = recover(d,max(d['functions'],key=lambda f:f['rva'])['id'])['functionABI']
+            check(b['callers'][0]['stackArguments'][0]['status']==expected,'caller store boundary: '+prefix)
+        limited = recover(stack_data,stack_fn['id'],limits={'observations':0})['functionABI']
+        check(limited['status']=='budget_exceeded' and not limited['stackArguments'] and not limited['callers'],'stack evidence is discarded on budget exhaustion')
+        default_stack = recover(stack_data,stack_fn['id'],contract=None)['functionABI']
+        check(not default_stack['stackArguments'],'stack evidence requires explicit convention')
         own = recover(data)
         check(own['callAnalysis']['applied'] == 0 and any(i['status']=='barrier' for i in own['instructions']), 'function contract never enables own call summaries')
         for suffix, expected in [('b80700000089c14883c428c3', 0), ('b00189c14883c428c3', 1), ('4883c428c3', 0)]:

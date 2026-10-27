@@ -4,13 +4,13 @@ import argparse
 import json
 from pathlib import Path
 import tempfile
-from unicorn import Uc, UC_ARCH_X86, UC_MODE_64, UC_HOOK_CODE
+from unicorn import Uc, UC_ARCH_X86, UC_MODE_64, UC_HOOK_CODE, UC_HOOK_MEM_READ
 from unicorn import x86_const as reg
 from test_pseudocode import report
 from test_pseudocode_oracle import initial, pe_segments, registers, RETURN
 from test_function_abi import recover, call_program
 
-COUNTS = dict(executions=0, input_reads=0, returns=0, caller_values=0, result_reads=0)
+COUNTS = dict(executions=0, input_reads=0, returns=0, caller_values=0, result_reads=0, stack_reads=0, stack_stores=0)
 
 
 def execute(data, model, segments, start_id, trial, witnesses):
@@ -42,6 +42,17 @@ def execute(data, model, segments, start_id, trial, witnesses):
     for c in callers.values():
         for u in c['returnUses']:result_uses.setdefault(u['source'],[]).append(u)
     before_entries={}; after={}; pending=None; last_return=None
+    entry_memory={}; saved_stores={}
+    stack_reads={r['source']:r for r in abi.get('stackArguments',[])}
+    store_rows={store['source']:(c,store) for c in callers.values() for row in c.get('stackArguments',[]) for store in row['stores']}
+    def read_memory(machine,access,address,size,value,_):
+        row=stack_reads.get(pending)
+        if row:
+            expected=before_entries[target['id']]['rsp']+int(row['entryOffset'])
+            assert address==expected and size==row['width']//8,('stack input address',row,address,size)
+            assert bytes(uc.mem_read(address,size))==entry_memory[row['source']],('incoming bytes overwritten',row)
+            COUNTS['stack_reads']+=1
+    uc.hook_add(UC_HOOK_MEM_READ,read_memory)
     def capture():return {r:uc.reg_read(getattr(reg,'UC_X86_REG_'+r.upper())) for r in registers(64)}
     def reaching(row,actual,register,owner):
         values=[]
@@ -54,8 +65,17 @@ def execute(data, model, segments, start_id, trial, witnesses):
     def trace(machine,address,size,_):
         nonlocal pending,last_return
         actual=capture()
-        if pending:after[pending]=actual
-        if address in entries:before_entries[entries[address]]=actual
+        if pending:
+            after[pending]=actual
+            if pending in store_rows:
+                caller,store=store_rows[pending]
+                store_address=before_entries[caller['functionId']]['rsp']+int(store['stackOffset'])
+                saved_stores[pending]=bytes(uc.mem_read(store_address,store['width']//8))
+        if address in entries:
+            before_entries[entries[address]]=actual
+            if entries[address]==target['id']:
+                for row in stack_reads.values():
+                    entry_memory[row['source']]=bytes(uc.mem_read(actual['rsp']+int(row['entryOffset']),row['width']//8))
         source=native.get(address);pending=source
         if not source:return
         for u in input_uses.get(source,[]):
@@ -67,6 +87,11 @@ def execute(data, model, segments, start_id, trial, witnesses):
             if reaching(returns[source],actual,'rax',target['id']):COUNTS['returns']+=1
             last_return=actual['rax']
         if source in callers:
+            for row in callers[source].get('stackArguments',[]):
+                for store in row['stores']:
+                    address=actual['rsp']+int(row['entryOffset'])-8
+                    assert bytes(uc.mem_read(address,store['width']//8))==saved_stores[store['source']],('caller store changed',row)
+                    COUNTS['stack_stores']+=1
             for row in callers[source]['arguments']:
                 if reaching(row,actual,row['register'],callers[source]['functionId']):COUNTS['caller_values']+=1
         for u in result_uses.get(source,[]):
@@ -89,7 +114,13 @@ def main():
         cases=['89c801d0c3','b1014889c8c3','31c989c8c3','b9010000004889c8c3',
                '85c97405b9070000004889c8c3', # entry RCX survives only one path
                '85c97407b801000000eb05b802000000c3', # distinct return definitions
-               call_program(),call_program(suffix='b00189c14883c428c3')]
+               call_program(),call_program(suffix='b00189c14883c428c3'),
+               *[call_program(prefix=p,callee=c) for p,c in [
+                   ('c74424202a000000','8b442428c3'),
+                   ('48c74424202a000000','488b442428c3'),
+                   ('c74424202a000000','508b44243059c3'),
+                   ('c74424202a000000c644242101','8b442428c3'),
+                   ('c74424202a000000','c6442429018b442428c3')]]]
         for code in cases:
             data=report(a.analyzer,root,code);callee=max(data['functions'],key=lambda f:f['rva']);model=recover(data,callee['id'])
             base=int(data['module']['imageBase'],16);witnesses={}
@@ -106,7 +137,7 @@ def main():
                 model=recover(data,f['id'])
                 for trial in (0,1):execute(data,model,segments,start['id'],trial,{})
     assert all(COUNTS.values()),COUNTS
-    print('PASS: ABI evidence at {executions} independent executions; {input_reads} input reads, {returns} returns, {caller_values} caller values, {result_reads} call-result reads'.format(**COUNTS))
+    print('PASS: ABI evidence at {executions} independent executions; {input_reads} input reads, {returns} returns, {caller_values} caller values, {result_reads} call-result reads; {stack_reads} stack reads, {stack_stores} matched stores'.format(**COUNTS))
 
 
 if __name__=='__main__':main()

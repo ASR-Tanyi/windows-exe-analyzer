@@ -47,10 +47,13 @@ function main() {
         if (a.status !== 'available') {console.log('// Function ABI evidence unavailable: ' + a.reason); process.exitCode = 2; return;}
         console.log('// Function ABI evidence v' + a.version);
         for (const c of a.conflicts) console.log('Contract conflict @ ' + c.source + ': ' + c.reason);
+        console.log('// ' + a.stackScope);
+        for (const p of a.stackArguments || []) console.log('Stack input candidate ' + p.position + ': entry RSP+' + p.entryOffset + '; ' + p.width + ' bits @ ' + p.sources.join(', '));
         for (const p of a.arguments) console.log('Input candidate ' + p.position + ': ' + p.register + '; entry-bit mask ' + p.mask + ' @ ' + p.sources.join(', '));
         for (const r of a.returns) console.log('RAX at RET ' + r.source + ': ' + r.status + '; ' + r.alternatives.map(d => d.definition).join(' or ') + ' @ ' + r.sources.join(', '));
         for (const c of a.callers) {
             console.log('Caller ' + c.functionId + ' @ ' + c.source + ': ' + c.status + (c.reason ? '; ' + c.reason : ''));
+            for (const p of c.stackArguments || []) console.log('  Stack slot ' + p.position + ': ' + p.status + ' @ ' + p.sources.join(', '));
             for (const p of c.arguments) console.log('  ' + p.position + ': ' + p.register + '; ' + p.status + ' @ ' + p.sources.join(', '));
             for (const u of c.returnUses) console.log('  RAX read mask ' + u.mask + ' @ ' + u.source);
         }

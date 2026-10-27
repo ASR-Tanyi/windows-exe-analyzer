@@ -1,13 +1,13 @@
 # Explicit function ABI evidence
 
-Preview v8 adds an opt-in, read-only `functionABI.version: 1` inspector. Open a
+Preview v8 adds an opt-in, read-only `functionABI.version: 2` inspector. Open a
 Capstone x64 function's **C-like → Analysis details → Function contract and
 candidates**, then select **Assume Windows x64**. The existing `transform_demo`
 in `recovery64-o0.html` and `recovery64-o1.html` exercises all four integer
 register locations, loops, arrays, branches, and a direct caller.
 
-This is **P8, the register subset of M7.4**. It identifies possible machine
-inputs and outputs, not a C prototype. Stack/floating-point parameters, hidden
+This includes **P8 register evidence and P9 block-local stack evidence of M7.4**. It identifies possible machine
+inputs and outputs, not a C prototype. Broader stack recovery, floating-point parameters, hidden
 parameters, varargs, source types and prototype reconciliation remain open.
 No original effects, stack aliases, call summaries, exits, or code presentations
 change when the profile is selected. Code opens first; the new inspector stays
@@ -165,14 +165,58 @@ measurement, not a worst-case bound or an isolated peak-memory measurement.
 
 ### Hosted validation follow-up (2026-10-27)
 
-The initial [matrix run](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40348928866) passed LLVM but stopped Capstone at the existing CFG keyboard test. Arrow selection replaced the canvas and deferred focus until an animation frame, allowing a following Enter to be lost. The follow-up restores focus synchronously and adds a same-task regression that fails on the old implementation and passes with the fix (15 CFG checks). The downloaded published ABI demo passes all 28 function-contract browser checks, including export/CLI parity and cross-function links. [Report deployment](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40348928401) succeeded. The initial Capstone run is not counted as complete. The [replacement matrix](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40439251948) passes Capstone: 29 CTest targets, all browser suites (including 15 CFG and 28 function-ABI checks), 1,260 recovery cases, 36 call executions and 60 ABI executions. Hosted storage checks observe 133 reloads; the earlier local compiler corpus observed 148. LLVM completion is pending.
+The initial [matrix run](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40348928866) passed LLVM but stopped Capstone at the existing CFG keyboard test. Arrow selection replaced the canvas and deferred focus until an animation frame, allowing a following Enter to be lost. The follow-up restores focus synchronously and adds a same-task regression that fails on the old implementation and passes with the fix (15 CFG checks). The downloaded published ABI demo passes all 28 function-contract browser checks, including export/CLI parity and cross-function links. [Report deployment](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40348928401) succeeded. The initial Capstone run is not counted as complete. The [replacement matrix](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40439251948) passes Capstone: 29 CTest targets, all browser suites (including 15 CFG and 28 function-ABI checks), 1,260 recovery cases, 36 call executions and 60 ABI executions. Hosted storage checks observe 133 reloads; the earlier local compiler corpus observed 148. LLVM subsequently passed all 29 CTest targets and its browser/fallback suites.
 
-The [replacement deployment](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40439251800) succeeds. All eight downloaded live reports match the implementation and embed the focus fix. The published CFG passes 15 checks; the function-ABI demo passes 28 including export/CLI parity. One local repeat briefly failed the signature-uncertainty text assertion; the unchanged rerun and hosted suite passed, so this is recorded as a remaining intermittent browser-test observation rather than a proven product defect.
+The [replacement deployment](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40439251800) succeeds. All eight downloaded live reports match the implementation and embed the focus fix. The published CFG passes 15 checks; the function-ABI demo passes 28 including export/CLI parity. One local repeat briefly failed the signature-uncertainty text assertion; the unchanged rerun and hosted suite passed, so this is recorded as a remaining intermittent browser-test observation rather than a proven product defect at that revision. P9 subsequently reproduced a queued details-toggle race and fixes it by capturing live expanded state before rerendering.
+
+## P9: bounded incoming stack arguments and caller stores
+
+The explicit function contract also enables read-only stack evidence. The
+contract schema and profile ID remain unchanged for import compatibility;
+`functionABI.version` advances to 2 with additive `stackArguments`, `stackStatus`,
+`stackReason` and `stackScope` fields. Preview JSON stays at version 8. Existing
+code, memory operations, call clobbers and value facts are unchanged.
+
+The [Microsoft x64 convention](https://learn.microsoft.com/en-us/cpp/build/x64-calling-convention)
+places the fifth argument at entry RSP + 40: eight bytes for the return address
+and 32 bytes of home space. Immediately before CALL, that location is RSP + 32.
+Later slots advance by eight bytes. Slot numbers do not establish parameter
+counts, source types or a valid prototype.
+
+This subset records aligned 1/2/4/8-byte explicit reads in the entry block, only
+when converged address facts identify untouched incoming storage. A backedge
+into entry excludes this proof. Known overlapping writes exclude later reads;
+unknown writes, calls, unsupported effects, loss of precise SP or deallocation
+above entry SP end incoming identity. Disjoint writes remain supported. Reads
+in successor blocks and within the interior of an eight-byte slot stay outside
+this subset. Earlier observations remain valid even if later writes occur.
+
+For each discovered direct caller, a separate bounded scan tracks explicit
+stores in the call's own block. The store must remain in allocated caller-frame
+storage, cover the callee's observed read bytes, and match the exact
+`caller_SP + entry_offset - 8` address. Partial overlapping writes invalidate
+an earlier store; unknown writes, calls, lost SP and deallocation clear stored
+contents. Stores in predecessor blocks are not followed. No store value is
+forwarded, and a match does not assert a normal return, stack alignment,
+prototype agreement or that the entire eight-byte argument was initialized.
+Unmatched reads remain visible as unknown caller-store evidence.
+
+Open **C-like → Analysis details → Function contract and candidates**, select
+**Assume Windows x64**, then inspect **Possible incoming stack inputs** and
+**Direct caller observations**. Every read/store has assembly links; `--abi`
+and JSON expose the same evidence. The default unknown convention emits none.
+
+Validation: 99 decoder/CLI contracts and 80 independent ABI executions include
+16 concrete incoming stack reads and 12 matched caller stores. Cases cover
+frame-pointer and adjusted-SP reads, home-space exclusion, partial writes,
+unknown pointers, deallocation, entry backedges and cross-block fallback. The 35-check
+browser test generates a source-known machine-code caller/callee demo, verifies
+both tables and assembly navigation, and checks phone layout. A same-task
+expand/change test covers the queued details-toggle race.
 
 ## Next slice
 
-M7.4 remains open. Next recover incoming stack-argument candidates and matching
-caller stores under explicit ABI/alias/lifetime rules. Then add a versioned
+M7.4 remains open. Broader cross-block stack proofs remain deferred. Next add a versioned
 analyst-prototype representation that preserves conflicting declarations,
 varargs and hidden-parameter uncertainty. Do not promote register locations or
 access widths into automatic parameter counts, source names, types or a C

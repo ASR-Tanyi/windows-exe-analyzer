@@ -258,8 +258,8 @@
                 return {graph:{status:'unavailable',reason:'Caller recovery budget exceeded.'}};
             const lifted = new Map(owned.map(b => [b.id,b.instructions.map(i => lift(i,report))]));
             const calls = CALL.apply(report,owned,edges,lifted,id);
-            return {lifted,calls,graph:SSA.analyze(report,owned,edges,lifted,id,{observeCallInputs:true})};
-        }, options.functionAbiLimits);
+            return {lifted,calls,values:VA.analyze(report,owned,edges,lifted,id),graph:SSA.analyze(report,owned,edges,lifted,id,{observeCallInputs:true})};
+        }, options.functionAbiLimits, valueAnalysis);
         const stackStorage = STORAGE.analyze(valueAnalysis, registerSSA, liftedByBlock, options.storageLimits);
         const registerExpressions = EXPR.analyze(registerSSA, liftedByBlock, options.expressionLimits);
         const registerCleanup = CLEAN.analyze(registerSSA, liftedByBlock, registerExpressions, options.cleanupLimits);

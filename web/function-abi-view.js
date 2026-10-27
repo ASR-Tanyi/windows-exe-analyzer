@@ -30,6 +30,11 @@
             if (analysis.arguments.length) h += '<div class="pseudo-flow-table"><table class="pseudo-abi-inputs"><thead><tr><th>Position</th><th>Register</th><th>Observed entry bits</th><th>Evidence</th></tr></thead><tbody>' +
                 analysis.arguments.map(a => '<tr><td>' + a.position + '</td><td><code>' + E(a.register) + '</code></td><td>' + E(bitRanges(a.mask)) + '</td><td>' + evidence(a.sources) + '</td></tr>').join('') + '</tbody></table></div>';
             else h += '<p>No supported incoming argument-register reads found. This does not prove a zero-argument function.</p>';
+            h += '<h4>Possible incoming stack inputs</h4><p>' + E(analysis.stackScope || 'Stack evidence unavailable in this report version.') + '</p>';
+            if (analysis.stackReason) h += '<p>' + E(analysis.stackReason) + '</p>';
+            if (analysis.stackArguments?.length) h += '<div class="pseudo-flow-table"><table class="pseudo-abi-stack"><thead><tr><th>ABI slot</th><th>Entry address</th><th>Read width</th><th>Evidence</th></tr></thead><tbody>' +
+                analysis.stackArguments.map(a => '<tr><td>' + a.position + '</td><td>entry RSP + ' + E(a.entryOffset) + '</td><td>' + a.width + ' bits</td><td>' + evidence(a.sources) + '</td></tr>').join('') + '</tbody></table></div>';
+            else h += '<p>No supported untouched entry-stack reads found; this does not prove the absence of stack parameters.</p>';
             h += '<h4>Possible return values</h4><p>RAX is inspected at each reachable RET. A value can be incidental in a void function; partial writes do not establish the return width. Alternatives remain separate.</p>';
             if (analysis.returns.length) h += '<div class="pseudo-flow-table"><table class="pseudo-abi-returns"><thead><tr><th>Return</th><th>RAX evidence</th><th>Sources</th></tr></thead><tbody>' +
                 analysis.returns.map(r => '<tr><td>' + sourceLink(r.source) + '</td><td>' + values(r.alternatives) + '</td><td>' + evidence(r.sources) + '</td></tr>').join('') + '</tbody></table></div>';
@@ -38,7 +43,9 @@
                 analysis.callers.map(c => '<details class="pseudo-abi-caller"><summary>Call' + (Number.isSafeInteger(c.rva) ? ' at 0x' + c.rva.toString(16) : ' site') + '</summary><p>' + sourceLink(c.source) + '</p>' +
                     (c.status !== 'observed' ? '<p>' + E(c.reason) + '</p>' : '<div class="pseudo-flow-table"><table><thead><tr><th>Location</th><th>Reaching value</th><th>Evidence</th></tr></thead><tbody>' +
                     c.arguments.map(a => '<tr><td>' + a.position + ' · <code>' + E(a.register) + '</code></td><td>' + values(a.alternatives) + '</td><td>' + evidence(a.sources) + '</td></tr>').join('') +
-                    '</tbody></table></div><p>' + (c.returnUses.length ? c.returnUses.length + ' supported read(s) of the call-produced RAX bits before overwrite.' :
+                    '</tbody></table></div>' + (c.stackArguments?.length ? '<h5>Stack slots read by this callee</h5><p>Matching stores cover the observed read bytes, not a recovered type or full argument. Missing evidence stays unknown.</p>' +
+                    c.stackArguments.map(a => '<p class="pseudo-abi-stack-match">Slot ' + a.position + ': ' + (a.status === 'matched_store' ? 'matching preceding store' : 'unknown store') + '</p>' + evidence(a.sources)).join('') : '') +
+                    (c.stackReason ? '<p>' + E(c.stackReason) + '</p>' : '') + '<p>' + (c.returnUses.length ? c.returnUses.length + ' supported read(s) of the call-produced RAX bits before overwrite.' :
                         'No supported read of call-produced RAX bits found; this does not establish a void return.') + '</p>' + evidence(c.returnUses.flatMap(u => u.sources).filter((s,n,a) => a.indexOf(s) === n))) + '</details>').join('');
             else h += '<p>No direct caller evidence is available in the discovered graph.</p>';
             if (analysis.assumptionSources.length) h += '<p>Some function evidence also depends on selected call assumptions:</p>' + evidence(analysis.assumptionSources);
