@@ -22,6 +22,17 @@
             '<p><label for="pseudoFunctionProfile">Function convention </label><select id="pseudoFunctionProfile"' + (analysis.eligible ? '' : ' disabled') + '>' +
             '<option value="">Unknown</option><option value="' + E(WEAFunctionABI.PROFILE.id) + '"' + (analysis.contract.profile ? ' selected' : '') +
             '>Assume Windows x64</option></select></p>';
+        const declarations = analysis.contract.declarations || [];
+        h += '<details id="pseudoDeclarations" style="overflow-wrap:anywhere"><summary>Analyst declarations (' + declarations.length + ')</summary>' +
+            '<p>These are supplied annotations, not recovered C signatures. All declarations are retained; none overrides machine effects or call assumptions. Type labels are plain text, not parsed C types. Unknown variadic/hidden-parameter status prevents fixed-count review hints.</p>' +
+            declarations.map(d => '<section class="pseudo-declaration"><h4>' + E(d.id) + '</h4><p>Source: ' + E(d.source) + '</p><p>Return annotation: <code>' + E(d.returnType ?? 'unknown') + '</code></p>' +
+                '<p>Variadic: ' + E(d.variadic) + '; hidden parameters: ' + E(d.hiddenParameters) + '</p>' +
+                '<ol>' + d.parameters.map(p => '<li><code>' + E(p.name || '(unnamed)') + ': ' + E(p.type ?? 'unknown') + '</code></li>').join('') + '</ol></section>').join('') +
+            (analysis.declarationConflicts || []).map(c => '<p class="datawarning pseudo-declaration-conflict">' + E(c.declarations.join(' / ')) + ': ' + E(c.fields.join(', ')) + '. ' + E(c.reason) + '</p>').join('') +
+            (analysis.declarationReviews || []).map(c => '<div class="pseudo-declaration-review"><p>' + E(c.declaration) + ': ' + E(c.reason) + '</p>' + evidence(c.sources) + '</div>').join('') +
+            '<p>No disagreement or review hint does not verify a declaration.</p><label for="pseudoDeclarationEditor">Edit declarations as JSON (maximum 8)</label>' +
+            '<textarea id="pseudoDeclarationEditor" rows="12" style="width:100%;box-sizing:border-box" spellcheck="false">' + E(JSON.stringify(declarations,null,2)) + '</textarea>' +
+            '<p><button id="pseudoDeclarationExample">Add blank declaration</button> <button id="pseudoDeclarationApply">Apply declarations</button> <button id="pseudoDeclarationClear">Clear declarations</button></p></details>';
         if (analysis.status !== 'available') h += '<p' + (analysis.status === 'invalid' || analysis.status === 'budget_exceeded' ? ' class="datawarning"' : '') + '>' + E(analysis.reason) + '</p>';
         if (analysis.contract.profile) h += '<p>' + E(analysis.notice) + '</p>';
         if (analysis.status === 'available') {
@@ -57,6 +68,24 @@
     }
     function bind(analysis,onChange,message) {
         const $ = id => document.getElementById(id); if (!$('pseudoFunctionABI')) return;
+        $('pseudoDeclarationExample').onclick = () => {
+            try {
+                const list = WEAFunctionABI.normalizeDeclarations(JSON.parse($('pseudoDeclarationEditor').value));
+                let n=1; while (list.some(d => d.id === 'declaration-'+n)) n++;
+                list.push({id:'declaration-'+n,source:'Analyst note',returnType:null,parameters:[],variadic:'unknown',hiddenParameters:'unknown'});
+                WEAFunctionABI.normalizeDeclarations(list);
+                $('pseudoDeclarationEditor').value = JSON.stringify(list,null,2);
+            } catch (e) {message('Declarations unchanged: ' + e.message);}
+        };
+        $('pseudoDeclarationApply').onclick = () => {
+            try {
+                const input=$('pseudoDeclarationEditor').value;
+                if (new TextEncoder().encode(input).length > WEAFunctionABI.LIMITS.fileBytes) throw Error('Declarations exceed 64 KiB.');
+                const declarations=WEAFunctionABI.normalizeDeclarations(JSON.parse(input));
+                onChange({...analysis.contract,version:2,declarations});
+            } catch (e) {message('Declarations unchanged: ' + e.message);}
+        };
+        $('pseudoDeclarationClear').onclick = () => onChange({...analysis.contract,version:2,declarations:[]});
         $('pseudoFunctionProfile').onchange = e => onChange({...analysis.contract,profile:e.target.value || null});
         $('pseudoFunctionReset').onclick = () => onChange(null);
         $('pseudoFunctionExport').onclick = () => {

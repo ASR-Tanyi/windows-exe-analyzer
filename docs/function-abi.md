@@ -1,14 +1,14 @@
 # Explicit function ABI evidence
 
-Preview v8 adds an opt-in, read-only `functionABI.version: 2` inspector. Open a
+Preview v8 adds an opt-in, read-only `functionABI.version: 3` inspector. Open a
 Capstone x64 function's **C-like → Analysis details → Function contract and
 candidates**, then select **Assume Windows x64**. The existing `transform_demo`
 in `recovery64-o0.html` and `recovery64-o1.html` exercises all four integer
 register locations, loops, arrays, branches, and a direct caller.
 
-This includes **P8 register evidence and P9 block-local stack evidence of M7.4**. It identifies possible machine
+This includes **P8 register evidence, P9 block-local stack evidence, and P10 analyst declarations of M7.4**. It identifies possible machine
 inputs and outputs, not a C prototype. Broader stack recovery, floating-point parameters, hidden
-parameters, varargs, source types and prototype reconciliation remain open.
+parameters, recovered varargs/source types and semantic prototype reconciliation remain open. Supplied annotations are represented separately in P10.
 No original effects, stack aliases, call summaries, exits, or code presentations
 change when the profile is selected. Code opens first; the new inspector stays
 inside Analysis details. Source links open the owning function's exact assembly,
@@ -82,8 +82,7 @@ Export/import is scoped to this exact module and function:
 
 Export from the UI for real IDs. `profile: null` clears the selection. Extra
 fields, wrong identities, unsupported profiles, nonobjects and invalid versions
-reject the entire document. Types/prototypes are not accepted by this schema;
-they are never silently interpreted or discarded. Display annotations remain
+reject the entire document. Version 1 does not accept declarations; version 2 adds the bounded `declarations` array documented below. Neither schema interprets type labels as machine semantics. Display annotations remain
 separate. Files are capped at 64 KiB. Browser parse/size errors clear the previous
 selection; schema errors display a rejection with no candidates. Reload clears
 session selections. CLI parse/size errors return 1 and invalid bindings return 2.
@@ -238,10 +237,83 @@ source parity; interactive behavior is covered by the hosted browser suites.
 The stack-specific browser fixture is generated from authored machine code;
 the existing published C ladder does not add a new stack-parameter showcase.
 
+## P10: analyst declarations and explicit disagreements
+
+The function-contract editor now retains up to eight analyst declarations.
+Open **Function contract and candidates → Analyst declarations**, use **Add
+blank declaration**, edit the JSON and apply. Each record starts with unknown
+return, variadic and hidden-parameter information. **Clear declarations** keeps
+the selected convention; **Clear function contract** clears both. Export/import
+uses exact module/function bindings. Reload still clears session-only state.
+
+Version 1 contracts remain accepted and exported unchanged until declarations
+are edited. Version 2 requires exactly these fields:
+
+```json
+{
+  "version": 2,
+  "moduleId": "<exact report module ID>",
+  "functionId": "<exact function ID>",
+  "profile": "windows-x64-gpr-v1",
+  "declarations": [{
+    "id": "header-v1",
+    "source": "reviewed header.h",
+    "returnType": "unsigned",
+    "parameters": [{"name": "count", "type": "unsigned"}],
+    "variadic": "unknown",
+    "hiddenParameters": "unknown"
+  }]
+}
+```
+
+Types are case-sensitive, uninterpreted text labels or `null` for unknown. A
+parameter name may be empty. These records do not parse C/C++, resolve typedefs,
+map aggregate/hidden arguments, infer signedness, rename registers, rewrite
+code or change call effects. A source label is supplied provenance, not a
+verified header. `profile: null` retains annotations and their disagreements
+without activating ABI evidence. LLVM's unavailable recovery remains unchanged.
+
+Declaration IDs must be unique ASCII letters/digits/underscore/hyphen (1–64
+characters). Source labels allow 1–256 characters; type labels 1–128; parameter
+names 0–64. Each declaration allows at most 32 parameters. Control characters,
+unknown fields and invalid enum values reject the entire document. Variadic
+and hidden-parameter fields each accept `yes`, `no` or `unknown`. Normalized,
+pretty-printed declaration JSON is capped at 48 KiB UTF-8, leaving room for the
+64 KiB contract export limit. Invalid editor input preserves applied records;
+invalid imported documents retain the existing transactional rejection policy.
+All labels are escaped in HTML and quoted in CLI output.
+
+`functionABI.version` advances to 3; native schema and preview version stay
+unchanged. `declarationConflicts` records pairwise differences in known return
+labels, parameter counts/type labels, and known variadic/hidden-parameter
+choices. Parameter names are not type conflicts; unknown labels do not disagree
+with known labels. All records remain present, with no winning declaration.
+Different type spellings may be equivalent typedefs: these are textual
+annotation disagreements, not proven ABI incompatibilities.
+
+`declarationReviews` links to assembly when an observed input candidate lies
+outside a declaration's fixed parameter list, but only when both variadic and
+hidden-parameter status are explicitly `no`. Exact `void` return labels also
+get a review hint if a caller reads call-produced RAX bits. Incidental reads
+are possible, so neither hint disproves a prototype. Missing hints never verify
+one. Existing RET cleanup conflicts remain separate. Reviews share the bounded
+observation/source budgets; exhaustion discards provisional machine evidence
+while retaining validated declarations and textual disagreements.
+
+`--abi` prints declarations, disagreements and reviews as labeled evidence.
+Without a selected convention it can print declarations but still returns 2
+for unavailable ABI evidence; `--json` exposes the complete contract state.
+No inferred C signature is emitted.
+
+Local validation includes 198 focused graph checks, 27 Capstone CTest targets,
+and 48 browser checks for editing, invalid-input preservation, hostile/long text,
+uncertainty defaults, disagreement retention, source-linked reviews, export/CLI
+parity, clearing/reload and phone layout. Decoder tests compare all original
+operations, code presentations, value/SSA/storage facts, call effects and
+register/stack/caller evidence before and after applying declarations.
+
 ## Next slice
 
-M7.4 remains open. Broader cross-block stack proofs remain deferred. Next add a versioned
-analyst-prototype representation that preserves conflicting declarations,
-varargs and hidden-parameter uncertainty. Do not promote register locations or
+M7.4 remains open. Next extend incoming-stack evidence across supported CFG joins with explicit alias/lifetime rules. Parsed C types, semantic prototype reconciliation, aggregate arguments, hidden-parameter mapping and automatic signature recovery remain deferred. Do not promote register locations or
 access widths into automatic parameter counts, source names, types or a C
 signature.

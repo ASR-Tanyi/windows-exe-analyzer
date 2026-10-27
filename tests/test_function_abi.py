@@ -50,7 +50,7 @@ def main():
             check(cli.returncode == 2, 'unavailable ABI CLI returns failure')
             print(f'PASS: {checks} function-ABI decoder/CLI contracts (backend unavailable)'); return
         abi = model['functionABI']
-        check(model['version'] == 8 and abi['version'] == 2 and abi['status'] == 'available', 'versioned opt-in evidence')
+        check(model['version'] == 8 and abi['version'] == 3 and abi['status'] == 'available', 'versioned opt-in evidence')
         check([x['register'] for x in abi['arguments']] == ['rcx','rdx'], 'callee uses two ABI register locations')
         check(abi['returns'][0]['alternatives'][0]['slice']['width'] == 32, 'observed return write width is retained')
         caller = abi['callers'][0]
@@ -101,6 +101,17 @@ def main():
         check(limited['status']=='budget_exceeded' and not limited['stackArguments'] and not limited['callers'],'stack evidence is discarded on budget exhaustion')
         default_stack = recover(stack_data,stack_fn['id'],contract=None)['functionABI']
         check(not default_stack['stackArguments'],'stack evidence requires explicit convention')
+        declaration = {'id':'header','source':'header.h','returnType':'void','parameters':[], 'variadic':'no','hiddenParameters':'no'}
+        annotated_contract={'version':2,'moduleId':data['module']['id'],'functionId':callee['id'],'profile':PROFILE,'declarations':[declaration]}
+        annotated=recover(data,callee['id'],contract=annotated_contract)
+        check(len(annotated['functionABI']['declarationReviews'])==3,'two candidate-count reviews and one void-result review')
+        for key in ['instructions','lines','simplifiedLines','cleanLines','simplifiedCleanLines','valueAnalysis','registerSSA','stackStorage','registerExpressions','registerCleanup','callAnalysis']:
+            check(annotated[key]==model[key],'declaration does not alter '+key)
+        for key in ['arguments','stackArguments','returns','callers','conflicts']:
+            check(annotated['functionABI'][key]==abi[key],'declaration does not alter ABI '+key)
+        annotated_file=root/'annotated.json'; annotated_file.write_text(json.dumps(annotated_contract))
+        cli=subprocess.run(['node',str(ROOT/'scripts/pseudocode.js'),str(doc),hex(callee['rva']),'--function-contract',str(annotated_file),'--abi'],capture_output=True,text=True)
+        check(cli.returncode==0 and 'Analyst declaration (not recovered)' in cli.stdout and 'Declaration review header' in cli.stdout,'CLI labels declarations and reviews')
         own = recover(data)
         check(own['callAnalysis']['applied'] == 0 and any(i['status']=='barrier' for i in own['instructions']), 'function contract never enables own call summaries')
         for suffix, expected in [('b80700000089c14883c428c3', 0), ('b00189c14883c428c3', 1), ('4883c428c3', 0)]:

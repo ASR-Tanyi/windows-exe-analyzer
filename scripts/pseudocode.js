@@ -44,6 +44,9 @@ function main() {
     else if (result.status === 'unavailable') console.log('// ' + result.reason);
     else if (format === '--abi') {
         const a = result.functionABI;
+        for (const d of a.contract?.declarations || []) console.log('Analyst declaration (not recovered): ' + JSON.stringify(d));
+        for (const c of a.declarationConflicts || []) console.log('Declaration disagreement ' + c.declarations.join(' / ') + ': ' + c.fields.join(', ') + '; ' + c.reason);
+        for (const r of a.declarationReviews || []) console.log('Declaration review ' + r.declaration + ': ' + r.reason + ' @ ' + r.sources.join(', '));
         if (a.status !== 'available') {console.log('// Function ABI evidence unavailable: ' + a.reason); process.exitCode = 2; return;}
         console.log('// Function ABI evidence v' + a.version);
         for (const c of a.conflicts) console.log('Contract conflict @ ' + c.source + ': ' + c.reason);

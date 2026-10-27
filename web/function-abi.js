@@ -1,5 +1,5 @@
 'use strict';
-// Read-only, explicitly selected function ABI evidence. Never a prototype or
+// Read-only function ABI evidence and supplied declarations. No inferred prototype or
 // permission to change CALL effects, memory, machine exits or rendered code.
 (function (root) {
     const PROFILE = Object.freeze({id: 'windows-x64-gpr-v1', arguments: Object.freeze(['rcx', 'rdx', 'r8', 'r9']), returnRegister: 'rax'});
@@ -8,19 +8,59 @@
     const emptyContract = (report, id) => ({version: 1, moduleId: report.module.id, functionId: id, profile: null});
     const hex = n => '0x' + n.toString(16), full = (1n << 64n) - 1n;
     class BudgetError extends Error {}
+    const exact = (o,keys) => o !== null && typeof o === 'object' && !Array.isArray(o) && Object.keys(o).sort().join(',') === keys;
+    const text = (s,n,empty=false) => typeof s === 'string' && s.length <= n && (empty || s.trim().length > 0) && !/[\x00-\x1f\x7f]/.test(s);
+    const typeLabel = s => s === null || text(s,128);
+    function normalizeDeclarations(list) {
+        if (!Array.isArray(list) || list.length > 8) throw Error('Declarations must be an array of at most 8 records.');
+        const ids = new Set();
+        const result = list.map(d => {
+            if (!exact(d,'hiddenParameters,id,parameters,returnType,source,variadic') || !text(d.id,64) || !/^[A-Za-z0-9_-]+$/.test(d.id) || ids.has(d.id) ||
+                !text(d.source,256) || !typeLabel(d.returnType) || !['yes','no','unknown'].includes(d.variadic) || !['yes','no','unknown'].includes(d.hiddenParameters) ||
+                !Array.isArray(d.parameters) || d.parameters.length > 32) throw Error('Invalid declaration: unique ID, source, type labels, at most 32 parameters and explicit uncertainty fields are required.');
+            ids.add(d.id);
+            const parameters = d.parameters.map(p => {
+                if (!exact(p,'name,type') || !text(p.name,64,true) || !typeLabel(p.type)) throw Error('Each parameter requires a name and a type label (or null for unknown).');
+                return {name:p.name,type:p.type};
+            });
+            return {id:d.id,source:d.source,returnType:d.returnType,parameters,variadic:d.variadic,hiddenParameters:d.hiddenParameters};
+        });
+        if (new TextEncoder().encode(JSON.stringify(result,null,2)).length > 49152) throw Error('Normalized declarations exceed 48 KiB.');
+        return result;
+    }
+    function declarationConflicts(list) {
+        const conflicts = [];
+        for (let i=0;i<list.length;i++) for (const b of list.slice(i+1)) {
+            const a=list[i], fields=[];
+            if (a.returnType !== null && b.returnType !== null && a.returnType !== b.returnType) fields.push('returnType');
+            if (a.parameters.length !== b.parameters.length) fields.push('parameterCount');
+            for (let n=0;n<Math.min(a.parameters.length,b.parameters.length);n++)
+                if (a.parameters[n].type !== null && b.parameters[n].type !== null && a.parameters[n].type !== b.parameters[n].type) fields.push('parameter['+(n+1)+'].type');
+            for (const key of ['variadic','hiddenParameters']) if (a[key] !== 'unknown' && b[key] !== 'unknown' && a[key] !== b[key]) fields.push(key);
+            if (fields.length) conflicts.push({declarations:[a.id,b.id],fields,
+                reason:'Analyst declarations differ. Type labels are not parsed; aliases may be equivalent. Neither declaration is selected as authoritative.'});
+        }
+        return conflicts;
+    }
     function analyze(report, graph, lifted, entry, manifest, loadCaller, options = {}, valueAnalysis = null) {
         const contract = emptyContract(report, entry);
         const eligible = report.module.architecture.startsWith('x64') && graph.status === 'available';
-        const base = {version: 2, complete: false, eligible, contract, notice, arguments: [], stackArguments: [], stackScope: 'Entry block only; no incoming control-flow backedge; aligned 1/2/4/8-byte reads before possible alias writes or barriers. Caller stores are tracked only within the call block.', returns: [], callers: [], conflicts: [], assumptionSources: []};
+        const base = {version: 3, complete: false, eligible, contract, notice, arguments: [], stackArguments: [], stackScope: 'Entry block only; no incoming control-flow backedge; aligned 1/2/4/8-byte reads before possible alias writes or barriers. Caller stores are tracked only within the call block.', returns: [], callers: [], conflicts: [], declarationConflicts: [], declarationReviews: [], assumptionSources: []};
         const fail = (status, reason) => ({...base, status, reason});
         const limits = Object.fromEntries(Object.entries(LIMITS).map(([k,v]) =>
             [k, Number.isSafeInteger(options[k]) ? Math.max(0, Math.min(v, options[k])) : v]));
         if (manifest !== undefined && manifest !== null) {
-            if (typeof manifest !== 'object' || Array.isArray(manifest) || Object.keys(manifest).sort().join(',') !== 'functionId,moduleId,profile,version' ||
-                manifest.version !== 1 || manifest.moduleId !== report.module.id || manifest.functionId !== entry ||
-                ![null, PROFILE.id].includes(manifest.profile)) return fail('invalid', 'Function contract must match this module, function and version 1 schema; only the supported profile or null is accepted.');
-            if (manifest.profile && !eligible) return fail('invalid', 'This profile requires x64 and available register SSA with unambiguous ownership.');
-            contract.profile = manifest.profile;
+            try {
+                const keys = manifest?.version === 2 ? 'declarations,functionId,moduleId,profile,version' : 'functionId,moduleId,profile,version';
+                if (!exact(manifest,keys) || ![1,2].includes(manifest.version) || manifest.moduleId !== report.module.id || manifest.functionId !== entry ||
+                    ![null, PROFILE.id].includes(manifest.profile)) throw Error('Function contract must match this module, function and version 1 or 2 schema.');
+                if (manifest.profile && !eligible) throw Error('This profile requires x64 and available register SSA with unambiguous ownership.');
+                const declarations = manifest.version === 2 ? normalizeDeclarations(manifest.declarations) : null;
+                // Commit only after validation of the entire document.
+                contract.version = manifest.version; contract.profile = manifest.profile;
+                if (declarations) contract.declarations = declarations;
+                base.declarationConflicts = declarationConflicts(declarations || []);
+            } catch (e) {return fail('invalid',e.message);}
         }
         if (!eligible) return fail('unavailable', 'Function ABI evidence requires x64 and available register SSA with unambiguous ownership.');
         if (!contract.profile) return fail('default', 'Choose a function convention to inspect register argument/return candidates. No convention is inferred from PE bitness or names.');
@@ -206,12 +246,25 @@
                 callers.push({stackArguments,stackStatus:stackStores.status,stackReason:stackStores.reason,source:edge.source,rva:i.rva,functionId:id,status:'observed',arguments:inputs,returnUses,
                     sources:union([edge.source],...inputs.map(a => a.sources),...returnUses.map(u => u.sources))});
             }
-            return {...base,status:'available',arguments:args,stackArguments:stackInputs.reads,stackStatus:stackInputs.status,stackReason:stackInputs.reason,returns,callers,conflicts,assumptionSources:[...(graph.assumptionSources || [])],work,observations};
+            const declarationReviews = [];
+            for (const d of contract.declarations || []) {
+                if (d.variadic === 'no' && d.hiddenParameters === 'no') {
+                    for (const candidate of [...args,...stackInputs.reads]) if (candidate.position > d.parameters.length) {
+                        observe(); declarationReviews.push({declaration:d.id,kind:'candidate_outside_declaration',position:candidate.position,sources:candidate.sources,
+                            reason:'An observed input candidate is outside the declared fixed parameter list. Incidental register or stack reads are possible; this is a review hint, not a disproven prototype.'});
+                    }
+                }
+                if (d.returnType === 'void') for (const caller of callers) if (caller.returnUses.length) {
+                    observe(); declarationReviews.push({declaration:d.id,kind:'void_result_read',sources:union(...caller.returnUses.map(u => u.sources)),
+                        reason:'A caller reads call-produced RAX bits despite the void annotation. Incidental register activity is possible; no return type is inferred.'});
+                }
+            }
+            return {...base,declarationReviews,status:'available',arguments:args,stackArguments:stackInputs.reads,stackStatus:stackInputs.status,stackReason:stackInputs.reason,returns,callers,conflicts,assumptionSources:[...(graph.assumptionSources || [])],work,observations};
         } catch (e) {
             return fail(e instanceof BudgetError ? 'budget_exceeded' : 'unavailable',e.message + ' Provisional ABI evidence discarded.');
         }
     }
-    const api = {PROFILE,LIMITS,notice,emptyContract,analyze};
+    const api = {PROFILE,LIMITS,notice,emptyContract,normalizeDeclarations,declarationConflicts,analyze};
     if (typeof module === 'object' && module.exports) module.exports = api;
     else root.WEAFunctionABI = api;
 })(globalThis);

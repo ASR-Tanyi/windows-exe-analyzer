@@ -79,4 +79,36 @@ check(observed.uses.filter(u=>u.role==='call-observation').length===4,'caller sn
 check(observed.definitions.filter(d=>d.source==='A_0' && d.kind==='clobber').length===16,'observing call inputs retains every original clobber');
 check(!calls.graph.uses.some(u=>u.role==='call-observation'),'normal SSA remains unchanged');
 assert.deepEqual(run(f),run(f));checks++;
+// Version 2 retains bounded, non-authoritative analyst declarations.
+const decl = (id,patch={}) => ({id,source:'header.h',returnType:'unsigned',parameters:[{name:'x',type:'unsigned'}],variadic:'no',hiddenParameters:'no',...patch});
+const contract2 = list => ({...ABI.emptyContract(f.report,'A'),version:2,profile:ABI.PROFILE.id,declarations:list});
+let declared=run(f,{},contract2([decl('header'),decl('notes',{returnType:'void',parameters:[]})]));
+check(declared.contract.version===2 && declared.contract.declarations.length===2,'both conflicting declarations retained');
+check(declared.declarationConflicts.length===1 && declared.declarationConflicts[0].fields.includes('returnType'),'type-label disagreements visible');
+check(declared.declarationReviews.some(r=>r.declaration==='notes' && r.kind==='candidate_outside_declaration'),'fixed count gets a cautious evidence review');
+for (const key of ['arguments','returns','callers','conflicts','stackArguments']) assert.deepEqual(declared[key],run(f)[key]); checks++;
+let noProfile={...contract2([decl('header')]),profile:null};
+check(run(f,{},noProfile).status==='default' && run(f,{},noProfile).contract.declarations.length===1,'annotations do not activate the convention');
+for (const patch of [{variadic:'unknown'},{hiddenParameters:'unknown'},{variadic:'yes'},{hiddenParameters:'yes'}]) {
+    check(!run(f,{},contract2([decl('uncertain',{parameters:[],...patch})])).declarationReviews.length,'uncertainty prevents count claims');
+}
+check(!run(f,{},contract2([decl('a'),decl('b',{parameters:[{name:'renamed',type:'unsigned'}]})])).declarationConflicts.length,'parameter names do not cause type disagreements');
+check(!run(f,{},contract2([decl('a'),decl('b',{returnType:null,parameters:[{name:'',type:null}],variadic:'unknown'})])).declarationConflicts.length,'unknown labels are not conflicting declarations');
+for (const patch of [{extra:1},{returnType:8},{source:''},{id:'bad id'},{variadic:false},{hiddenParameters:'maybe'},
+    {parameters:[{name:'x',type:'int',extra:1}]},{parameters:Array(33).fill({name:'x',type:null})},{returnType:'x'.repeat(129)},
+    {source:'escape\nnewline'},{parameters:[{name:'x'.repeat(65),type:null}]}]) {
+    const bad=run(f,{},contract2([decl('good'),decl('bad',patch)]));
+    check(bad.status==='invalid' && !bad.contract.declarations && !bad.contract.profile,'invalid declaration rejects complete contract');
+}
+for (const list of [[decl('same'),decl('same')],Array.from({length:9},(_,n)=>decl('d'+n)),null,{}])
+    check(run(f,{},contract2(list)).status==='invalid','declaration count, identity and array bounds');
+const oversized=Array.from({length:8},(_,n)=>decl('large'+n,{parameters:Array.from({length:32},()=>({name:'x'.repeat(64),type:'界'.repeat(128)}))}));
+check(run(f,{},contract2(oversized)).status==='invalid','normalized UTF-8 declaration budget');
+const allDifferences=run(f,{},contract2([decl('a'),decl('b',{returnType:'void',parameters:[{name:'x',type:'int'},{name:'y',type:null}],variadic:'yes',hiddenParameters:'yes'})]));
+check(['returnType','parameterCount','parameter[1].type','variadic','hiddenParameters'].every(k=>allDifferences.declarationConflicts[0].fields.includes(k)),'each supported disagreement field is explicit');
+const exhausted=run(f,{observations:0},contract2([decl('a'),decl('b',{returnType:'void'})]));
+check(exhausted.status==='budget_exceeded' && exhausted.contract.declarations.length===2 && exhausted.declarationConflicts.length===1 && !exhausted.declarationReviews.length && !exhausted.arguments.length,'budget fallback retains declarations but discards provisional evidence');
+const unsafe=decl('html',{source:'<img src=x onerror=alert(1)>',returnType:'</textarea><script>bad()</script>'});
+check(run(f,{},contract2([unsafe])).contract.declarations[0].source===unsafe.source,'plain text is preserved for escaped rendering');
+assert.deepEqual(run(f,{},contract2([decl('a')])),run(f,{},contract2([decl('a')])));checks++;
 console.log(`PASS: ${checks} function-ABI graph checks`);
