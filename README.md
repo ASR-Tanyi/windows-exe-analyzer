@@ -120,7 +120,9 @@ Each role links to its assembly evidence; overlapping or uncertain uses remain
 marked. See the [stack storage contract](docs/stack-storage.md).
 **Function contract and candidates** lets you explicitly select Windows x64 to
 inspect possible register inputs, RAX values at returns and direct-caller
-evidence, including bounded stack-input/caller-store matches. **Analyst declarations**
+evidence, including stack-input/caller-store matches across bounded joins and
+loops. Incoming bytes must survive every discovered path; distinct stores at a
+join stay unknown. **Analyst declarations**
 retains supplied type labels and multiple declarations, displays disagreements
 and source-linked review hints, and preserves variadic/hidden-parameter uncertainty.
 Unknown values and conflicting return cleanup stay visible. None of these

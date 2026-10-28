@@ -8,7 +8,7 @@ from unicorn import Uc, UC_ARCH_X86, UC_MODE_64, UC_HOOK_CODE, UC_HOOK_MEM_READ
 from unicorn import x86_const as reg
 from test_pseudocode import report
 from test_pseudocode_oracle import initial, pe_segments, registers, RETURN
-from test_function_abi import recover, call_program
+from test_function_abi import recover, call_program, diamond, loop
 
 COUNTS = dict(executions=0, input_reads=0, returns=0, caller_values=0, result_reads=0, stack_reads=0, stack_stores=0)
 
@@ -51,6 +51,7 @@ def execute(data, model, segments, start_id, trial, witnesses):
             expected=before_entries[target['id']]['rsp']+int(row['entryOffset'])
             assert address==expected and size==row['width']//8,('stack input address',row,address,size)
             assert bytes(uc.mem_read(address,size))==entry_memory[row['source']],('incoming bytes overwritten',row)
+            witnesses[('stack',row['source'],row['entryOffset'],row['width'])]=True
             COUNTS['stack_reads']+=1
     uc.hook_add(UC_HOOK_MEM_READ,read_memory)
     def capture():return {r:uc.reg_read(getattr(reg,'UC_X86_REG_'+r.upper())) for r in registers(64)}
@@ -91,6 +92,7 @@ def execute(data, model, segments, start_id, trial, witnesses):
                 for store in row['stores']:
                     address=actual['rsp']+int(row['entryOffset'])-8
                     assert bytes(uc.mem_read(address,store['width']//8))==saved_stores[store['source']],('caller store changed',row)
+                    witnesses[('store',source,store['source'])]=True
                     COUNTS['stack_stores']+=1
             for row in callers[source]['arguments']:
                 if reaching(row,actual,row['register'],callers[source]['functionId']):COUNTS['caller_values']+=1
@@ -120,14 +122,30 @@ def main():
                    ('48c74424202a000000','488b442428c3'),
                    ('c74424202a000000','508b44243059c3'),
                    ('c74424202a000000c644242101','8b442428c3'),
-                   ('c74424202a000000','c6442429018b442428c3')]]]
+                   ('c74424202a000000','c6442429018b442428c3'),
+                   ('c74424202a000000'+diamond(),diamond(tail='8b442428c3')),
+                   ('c74424202a000000'+diamond(),diamond(left='c644242901',tail='8b442428c3')),
+                   ('c74424202a000000'+diamond(),diamond(left='c644242001',tail='8b442428c3')),
+                   (diamond(left='c74424202a000000',right='c744242009000000'),diamond(tail='8b442428c3')),
+                   ('c74424202a000000'+loop('90'),loop('8b442428',tail='c3')),
+                   ('c74424202a000000'+loop('c644242101'),loop('8b442428c644242901',tail='8b442428c3')),
+                   ('c74424202a000000',loop('8b442428c644242001',tail='8b442428c3')),
+                   ('c74424202a000000'+diamond(left='4883c4284883ec28'),'8b442428c3')]]]
         for code in cases:
             data=report(a.analyzer,root,code);callee=max(data['functions'],key=lambda f:f['rva']);model=recover(data,callee['id'])
             base=int(data['module']['imageBase'],16);witnesses={}
-            for trial in (0,1,2,7):execute(data,model,[(base+0x1000,bytes.fromhex(code))],data['functions'][0]['id'],trial,witnesses)
+            for trial in (0,1,2,7):
+                try:execute(data,model,[(base+0x1000,bytes.fromhex(code))],data['functions'][0]['id'],trial,witnesses)
+                except Exception as e:raise AssertionError(f'Authored ABI case {code}, trial {trial}') from e
             for arg in model['functionABI']['arguments']:
                 for u in arg['uses']:
                     assert witnesses.get((u['source'],u['register'],u['mask']),0)==int(u['mask'],16),('missing concrete incoming-bit witness',u)
+            for row in model['functionABI']['stackArguments']:
+                assert witnesses.get(('stack',row['source'],row['entryOffset'],row['width'])),('missing concrete stack-read witness',row)
+            for caller in model['functionABI']['callers']:
+                for row in caller.get('stackArguments',[]):
+                    for store in row['stores']:
+                        assert witnesses.get(('store',caller['source'],store['source'])),('missing concrete caller-store witness',row)
         # The existing source-known C ladder supplies callers, joins, loops,
         # stack spills and memory I/O at O0/O1; no external binary is executed.
         for path in sorted(a.fixtures.glob('recovery64-o?.json')):

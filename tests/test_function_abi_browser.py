@@ -8,7 +8,7 @@ import shutil
 import subprocess
 import tempfile
 from playwright.sync_api import sync_playwright
-from test_function_abi import PROFILE, call_program
+from test_function_abi import PROFILE, call_program, diamond
 from test_pseudocode import ROOT, report
 
 
@@ -76,6 +76,7 @@ def main():
             page.click('#pseudoFunctionReset')
             check(page.locator('#pseudoFunctionProfile').input_value()=='' and not page.locator('.pseudo-abi-inputs').count(),'clear removes evidence')
             page.set_input_files('#pseudoFunctionFile',str(file))
+            page.wait_for_function("document.querySelectorAll('.pseudo-abi-inputs tbody tr').length === 4")
             check(page.locator('.pseudo-abi-inputs tbody tr').count()==4,'valid import restores evidence')
             for payload in [dict(contract,moduleId='wrong'),dict(contract,extra='<img src=x onerror=alert(1)>'),None]:
                 bad=Path(temp)/'bad.json';bad.write_text(json.dumps(payload))
@@ -99,7 +100,7 @@ def main():
             check(page.locator('#pseudoFunctionProfile').input_value()=='','reload clears the contract')
         if data['module']['decoderInfo']['capabilities']['structuredOperands']:
             generated=Path(temp)
-            sd=report(a.analyzer,generated,call_program(prefix='c74424202a000000',callee='8b442428c3'))
+            sd=report(a.analyzer,generated,call_program(prefix='c74424202a000000'+diamond(),callee=diamond(tail='8b442428c3')))
             subprocess.run([str(a.analyzer.resolve()),str(generated/'case.exe'),'--html',str(generated/'stack.html')],check=True,capture_output=True)
             sf=max(sd['functions'],key=lambda f:f['rva'])
             page.goto((generated/'stack.html').as_uri()+'#'+sd['module']['id']+'_c_'+format(sf['rva'],'x'))
@@ -113,8 +114,16 @@ def main():
             check(page.locator('#pseudoFunctionABI').evaluate('(e)=>e.open'),'same-task contract change preserves open details')
             check(page.locator('.pseudo-abi-stack tbody tr').count()==1,'one incoming stack input in authored demo')
             check('40' in page.locator('.pseudo-abi-stack').inner_text(),'entry-relative address remains visible')
+            check('every incoming path' in page.locator('#pseudoFunctionABI').inner_text(),'stack path scope is visible')
+            page.locator('.pseudo-abi-stack details > summary').click()
+            links=page.locator('.pseudo-abi-stack .pseudo-source')
+            check(links.count()>=4,'joined incoming read exposes predecessor and read witnesses')
+            source=links.first;target=source.get_attribute('href');source.click();page.wait_for_selector('.function-overview')
+            check(page.evaluate('location.hash')==target,'incoming join witness opens exact assembly')
+            page.go_back();page.wait_for_selector('#pseudoFunctionProfile')
             page.locator('.pseudo-abi-caller > summary').click()
             check('matching preceding store' in page.locator('.pseudo-abi-stack-match').inner_text(),'caller store evidence exposed')
+            check(page.locator('.pseudo-abi-stack-match + details .pseudo-source').count()>=8,'caller match includes both joined path proofs')
             page.locator('.pseudo-abi-caller details > summary').last.click()
             source=page.locator('.pseudo-abi-caller details').last.locator('.pseudo-source').first
             target=source.get_attribute('href'); source.click();page.wait_for_selector('.function-overview')

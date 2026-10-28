@@ -28,6 +28,20 @@ def call_program(prefix='b907000000ba09000000', suffix='89c14883c428c3', callee=
     return (before + b'\xe8' + struct.pack('<i', len(after)) + after + bytes.fromhex(callee)).hex()
 
 
+def diamond(left='90', right='90', tail=''):
+    """Authored TEST/JZ branches join at tail; both paths execute in the oracle."""
+    left, right = bytes.fromhex(left), bytes.fromhex(right)
+    assert len(left) + 2 < 128 and len(right) < 128
+    return (b'\x85\xc9\x74' + bytes([len(left)+2]) + left + b'\xeb' + bytes([len(right)]) + right).hex() + tail
+
+
+def loop(body, tail=''):
+    """Three concrete iterations; ECX is only the local loop counter."""
+    size = len(bytes.fromhex(body)) + 4
+    assert size <= 128
+    return 'b903000000' + body + 'ffc975' + bytes([256-size]).hex() + tail
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('analyzer', type=Path)
@@ -50,7 +64,7 @@ def main():
             check(cli.returncode == 2, 'unavailable ABI CLI returns failure')
             print(f'PASS: {checks} function-ABI decoder/CLI contracts (backend unavailable)'); return
         abi = model['functionABI']
-        check(model['version'] == 8 and abi['version'] == 3 and abi['status'] == 'available', 'versioned opt-in evidence')
+        check(model['version'] == 8 and abi['version'] == 4 and abi['status'] == 'available', 'versioned opt-in evidence')
         check([x['register'] for x in abi['arguments']] == ['rcx','rdx'], 'callee uses two ABI register locations')
         check(abi['returns'][0]['alternatives'][0]['slice']['width'] == 32, 'observed return write width is retained')
         caller = abi['callers'][0]
@@ -80,8 +94,17 @@ def main():
             ('50488b44243059c3',1), # stable SP adjustment
             ('4889e5488b4528c3',1), # stable frame pointer
             ('4883c4304883ec30488b442428c3',0), # deallocation/reallocation
-            ('eb008b442428c3',0), # successor-block read out of scope
-            ('488b442428ebf9',0), # entry backedge
+            ('eb008b442428c3',1), # successor-block read
+            ('488b442428ebf9',1), # untouched entry backedge
+            (diamond(tail='8b442428c3'),1),
+            (diamond(left='c644242901',tail='8b442428c3'),0),
+            (diamond(left='8901',tail='8b442428c3'),0),
+            (diamond(left='c744243001000000',right='c744243801000000',tail='8b442428c3'),1),
+            (diamond(left='4883c4304883ec30',tail='8b442428c3'),0),
+            (diamond(left='4883ec08',tail='8b442428c3'),0),
+            (loop('8b442428',tail='c3'),1),
+            (loop('8b442428c644242901',tail='8b442428c3'),0),
+            (loop('8b442428c644243001',tail='8b442428c3'),2),
         ]:
             b = recover(report(a.analyzer,root,code))['functionABI']
             check(len(b['stackArguments'])==expected,'incoming stack boundary: '+code)
@@ -92,13 +115,22 @@ def main():
             ('c74424202a000000c644242101', 'unknown'),
             ('c74424202a0000008901', 'unknown'),
             ('c74424202a0000004883c4284883ec28', 'unknown'),
-            ('c74424202a000000eb00', 'unknown'), # prior block store
+            ('c74424202a000000eb00', 'matched_store'), # prior block store
+            ('c74424202a000000'+diamond(), 'matched_store'),
+            (diamond(left='c74424202a000000'), 'unknown'), # missing on one path
+            (diamond(left='c74424202a000000',right='c74424202a000000'), 'unknown'), # distinct store sites
+            ('c74424202a000000'+diamond(left='c644242101'), 'unknown'),
+            ('c74424202a000000'+diamond(left='4883c4284883ec28'), 'unknown'),
+            ('c74424202a000000'+loop('90'), 'matched_store'),
+            ('c74424202a000000'+loop('c644242101'), 'unknown'),
+            (diamond(left='c644242101')+'c74424202a000000', 'matched_store'),
         ]:
             d = report(a.analyzer,root,call_program(prefix=prefix,callee='8b442428c3'))
             b = recover(d,max(d['functions'],key=lambda f:f['rva'])['id'])['functionABI']
             check(b['callers'][0]['stackArguments'][0]['status']==expected,'caller store boundary: '+prefix)
-        limited = recover(stack_data,stack_fn['id'],limits={'observations':0})['functionABI']
-        check(limited['status']=='budget_exceeded' and not limited['stackArguments'] and not limited['callers'],'stack evidence is discarded on budget exhaustion')
+        for key in ['observations','stackSlots','stackVisits']:
+            limited = recover(stack_data,stack_fn['id'],limits={key:0})['functionABI']
+            check(limited['status']=='budget_exceeded' and not limited['stackArguments'] and not limited['callers'],'stack evidence is discarded on budget exhaustion: '+key)
         default_stack = recover(stack_data,stack_fn['id'],contract=None)['functionABI']
         check(not default_stack['stackArguments'],'stack evidence requires explicit convention')
         declaration = {'id':'header','source':'header.h','returnType':'void','parameters':[], 'variadic':'no','hiddenParameters':'no'}

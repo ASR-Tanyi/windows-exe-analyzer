@@ -1,5 +1,6 @@
 'use strict';
 const assert = require('node:assert/strict'), SSA = require('../web/register-ssa'), ABI = require('../web/function-abi');
+const VA = require('../web/value-analysis');
 let checks = 0;
 const check = (ok,why) => {assert.ok(ok,why); checks++;};
 const reg = (name,width=64,offset=0) => ({kind:'register',name,width,offset,familyWidth:64});
@@ -15,14 +16,14 @@ function fixture(bodies,links=[]) {
     });
     const edges = links.map(([from,to])=>({from,to,kind:'jump',source:lifted.get(from).at(-1).source}));
     const report = {module:{id:'module',architecture:'x64',imageBase:'0x400000'},functions:[{id:'A',rva:4096}],blocks,edges};
-    return {report,lifted,graph:SSA.analyze(report,blocks,edges,lifted,'A')};
+    return {report,lifted,graph:SSA.analyze(report,blocks,edges,lifted,'A'),values:VA.analyze(report,blocks,edges,lifted,'A')};
 }
 function run(f,options={},manifest={...ABI.emptyContract(f.report,'A'),profile:ABI.PROFILE.id}) {
-    const before = JSON.stringify([f.report,f.graph,[...f.lifted]]);
-    const result = ABI.analyze(f.report,f.graph,f.lifted,'A',manifest,()=>{throw Error('unexpected caller');},options);
-    check(JSON.stringify([f.report,f.graph,[...f.lifted]])===before,'ABI evidence must not change inputs');
+    const before = JSON.stringify([f.report,f.graph,f.values,[...f.lifted]]);
+    const result = ABI.analyze(f.report,f.graph,f.lifted,'A',manifest,()=>{throw Error('unexpected caller');},options,f.values);
+    check(JSON.stringify([f.report,f.graph,f.values,[...f.lifted]])===before,'ABI evidence must not change inputs');
     const ids = new Set([...f.lifted.values()].flat().map(i=>i.source));
-    for(const row of [...result.arguments,...result.returns]) check(row.sources.every(s=>ids.has(s)),'evidence refers to actual instructions');
+    for(const row of [...result.arguments,...result.returns,...result.stackArguments]) check(row.sources.every(s=>ids.has(s)),'evidence refers to actual instructions');
     return result;
 }
 const ax=reg('rax'),cx=reg('rcx'),dx=reg('rdx');
@@ -111,4 +112,80 @@ check(exhausted.status==='budget_exceeded' && exhausted.contract.declarations.le
 const unsafe=decl('html',{source:'<img src=x onerror=alert(1)>',returnType:'</textarea><script>bad()</script>'});
 check(run(f,{},contract2([unsafe])).contract.declarations[0].source===unsafe.source,'plain text is preserved for escaped rendering');
 assert.deepEqual(run(f,{},contract2([decl('a')])),run(f,{},contract2([decl('a')])));checks++;
+// Stack identity is a must fact: all discovered paths, not one possible path.
+const sp=reg('rsp'),fp=reg('rbp');
+const plus=(a,b)=>({kind:'binary',operator:'+',width:64,left:a,right:b});
+const mem=(address,width=64)=>({kind:'load',address,width});
+const at=(offset,width=64)=>mem(plus(sp,c(offset)),width);
+const adjust=n=>mov(sp,plus(sp,c(n)));
+const read=mov(ax,at(40)), barrier={kind:'barrier',reason:'unknown'};
+const diamond=[['A','B'],['A','C'],['B','D'],['C','D']];
+f=fixture({A:[nop],B:[nop],C:[nop],D:[read,ret]},diamond);r=run(f);
+check(r.stackArguments.length===1 && ['A_0','B_0','C_0','D_0'].every(s=>r.stackArguments[0].sources.includes(s)),'join read carries both predecessor witnesses');
+for(const middle of [[mov(at(40),cx)],[mov(at(41,8),cx)],[mov(mem(cx),ax)],[barrier],
+    [{kind:'call_summary',profile:require('../web/call-summaries').PROFILE.id,target:c(0x401000),width:64}],
+    [adjust(48),adjust(-48)],[mov(fp,sp),mov(sp,cx),mov(sp,fp)]]) {
+    r=run(fixture({A:[nop],B:middle,C:[nop],D:[read,ret]},diamond));
+    check(!r.stackArguments.length,'one alias, barrier or lifetime-breaking path defeats incoming proof');
+}
+r=run(fixture({A:[nop],B:[mov(at(48),cx)],C:[mov(at(56),dx)],D:[read,ret]},diamond));
+check(r.stackArguments.length===1,'different disjoint writes preserve incoming bytes');
+r=run(fixture({A:[nop],B:[adjust(-8)],C:[nop],D:[read,ret]},diamond));
+check(!r.stackArguments.length,'multi-valued join SP cannot establish an incoming slice');
+r=run(fixture({A:[read,nop]},[['A','A']]));
+check(r.stackArguments.length===1 && r.stackArguments[0].sources.includes('A_1'),'entry loop keeps virtual initial memory and backedge evidence');
+r=run(fixture({A:[read,mov(at(40),cx),nop]},[['A','A']]));
+check(!r.stackArguments.length,'late entry backedge write invalidates provisional earlier read');
+r=run(fixture({A:[read,nop],B:[read,mov(at(40),cx),nop],C:[read,ret]},[['A','B'],['B','B'],['B','C']]));
+check(r.stackArguments.length===1 && r.stackArguments[0].source==='A_0','pre-loop read survives but repeated and post-loop reads do not');
+r=run(fixture({A:[nop],B:[read,mov(at(48),cx),nop],C:[read,ret]},[['A','B'],['B','B'],['B','C']]));
+check(r.stackArguments.length===2,'loop invariant incoming bytes survive disjoint writes');
+r=run(fixture({A:[nop],B:[read,ret],C:[mov(at(40),cx)]},[['A','B'],['C','B']]));
+check(r.stackArguments.length===1,'unreachable predecessor cannot defeat a reachable proof');
+const truncated=fixture({A:[nop],B:[read,ret]},[['A','B']]);truncated.values.accesses[0].proofTruncated=true;
+check(!run(truncated).stackArguments.length,'truncated address proof is not an incoming witness');
+const cyclic=fixture({A:[nop],B:[nop],C:[read,ret]},[['A','B'],['B','B'],['B','C']]);
+for(const options of [{stackSlots:0},{stackVisits:0},{stackVisits:2},{sources:1}]) {
+    r=run(cyclic,options);check(r.status==='budget_exceeded' && !r.stackArguments.length && !r.callers.length,'fixed-point fallback discards provisional evidence');
+}
+const manySlots=fixture({A:[...Array.from({length:257},(_,n)=>mov(ax,at(40+8*n))),ret]});
+for(const limit of [undefined,Infinity,NaN,100000]) {
+    r=run(manySlots,{stackSlots:limit});check(r.status==='budget_exceeded' && r.reason.includes('stack-slot') && !r.stackArguments.length,'actual stack-slice ceiling cannot be raised');
+}
+function caller(bodies,links,options={}) {
+    const f=fixture({...bodies,D:[...(bodies.D || []),barrier],After:[ret],Target:[read,ret]},[...links,['D','After']]);
+    const target=f.report.blocks.find(b=>b.id==='Target');target.owners=['Target'];f.report.functions.push({id:'Target',rva:target.rva});
+    const instruction=f.lifted.get('D').at(-1);instruction.call={width:64,target:c(0x400000+target.rva)};
+    f.report.edges.push({from:'D',to:'Target',kind:'call',source:instruction.source});
+    const blocks=f.report.blocks.filter(b=>b.id!=='Target'),edges=f.report.edges;
+    const load={lifted:f.lifted,graph:SSA.analyze(f.report,blocks,edges,f.lifted,'A',{observeCallInputs:true}),
+        values:VA.analyze(f.report,blocks,edges,f.lifted,'A'),calls:{sites:[{source:instruction.source,eligible:true}]}};
+    const graph=SSA.analyze(f.report,[target],[],f.lifted,'Target'),values=VA.analyze(f.report,[target],[],f.lifted,'Target');
+    const before=JSON.stringify([f.report,load,graph,values,[...f.lifted]]);
+    const result=ABI.analyze(f.report,graph,f.lifted,'Target',{...ABI.emptyContract(f.report,'Target'),profile:ABI.PROFILE.id},()=>load,options,values);
+    check(before===JSON.stringify([f.report,load,graph,values,[...f.lifted]]),'cross-block caller observations leave all analyses unchanged');
+    check(result.status==='available',result.reason);
+    check(result.callers[0]?.status==='observed',result.callers[0]?.reason);
+    return result.callers[0].stackArguments[0];
+}
+const store=mov(at(32),cx);
+r=caller({A:[adjust(-40),store,nop],B:[nop],C:[nop]},diamond);
+check(r.status==='matched_store' && r.stores.length===1 && ['A_1','A_2','B_0','C_0','D_0'].every(s=>r.sources.includes(s)),'one store surviving both predecessors retains path witnesses');
+for(const change of [[mov(at(33,8),ax)],[mov(mem(cx),ax)],[adjust(40),adjust(-40)],
+    [mov(fp,sp),mov(sp,cx),mov(sp,fp)],[barrier]]) {
+    r=caller({A:[adjust(-40),store,nop],B:change,C:[nop]},diamond);
+    check(r.status==='unknown' && !r.stores.length,'one caller path invalidating store stays unknown');
+}
+for(const right of [[nop],[store],[mov(at(32),c(7))]]) {
+    r=caller({A:[adjust(-40),nop],B:[store],C:right},diamond);
+    check(r.status==='unknown','missing or distinct stores never merge, even equal-looking values');
+}
+r=caller({A:[adjust(-40),store,nop],B:[nop]},[['A','B'],['B','B'],['B','D']]);
+check(r.status==='matched_store','loop-invariant preceding store survives');
+r=caller({A:[adjust(-40),nop],B:[store]},[['A','D'],['A','B'],['B','B'],['B','D']]);
+check(r.status==='unknown','loop-only store cannot justify a zero-trip caller path');
+r=caller({A:[adjust(-40),store,nop],B:[mov(at(33,8),ax)]},[['A','B'],['B','B'],['B','D']]);
+check(r.status==='unknown','loop overwrite invalidates preceding store');
+r=caller({A:[adjust(-40),nop],B:[store],C:[nop],D:[store]},diamond);
+check(r.status==='matched_store' && r.stores[0].source==='D_0','fresh store after join establishes a new proof');
 console.log(`PASS: ${checks} function-ABI graph checks`);

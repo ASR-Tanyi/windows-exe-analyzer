@@ -3,7 +3,7 @@
 // permission to change CALL effects, memory, machine exits or rendered code.
 (function (root) {
     const PROFILE = Object.freeze({id: 'windows-x64-gpr-v1', arguments: Object.freeze(['rcx', 'rdx', 'r8', 'r9']), returnRegister: 'rax'});
-    const LIMITS = Object.freeze({work: 131072, sources: 64, observations: 256, callers: 8, sites: 32, moduleItems: 131072, fileBytes: 65536});
+    const LIMITS = Object.freeze({work: 131072, sources: 64, observations: 256, stackSlots: 256, stackVisits: 4096, callers: 8, sites: 32, moduleItems: 131072, fileBytes: 65536});
     const notice = 'Analyst-selected Windows x64 function convention. Register/stack reads and RAX values are candidates, not a recovered C signature. Unused arguments, floating-point arguments and broader stack recovery, varargs, hidden parameters and original types remain unknown. Caller observations do not assert a normal return or enable call summaries. No machine effects are changed.';
     const emptyContract = (report, id) => ({version: 1, moduleId: report.module.id, functionId: id, profile: null});
     const hex = n => '0x' + n.toString(16), full = (1n << 64n) - 1n;
@@ -45,7 +45,7 @@
     function analyze(report, graph, lifted, entry, manifest, loadCaller, options = {}, valueAnalysis = null) {
         const contract = emptyContract(report, entry);
         const eligible = report.module.architecture.startsWith('x64') && graph.status === 'available';
-        const base = {version: 3, complete: false, eligible, contract, notice, arguments: [], stackArguments: [], stackScope: 'Entry block only; no incoming control-flow backedge; aligned 1/2/4/8-byte reads before possible alias writes or barriers. Caller stores are tracked only within the call block.', returns: [], callers: [], conflicts: [], declarationConflicts: [], declarationReviews: [], assumptionSources: []};
+        const base = {version: 4, complete: false, eligible, contract, notice, arguments: [], stackArguments: [], stackScope: 'Bounded discovered normal-flow paths, including joins and loops. Aligned 1/2/4/8-byte incoming reads must remain untouched on every incoming path. Caller matches require the same covering store on every predecessor; differing stores stay unknown.', returns: [], callers: [], conflicts: [], declarationConflicts: [], declarationReviews: [], assumptionSources: []};
         const fail = (status, reason) => ({...base, status, reason});
         const limits = Object.fromEntries(Object.entries(LIMITS).map(([k,v]) =>
             [k, Number.isSafeInteger(options[k]) ? Math.max(0, Math.min(v, options[k])) : v]));
@@ -64,7 +64,7 @@
         }
         if (!eligible) return fail('unavailable', 'Function ABI evidence requires x64 and available register SSA with unambiguous ownership.');
         if (!contract.profile) return fail('default', 'Choose a function convention to inspect register argument/return candidates. No convention is inferred from PE bitness or names.');
-        let work = 0, observations = 0;
+        let work = 0, observations = 0, stackVisits = 0;
         const spend = () => {if (++work > limits.work) throw new BudgetError('Function ABI work budget exceeded.');};
         const observe = () => {if (++observations > limits.observations) throw new BudgetError('Function ABI observation budget exceeded.');};
         const union = (...lists) => {
@@ -135,8 +135,8 @@
             const kinds = new Set(alternatives.map(d => d.kind === 'write' ? 'written' : d.kind === 'entry' ? 'incoming' : 'unknown'));
             return {definition:id, status:kinds.size === 1 ? [...kinds][0] : kinds.size ? 'mixed' : 'unknown', alternatives, sources};
         }
-        // Deliberately block-local memory identity. No memory values are
-        // forwarded into recovery and no normal-return assumption is enabled.
+        // Must-preserve memory identity over discovered normal-flow paths.
+        // No memory values are forwarded and no call summary is enabled.
         const stack = v => v && !v.proofTruncated && v.atoms?.length === 1 && v.atoms[0].kind === 'stack' ? BigInt(v.atoms[0].offset) : null;
         const precise = a => a.stackOffset !== null && !a.proofTruncated && stack(a.address) !== null && a.spOffset !== null;
         const overlap = (a,b) => {spend(); return BigInt(a.stackOffset) < BigInt(b.stackOffset) + BigInt(b.width / 8) &&
@@ -147,50 +147,105 @@
             if (va?.status !== 'converged') return unavailable('Converged stack addresses are required.');
             const block = callSource ? g.blocks.find(b => (l.get(b.id) || []).some(i => i.source === callSource)) : g.blocks.find(b => b.id === g.entry);
             if (!block) return unavailable('Owned block is unavailable.');
-            if (!callSource && g.blocks.some(b => b.successors.includes(g.entry)))
-                return unavailable('An edge re-enters the entry block; incoming stack identity is not established.');
             const facts = new Map(va.facts.map(f => [f.source,f])), accesses = new Map();
             for (const a of va.accesses) {spend(); if (!accesses.has(a.source)) accesses.set(a.source,[]); accesses.get(a.source).push(a);}
-            let stored = [], written = [], intact = true;
-            for (const i of l.get(block.id)) {
-                spend(); const f = facts.get(i.source), memory = accesses.get(i.source) || [];
-                if (i.source === callSource) {
-                    const sp = stack(f?.before.rsp);
-                    if (sp === null) return unavailable('Call stack pointer is not precise.');
-                    result.stores = stored.filter(a => BigInt(a.stackOffset) >= sp + 32n && BigInt(a.stackOffset) + BigInt(a.width/8) <= 0n)
-                        .map(a => ({...a,entryOffset:(BigInt(a.stackOffset)-sp+8n).toString(),sources:union(a.sources,f.before.rsp.sources || [],[i.source])}));
-                    return result;
+            const key = a => a.stackOffset + ':' + a.width;
+            const inputRead = a => {
+                if (a.access !== 'read' || a.implicit || !precise(a) || ![8,16,32,64].includes(a.width)) return false;
+                const offset = BigInt(a.stackOffset);
+                return offset >= 40n && offset % 8n === 0n && offset <= BigInt(Number.MAX_SAFE_INTEGER);
+            };
+            const bounded = state => {if (state.size > limits.stackSlots) throw new BudgetError('Function ABI stack-slot budget exceeded.');};
+            // A finite universe of read slices avoids tracking arbitrary memory.
+            // Only the virtual initial entry supplies untouched incoming bytes.
+            const seed = new Map();
+            if (!callSource) for (const b of g.blocks) for (const i of l.get(b.id)) for (const a of accesses.get(i.source) || []) {
+                spend(); if (inputRead(a)) seed.set(key(a),{stackOffset:a.stackOffset,width:a.width,sources:[]}); bounded(seed);
+            }
+            const blocks = new Map(g.blocks.map(b => [b.id,b])), edges = new Map(g.blocks.map(b => [b.id,new Map()]));
+            for (const e of report.edges) {spend();
+                if (e.kind !== 'call' && blocks.has(e.from) && blocks.has(e.to)) {
+                    const out = edges.get(e.from); out.set(e.to,union(out.get(e.to) || [],[e.source]));
                 }
-                if (!f || i.ops.some(o => o.kind === 'barrier' || o.kind === 'call_summary')) {
-                    intact = false; stored = []; continue;
-                }
-                const beforeSP = stack(f.before.rsp), afterSP = stack(f.after.rsp);
-                if (beforeSP === null || beforeSP > 0n) intact = false;
-                if (!callSource && intact) for (const a of memory) {
-                    spend(); if (a.access !== 'read' || a.implicit || !precise(a) || ![8,16,32,64].includes(a.width)) continue;
-                    const offset = BigInt(a.stackOffset);
-                    if (offset < 40n || offset % 8n || offset > BigInt(Number.MAX_SAFE_INTEGER) || written.some(w => overlap(w,a))) continue;
-                    observe(); result.reads.push({position:Number(offset/8n),entryOffset:a.stackOffset,width:a.width,source:i.source,
-                        certainty:'candidate',sources:union(a.sources,[i.source])});
-                }
-                for (const a of memory.filter(a => a.access === 'write' || a.access === 'unknown')) {
-                    spend(); if (!precise(a)) {intact = false; stored = []; continue;}
-                    written.push(a); stored = stored.filter(w => !overlap(w,a));
-                    const op = i.ops.length === 1 && i.ops[0];
-                    if (callSource && a.allocated && [8,16,32,64].includes(a.width) && op?.kind === 'assign' &&
-                        op.target.kind === 'load' && a.key === JSON.stringify(op.target)) {
-                        observe(); stored.push({source:i.source,stackOffset:a.stackOffset,width:a.width,sources:union(a.sources,[i.source])});
+            }
+            const equal = (a,b) => !!a && !!b && a.size === b.size && [...a].every(([k,v]) => {
+                spend(); const w = b.get(k); return w && v.source === w.source && v.sources.join('|') === w.sources.join('|');
+            });
+            function join(incoming) {
+                const state = new Map(incoming[0].state);
+                for (const [k,v] of state) {
+                    let sources = union(v.sources,incoming[0].sources);
+                    for (const input of incoming.slice(1)) {
+                        spend(); const w = input.state.get(k);
+                        if (!w || v.source !== w.source) {state.delete(k); break;}
+                        sources = union(sources,w.sources,input.sources);
                     }
+                    if (state.has(k)) state.set(k,{...v,sources});
                 }
-                if (afterSP === null) {intact = false; stored = [];}
-                else {
-                    if (afterSP > 0n) intact = false;
-                    stored = stored.filter(a => BigInt(a.stackOffset) >= afterSP);
+                return state;
+            }
+            function transfer(id,input,collect) {
+                const state = new Map(input);
+                for (const i of l.get(id)) {
+                    spend(); const f = facts.get(i.source), memory = accesses.get(i.source) || [];
+                    const beforeSP = stack(f?.before.rsp), afterSP = stack(f?.after.rsp);
+                    if (beforeSP === null || beforeSP > 0n) state.clear();
+                    if (collect && i.source === callSource) {
+                        if (beforeSP === null) {result.status = 'unavailable'; result.reason = 'Call stack pointer is not precise.';}
+                        else for (const a of state.values()) {spend();
+                            if (BigInt(a.stackOffset) < beforeSP + 32n || BigInt(a.stackOffset) + BigInt(a.width/8) > 0n) continue;
+                            observe(); result.stores.push({...a,entryOffset:(BigInt(a.stackOffset)-beforeSP+8n).toString(),
+                                sources:union(a.sources,f.before.rsp.sources || [],[i.source])});
+                        }
+                    }
+                    if (!f || i.ops.some(o => o.kind === 'barrier' || o.kind === 'call_summary')) {state.clear(); continue;}
+                    if (collect && !callSource) for (const a of memory) {
+                        spend(); const untouched = state.get(key(a));
+                        if (!untouched || !inputRead(a)) continue;
+                        observe(); result.reads.push({position:Number(BigInt(a.stackOffset)/8n),entryOffset:a.stackOffset,width:a.width,source:i.source,
+                            certainty:'candidate',sources:union(untouched.sources,a.sources,[i.source])});
+                    }
+                    for (const a of memory.filter(a => a.access === 'write' || a.access === 'unknown')) {
+                        spend(); if (!precise(a)) {state.clear(); continue;}
+                        for (const [k,v] of state) if (overlap(v,a)) state.delete(k);
+                        const op = i.ops.length === 1 && i.ops[0];
+                        if (callSource && beforeSP !== null && a.allocated && [8,16,32,64].includes(a.width) && op?.kind === 'assign' &&
+                            op.target.kind === 'load' && a.key === JSON.stringify(op.target)) {
+                            state.set(key(a),{source:i.source,stackOffset:a.stackOffset,width:a.width,sources:union(a.sources,[i.source])}); bounded(state);
+                        }
+                    }
+                    // Deallocation is irreversible evidence loss, even if SP
+                    // is restored later. Calls invalidate all stored contents.
+                    if (afterSP === null || afterSP > 0n) state.clear();
+                    else if (callSource) for (const [k,v] of state) {spend(); if (BigInt(v.stackOffset) < afterSP) state.delete(k);}
                 }
+                return state;
+            }
+            const inputs = new Map(), outputs = new Map(), queue = [g.entry], queued = new Set(queue);
+            while (queue.length) {
+                if (++stackVisits > limits.stackVisits) throw new BudgetError('Function ABI stack fixed-point budget exceeded.');
+                const id = queue.shift(), b = blocks.get(id); queued.delete(id);
+                const incoming = b.predecessors.filter(p => outputs.has(p)).map(p => ({state:outputs.get(p),sources:edges.get(p).get(id) || []}));
+                if (id === g.entry) incoming.unshift({state:seed,sources:[]});
+                if (!incoming.length) continue;
+                const input = join(incoming), output = transfer(id,input,false); inputs.set(id,input);
+                if (!equal(output,outputs.get(id))) {
+                    outputs.set(id,output);
+                    for (const to of b.successors) if (!queued.has(to)) {queue.push(to); queued.add(to);}
+                }
+            }
+            // Unknown predecessors and backedges must participate before any
+            // observation is emitted. Never retain an early provisional read.
+            for (const b of g.blocks) {
+                if (!inputs.has(b.id)) return unavailable('Incomplete reachable stack data flow.');
+                if (!callSource || b.id === block.id) transfer(b.id,inputs.get(b.id),true);
             }
             return result;
         }
         try {
+            let items = report.blocks.length + report.edges.length + report.functions.length;
+            for (const b of report.blocks) items += b.instructions.length;
+            if (items > limits.moduleItems) throw new BudgetError('Function ABI module-scan budget exceeded.');
             const c = context(graph,lifted);
             const stackInputs = stackScan(graph,lifted,valueAnalysis);
 
@@ -210,9 +265,6 @@
             }
             // Index only within a hard module scan budget. Do not recursively
             // recover callees or let a large caller set multiply the work.
-            let items = report.blocks.length + report.edges.length + report.functions.length;
-            for (const b of report.blocks) items += b.instructions.length;
-            if (items > limits.moduleItems) throw new BudgetError('Function ABI module-scan budget exceeded.');
             const blockMap = new Map(report.blocks.map(b => [b.id,b])), functionIds = new Set(report.functions.map(f => f.id));
             const fn = report.functions.find(f => f.id === entry), cache = new Map(), callers = [], seen = new Set();
             for (const edge of report.edges) {spend();
@@ -259,7 +311,7 @@
                         reason:'A caller reads call-produced RAX bits despite the void annotation. Incidental register activity is possible; no return type is inferred.'});
                 }
             }
-            return {...base,declarationReviews,status:'available',arguments:args,stackArguments:stackInputs.reads,stackStatus:stackInputs.status,stackReason:stackInputs.reason,returns,callers,conflicts,assumptionSources:[...(graph.assumptionSources || [])],work,observations};
+            return {...base,declarationReviews,status:'available',arguments:args,stackArguments:stackInputs.reads,stackStatus:stackInputs.status,stackReason:stackInputs.reason,returns,callers,conflicts,assumptionSources:[...(graph.assumptionSources || [])],work,observations,stackVisits};
         } catch (e) {
             return fail(e instanceof BudgetError ? 'budget_exceeded' : 'unavailable',e.message + ' Provisional ABI evidence discarded.');
         }

@@ -1,12 +1,12 @@
 # Explicit function ABI evidence
 
-Preview v8 adds an opt-in, read-only `functionABI.version: 3` inspector. Open a
+Preview v8 adds an opt-in, read-only `functionABI.version: 4` inspector. Open a
 Capstone x64 function's **C-like → Analysis details → Function contract and
 candidates**, then select **Assume Windows x64**. The existing `transform_demo`
 in `recovery64-o0.html` and `recovery64-o1.html` exercises all four integer
 register locations, loops, arrays, branches, and a direct caller.
 
-This includes **P8 register evidence, P9 block-local stack evidence, and P10 analyst declarations of M7.4**. It identifies possible machine
+This includes **P8 register evidence, P9/P11 stack evidence across bounded control flow, and P10 analyst declarations of M7.4**. It identifies possible machine
 inputs and outputs, not a C prototype. Broader stack recovery, floating-point parameters, hidden
 parameters, recovered varargs/source types and semantic prototype reconciliation remain open. Supplied annotations are represented separately in P10.
 No original effects, stack aliases, call summaries, exits, or code presentations
@@ -29,6 +29,8 @@ and unprototyped/variadic calls prevent inferring a signature from these GPRs.
 | RAX at a reachable RET | Reaching definitions are retained separately, including incoming values and unknown call/unsupported-operation clobbers. A write can be incidental in a void function. |
 | Caller location | Each supported direct caller shows the reaching value at all four locations. An incoming value or preceding write does not prove an argument was passed. The caller's own entry ABI remains unknown. |
 | Call-result read | A supported caller operation may read bits from the call's RAX clobber before those bits are overwritten. This is conditional on reaching the recorded continuation. No normal-return assertion is activated. |
+| Incoming stack read | An aligned supported slice at entry RSP + 40 or higher is untouched on every discovered path reaching this read. It remains an argument candidate, not a count or type. |
+| Matching caller store | The same explicit covering store reaches this call on every discovered incoming path without alias or lifetime invalidation. Distinct stores remain unknown even when their values look equal. |
 | Contract conflict | Nonzero RET argument cleanup contradicts the selected Windows x64 caller-cleanup convention. The observation and warning remain visible; the selection is not certified. |
 
 Evidence follows the original reachable register SSA, before expression
@@ -112,6 +114,8 @@ is an explicit assumption in this separate evidence object.
 | Function ABI data-flow work | 131,072 |
 | Observations / leaf alternatives | 256 |
 | Source IDs per evidence union | 64 |
+| Stack slices per data-flow state | 256 |
+| Stack fixed-point block visits, across callee and caller scans | 4,096 |
 | Direct call sites | 32 |
 | Distinct caller functions analyzed | 8 |
 | Module items scanned (functions, blocks, instructions, edges) | 131,072 |
@@ -191,6 +195,10 @@ unknown writes, calls, unsupported effects, loss of precise SP or deallocation
 above entry SP end incoming identity. Disjoint writes remain supported. Reads
 in successor blocks and within the interior of an eight-byte slot stay outside
 this subset. Earlier observations remain valid even if later writes occur.
+
+These are P9's original block limits. P11 below extends the proof across
+discovered normal-flow joins and loops; its other address/alias restrictions
+still apply.
 
 For each discovered direct caller, a separate bounded scan tracks explicit
 stores in the call's own block. The store must remain in allocated caller-frame
@@ -332,8 +340,79 @@ the published x64 O1 report passed: declaration retention, disagreements and
 review hints, escaping, unchanged code, version 2 export, CLI JSON parity,
 exact assembly links, Back restoration, phone layout and no JavaScript errors.
 
+## P11: stack evidence across joins and loops
+
+`functionABI.version` is now 4. Contract versions 1 and 2, the selected profile,
+native schema 2 and preview version 8 remain compatible. Existing read/store
+records keep their shape, with predecessor transfers added to `sources`.
+`stackVisits` reports total fixed-point visits across the selected function and
+its bounded caller scans. The inspector and `--abi` describe the expanded scope;
+JSON, text export and assembly links use the same evidence.
+
+The pass tracks a finite set of eligible incoming read slices. A virtual initial
+entry starts them untouched; each normal-flow join intersects the surviving
+slices from every reachable predecessor. A read is reported only if its entire
+slice remains untouched. An overlapping write on either branch removes the
+proof at the merge, while disjoint writes preserve it. This is stricter than
+the register pass's possible incoming-bit evidence: no incoming stack candidate
+is emitted merely because one path preserves the bytes.
+
+For callers, a state contains preceding explicit stores in allocated frame
+storage. Joins require the same store instruction and exact offset/width on all
+predecessors. A missing store, a different store site (even with equal-looking
+values), an overlapping write or a possible alias removes the match. A fresh
+store after a join can establish a new proof. At the call, the existing exact
+address translation and coverage checks still apply. Store values are never
+propagated into recovery.
+
+Both analyses reach a bounded fixed point before emitting any observation.
+The initial entry participates in entry-loop joins, so a loop cannot invent
+an initial store. A mutation on a backedge invalidates earlier provisional
+reads in that loop; loop-invariant storage can survive. A read before entering
+a mutating loop can still be reported. Unreachable blocks do not contribute,
+but no branch feasibility is inferred: every discovered reachable path counts.
+
+Unknown writes, raw calls, selected call summaries, unsupported effects and
+lost precise SP remain barriers. Deallocation removes caller storage below SP;
+deallocation above entry SP ends incoming identity. Restoring SP or reallocating
+the frame does not resurrect contents. Exact, untruncated address facts remain
+required. Calls are never crossed with a memory-preservation assumption.
+Interior-byte reads, unaligned slots, floating-point/aggregate arguments,
+exception paths, distinct-store equivalence and memory-value forwarding remain
+outside this subset. The proof describes the discovered graph, not complete
+function discovery or a recovered signature.
+
+The shared work/source/observation budgets still apply, plus hard ceilings of
+256 stack slices per state and 4,096 stack block visits across all scans.
+`functionAbiLimits.stackSlots` and `.stackVisits` may lower those ceilings.
+Exhaustion discards all provisional ABI evidence while retaining the validated
+contract and textual declaration disagreements.
+
+Local validation on 2026-10-28: 328 graph checks, 110 decoded/CLI checks,
+27 CTest targets per backend and 52 Capstone / 3 LLVM function-ABI browser
+checks pass. Independent
+Unicorn execution covers 112 runs, 226 register-input reads, 112 returns,
+308 caller values, 84 call-result reads, 60 incoming stack reads and 32 matched
+stores. Authored branches exercise both paths; finite loops exercise repeated
+reads and mutations. Each reported authored stack read/store has an execution
+witness. Tests cover missing/distinct predecessor stores, partial writes,
+unknown aliases, deallocation/reallocation, entry backedges, unreachable
+predecessors, address ambiguity, actual slice limits and transactional budget
+fallback. Browser checks cover joined read/caller links, Back, phone layout
+and exported-contract/CLI parity. The import test now waits for asynchronous
+file parsing before asserting restored evidence.
+
+The existing Capstone suites also pass 90 C-like browser checks, 1,260 recovery
+cases across original/simplified/clean/combined presentations, 148 concrete
+stack reloads and 36 call executions across 108 boundaries. All 15 publication
+checks pass. Local C fixtures were built with Zig 0.13.0; hosted CI uses its
+pinned Clang setup and additionally registers two compiler-fixture targets.
+
 ## Next slice
 
-M7.4 remains open. Next extend incoming-stack evidence across supported CFG joins with explicit alias/lifetime rules. Parsed C types, semantic prototype reconciliation, aggregate arguments, hidden-parameter mapping and automatic signature recovery remain deferred. Do not promote register locations or
-access widths into automatic parameter counts, source names, types or a C
-signature.
+M7.4 remains open. Next define bounded parsing of analyst-supplied scalar and
+pointer type annotations while preserving unsupported labels and typedef
+ambiguity. Semantic prototype reconciliation, aggregate arguments, hidden-parameter
+mapping and automatic signature recovery remain deferred. Do not promote
+register locations or access widths into automatic parameter counts, source
+names, types or a C signature.
