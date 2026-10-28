@@ -342,6 +342,8 @@ exact assembly links, Back restoration, phone layout and no JavaScript errors.
 
 ## P11: stack evidence across joins and loops
 
+Implementation: [4549350](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/45493507a20181394c4c88845f8de131f905741f).
+
 `functionABI.version` is now 4. Contract versions 1 and 2, the selected profile,
 native schema 2 and preview version 8 remain compatible. Existing read/store
 records keep their shape, with predecessor transfers added to `sources`.
@@ -407,6 +409,30 @@ cases across original/simplified/clean/combined presentations, 148 concrete
 stack reloads and 36 call executions across 108 boundaries. All 15 publication
 checks pass. Local C fixtures were built with Zig 0.13.0; hosted CI uses its
 pinned Clang setup and additionally registers two compiler-fixture targets.
+LLVM also passes its 13 C-like browser fallback checks.
+
+### P11 hosted validation (2026-10-28)
+
+The [hosted matrix](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40636318861)
+passed all 29 CTest targets on both Capstone and LLVM and every browser suite.
+Capstone passed 52 function-ABI and 90 C-like browser checks; LLVM passed its
+3 ABI and 13 C-like fallback checks. LLVM's independent semantic suites are
+explicitly skipped because its decoder does not supply structured operands.
+
+Capstone passed 1,260 recovery cases with all four presentation modes, 36 call
+executions across 108 boundaries, and 112 ABI executions. The ABI oracle
+verified 226 register-input reads, 112 returns, 308 caller values, 84 call-result
+reads, 60 incoming stack reads and 32 matched stores. The hosted storage corpus
+checked 133 reloads, including 41 saved entry-register values; local Zig builds
+produce the separate counts recorded above.
+
+The [Pages build and deployment](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40636318752)
+also passed. The live manifest identifies `4549350`, and all eight downloaded
+reports contain the exact committed ABI and pseudocode models/views. The
+52-check ABI browser suite also passed using the downloaded published x64 O1
+report, including contract export/CLI parity and exact assembly/Back navigation.
+The suite's joined stack caller/callee case is generated from authored machine
+code; the published C ladder remains the existing register-oriented showcase.
 
 ## Next slice
 

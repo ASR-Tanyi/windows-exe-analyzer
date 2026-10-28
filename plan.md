@@ -439,6 +439,8 @@ parity and exact assembly/Back navigation. [Validation record](docs/function-abi
 
 #### P11. Stack evidence across CFG joins — completed bounded subset
 
+Implementation: [4549350](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/45493507a20181394c4c88845f8de131f905741f).
+
 - [x] Track untouched incoming stack slices across discovered normal-flow joins and loops; require every reachable predecessor and a virtual initial entry.
 - [x] Track the same covering caller store across predecessor blocks; retain unknown outcomes for missing/distinct stores, aliases, deallocation and calls.
 - [x] Collect only after a bounded fixed point; preserve predecessor source links and discard provisional evidence on work, source, observation, slice or visit exhaustion.
@@ -448,6 +450,13 @@ Local validation: 328 graph checks, 110 decoder/CLI checks, 27 CTest targets per
 backend, 52 Capstone / 3 LLVM function-ABI browser checks and 112 independent
 ABI executions (60 incoming stack reads and 32 matching caller stores).
 Existing 1,260 recovery cases and 36 call executions pass. Full M7.4 remains open.
+
+The [P11 hosted matrix](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40636318861)
+passed all 29 targets per backend and all browser suites, plus 1,260 recovery
+cases, 36 call executions and 112 ABI executions. [Pages deployment](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40636318752)
+passed; all eight published reports match the committed model/view sources,
+and the 52-check ABI browser suite passed with the downloaded published demo.
+[Validation record](docs/function-abi.md#p11-hosted-validation-2026-10-28).
 
 ### M7. Function recovery and stronger entry-role recognition
 
