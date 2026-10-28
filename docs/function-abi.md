@@ -239,6 +239,8 @@ the existing published C ladder does not add a new stack-parameter showcase.
 
 ## P10: analyst declarations and explicit disagreements
 
+Implementation: [07b70e0](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/07b70e0e831e06e8f86618012be7770112615d54).
+
 The function-contract editor now retains up to eight analyst declarations.
 Open **Function contract and candidates → Analyst declarations**, use **Add
 blank declaration**, edit the JSON and apply. Each record starts with unknown
@@ -311,6 +313,24 @@ uncertainty defaults, disagreement retention, source-linked reviews, export/CLI
 parity, clearing/reload and phone layout. Decoder tests compare all original
 operations, code presentations, value/SSA/storage facts, call effects and
 register/stack/caller evidence before and after applying declarations.
+
+### P10 hosted validation (2026-10-27)
+
+The [hosted matrix](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40487881435)
+passed all 29 CTest targets per backend and every browser suite. Capstone
+passed 48 function-ABI and 90 C-like browser checks; LLVM passed its 3 ABI
+and 13 C-like fallback checks. The existing independent Capstone execution
+suites passed 1,260 recovery cases, 36 call executions and 80 ABI executions.
+Declaration-specific tests verify that annotations leave every recovered code
+presentation, value/SSA/storage fact and existing ABI/caller observation unchanged.
+
+The [Pages build and deployment](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40487881431)
+also passed. Verification on 2026-10-28 confirmed that the published manifest
+identifies implementation `07b70e0` and all eight downloaded reports embed the
+exact committed ABI and pseudocode models/views. Eleven interaction checks on
+the published x64 O1 report passed: declaration retention, disagreements and
+review hints, escaping, unchanged code, version 2 export, CLI JSON parity,
+exact assembly links, Back restoration, phone layout and no JavaScript errors.
 
 ## Next slice
 

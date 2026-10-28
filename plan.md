@@ -423,9 +423,19 @@ passed; all eight published reports contain the committed model/view sources.
 
 #### P10. Analyst declarations — completed annotation subset
 
+Implementation: [07b70e0](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/07b70e0e831e06e8f86618012be7770112615d54).
+
 - [x] Accept bounded version 2 contracts with multiple source-labeled declarations, type annotations, and explicit variadic/hidden-parameter uncertainty; preserve version 1 compatibility.
 - [x] Retain textual declaration disagreements and cautious source-linked evidence reviews without selecting an authoritative signature or changing machine effects.
 - [x] Add a declaration editor, export/import and CLI evidence; validate rejected documents, escaped text, round trips and unchanged recovery. [Scope and validation](docs/function-abi.md#p10-analyst-declarations-and-explicit-disagreements).
+
+P10 [hosted CI](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40487881435)
+passed 29 targets per backend and all browser suites, including 48 contract
+inspector checks, plus 1,260 recovery cases, 36 call executions and 80 ABI
+executions. [Pages deployment](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40487881431)
+also passed. All eight published reports match the committed sources, and the
+published declaration inspector passes 11 interaction checks including export/CLI
+parity and exact assembly/Back navigation. [Validation record](docs/function-abi.md#p10-hosted-validation-2026-10-27).
 
 ### M7. Function recovery and stronger entry-role recognition
 
