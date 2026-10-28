@@ -139,12 +139,18 @@ def main():
             check(draft[0]['variadic']=='unknown' and draft[0]['hiddenParameters']=='unknown','blank declaration defaults to uncertainty')
             hostile='<img src=x onerror=alert(1)>'
             declarations=[{'id':'header','source':hostile,'returnType':'void','parameters':[],'variadic':'no','hiddenParameters':'no'},
-                          {'id':'notes','source':'S'*256,'returnType':'T'*128,'parameters':[{'name':'x','type':'unsigned'}],'variadic':'unknown','hiddenParameters':'unknown'}]
+                          {'id':'notes','source':'S'*256,'returnType':'T'*128,'parameters':[{'name':'x','type':'char const * volatile'},
+                              {'name':'n','type':'size_t'},{'name':'cb','type':'int (*)(void)'},{'name':'unknown','type':None},
+                              {'name':'text','type':hostile}],'variadic':'unknown','hiddenParameters':'unknown'}]
             page.locator('#pseudoDeclarationEditor').fill(json.dumps(declarations));page.click('#pseudoDeclarationApply')
             check(page.locator('.pseudo-declaration').count()==2,'all declarations retained')
             check(page.locator('.pseudo-declaration-conflict').count()==1,'declaration disagreements visible')
             check(page.locator('.pseudo-declaration-review').count()>=1,'stack candidate outside declared list has review evidence')
             check(hostile in page.locator('.pseudo-declaration').first.inner_text() and page.locator('.pseudo-declaration img').count()==0,'source labels escaped')
+            check('Parsed annotation: const char * volatile' in page.locator('.pseudo-declaration').nth(1).inner_text(),'pointer and pointee qualifiers render separately')
+            check(page.locator('.pseudo-type-annotation[data-type-status="unsupported"]').count()==4,'unresolved names and unsupported syntax visibly retained')
+            check(page.locator('.pseudo-type-annotation[data-type-status="unknown"]').count()==1,'unspecified annotation remains distinct')
+            check(hostile in page.locator('.pseudo-declaration').nth(1).inner_text() and not page.locator('.pseudo-declaration img').count(),'hostile type label is escaped without partial parsing')
             page.locator('#pseudoDeclarationEditor').fill('[{}]');page.click('#pseudoDeclarationApply')
             check(page.locator('.pseudo-declaration').count()==2,'invalid editor preserves applied declarations')
             with page.expect_download() as dl:page.click('#pseudoFunctionExport')
@@ -153,12 +159,14 @@ def main():
             model=page.evaluate('q=>WEAPseudocodeModel.recover(D,q.id,{functionContract:q.contract})',{'id':sf['id'],'contract':saved})
             cli=subprocess.run(['node',str(ROOT/'scripts/pseudocode.js'),str(generated/'case.json'),hex(sf['rva']),'--function-contract',str(exported),'--json'],capture_output=True,text=True,check=True)
             check(json.loads(cli.stdout)==model,'declarations and reviews match CLI JSON')
+            check(model['functionABI']['declarationTypeGrammar']=='c11-scalar-pointer-v1' and model['functionABI']['declarationTypes'][1]['parameters'][0]['canonical']=='const char * volatile','browser and CLI carry the versioned syntax tree')
             page.click('#pseudoDeclarationClear')
             check(not page.locator('.pseudo-declaration').count() and page.locator('#pseudoFunctionProfile').input_value()==PROFILE,'clearing declarations preserves convention')
             page.set_input_files('#pseudoFunctionFile',str(exported));page.wait_for_selector('.pseudo-declaration')
             check(page.locator('.pseudo-declaration').count()==2,'import restores all declarations')
             page.select_option('#pseudoFunctionProfile','')
             check(page.locator('.pseudo-declaration').count()==2 and not page.locator('.pseudo-abi-stack').count(),'declarations remain separate from machine convention')
+            check(page.locator('.pseudo-type-annotation[data-type-status="parsed"]').count()==2,'parsed annotations remain when convention is unknown')
             page.set_viewport_size({'width':390,'height':844})
             check(page.evaluate('document.documentElement.scrollWidth <= innerWidth'),'declaration editor and conflicts fit phone')
             page.reload();page.click('#pseudoTabanalysis');page.locator('#pseudoFunctionABI > summary').click()

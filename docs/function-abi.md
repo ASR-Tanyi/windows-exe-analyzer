@@ -1,14 +1,14 @@
 # Explicit function ABI evidence
 
-Preview v8 adds an opt-in, read-only `functionABI.version: 4` inspector. Open a
+Preview v8 adds an opt-in, read-only `functionABI.version: 5` inspector. Open a
 Capstone x64 function's **C-like → Analysis details → Function contract and
 candidates**, then select **Assume Windows x64**. The existing `transform_demo`
 in `recovery64-o0.html` and `recovery64-o1.html` exercises all four integer
 register locations, loops, arrays, branches, and a direct caller.
 
-This includes **P8 register evidence, P9/P11 stack evidence across bounded control flow, and P10 analyst declarations of M7.4**. It identifies possible machine
+This includes **P8 register evidence, P9/P11 stack evidence across bounded control flow, and P10/P12 analyst declarations and bounded type syntax of M7.4**. It identifies possible machine
 inputs and outputs, not a C prototype. Broader stack recovery, floating-point parameters, hidden
-parameters, recovered varargs/source types and semantic prototype reconciliation remain open. Supplied annotations are represented separately in P10.
+parameters, recovered varargs/source types and semantic prototype reconciliation remain open. Supplied annotations are represented separately in P10 and parsed by the [P12 bounded grammar](declaration-types.md).
 No original effects, stack aliases, call summaries, exits, or code presentations
 change when the profile is selected. Code opens first; the new inspector stays
 inside Analysis details. Source links open the owning function's exact assembly,
@@ -276,12 +276,15 @@ are edited. Version 2 requires exactly these fields:
 }
 ```
 
-Types are case-sensitive, uninterpreted text labels or `null` for unknown. A
-parameter name may be empty. These records do not parse C/C++, resolve typedefs,
-map aggregate/hidden arguments, infer signedness, rename registers, rewrite
+Type labels remain case-sensitive original strings or `null` for unknown. A
+parameter name may be empty. These records do not resolve typedefs,
+map aggregate/hidden arguments, infer machine types, rename registers, rewrite
 code or change call effects. A source label is supplied provenance, not a
 verified header. `profile: null` retains annotations and their disagreements
 without activating ABI evidence. LLVM's unavailable recovery remains unchanged.
+P12 additionally parses the supported scalar/pointer subset into separate
+annotation records, while retaining the exact original labels; see the
+[grammar and compatibility contract](declaration-types.md).
 
 Declaration IDs must be unique ASCII letters/digits/underscore/hyphen (1–64
 characters). Source labels allow 1–256 characters; type labels 1–128; parameter
@@ -436,9 +439,11 @@ code; the published C ladder remains the existing register-oriented showcase.
 
 ## Next slice
 
-M7.4 remains open. Next define bounded parsing of analyst-supplied scalar and
-pointer type annotations while preserving unsupported labels and typedef
-ambiguity. Semantic prototype reconciliation, aggregate arguments, hidden-parameter
-mapping and automatic signature recovery remain deferred. Do not promote
-register locations or access widths into automatic parameter counts, source
-names, types or a C signature.
+P12 implements [bounded parsing of supplied scalar/pointer annotations](declaration-types.md),
+with explicit unknown/unsupported results and unchanged machine evidence.
+M7.4 remains open. Next compare supported parsed annotations with explicit
+uncertainty while retaining every source declaration and textual disagreement.
+Full prototype compatibility, typedef resolution, aggregate arguments,
+hidden-parameter mapping and automatic signature recovery remain deferred.
+Do not promote register locations or access widths into automatic parameter
+counts, source names, types or a C signature.

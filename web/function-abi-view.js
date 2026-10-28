@@ -23,11 +23,13 @@
             '<option value="">Unknown</option><option value="' + E(WEAFunctionABI.PROFILE.id) + '"' + (analysis.contract.profile ? ' selected' : '') +
             '>Assume Windows x64</option></select></p>';
         const declarations = analysis.contract.declarations || [];
+        const types = new Map((analysis.declarationTypes || []).map(d => [d.declaration,d]));
+        const syntax = t => t ? '<span class="pseudo-type-annotation" data-type-status="' + E(t.status) + '">' + E(WEADeclarationTypes.describe(t)) + '</span>' : '';
         h += '<details id="pseudoDeclarations" style="overflow-wrap:anywhere"><summary>Analyst declarations (' + declarations.length + ')</summary>' +
-            '<p>These are supplied annotations, not recovered C signatures. All declarations are retained; none overrides machine effects or call assumptions. Type labels are plain text, not parsed C types. Unknown variadic/hidden-parameter status prevents fixed-count review hints.</p>' +
-            declarations.map(d => '<section class="pseudo-declaration"><h4>' + E(d.id) + '</h4><p>Source: ' + E(d.source) + '</p><p>Return annotation: <code>' + E(d.returnType ?? 'unknown') + '</code></p>' +
+            '<p>These are supplied annotations, not recovered C signatures. All original labels are retained. Supported scalar and pointer forms are parsed below; named types and complex declarations remain unparsed. Parsing does not infer widths, ABI locations or memory behavior. Unknown variadic/hidden-parameter status prevents fixed-count review hints.</p>' +
+            declarations.map(d => '<section class="pseudo-declaration"><h4>' + E(d.id) + '</h4><p>Source: ' + E(d.source) + '</p><p>Return annotation: <code>' + E(d.returnType ?? 'unknown') + '</code><br>' + syntax(types.get(d.id)?.returnType) + '</p>' +
                 '<p>Variadic: ' + E(d.variadic) + '; hidden parameters: ' + E(d.hiddenParameters) + '</p>' +
-                '<ol>' + d.parameters.map(p => '<li><code>' + E(p.name || '(unnamed)') + ': ' + E(p.type ?? 'unknown') + '</code></li>').join('') + '</ol></section>').join('') +
+                '<ol>' + d.parameters.map((p,n) => '<li><code>' + E(p.name || '(unnamed)') + ': ' + E(p.type ?? 'unknown') + '</code><br>' + syntax(types.get(d.id)?.parameters[n]) + '</li>').join('') + '</ol></section>').join('') +
             (analysis.declarationConflicts || []).map(c => '<p class="datawarning pseudo-declaration-conflict">' + E(c.declarations.join(' / ')) + ': ' + E(c.fields.join(', ')) + '. ' + E(c.reason) + '</p>').join('') +
             (analysis.declarationReviews || []).map(c => '<div class="pseudo-declaration-review"><p>' + E(c.declaration) + ': ' + E(c.reason) + '</p>' + evidence(c.sources) + '</div>').join('') +
             '<p>No disagreement or review hint does not verify a declaration.</p><label for="pseudoDeclarationEditor">Edit declarations as JSON (maximum 8)</label>' +

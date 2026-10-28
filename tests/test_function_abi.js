@@ -188,4 +188,26 @@ r=caller({A:[adjust(-40),store,nop],B:[mov(at(33,8),ax)]},[['A','B'],['B','B'],[
 check(r.status==='unknown','loop overwrite invalidates preceding store');
 r=caller({A:[adjust(-40),nop],B:[store],C:[nop],D:[store]},diamond);
 check(r.status==='matched_store' && r.stores[0].source==='D_0','fresh store after join establishes a new proof');
+// Parsed annotations remain available independently of the machine profile
+// and evidence budgets, while imported strings retain their exact spelling.
+const typeFixture=fixture({A:[mov(ax,cx),ret]});
+const typeContract={...ABI.emptyContract(typeFixture.report,'A'),version:2,profile:ABI.PROFILE.id,declarations:[decl('types',{
+    returnType:'unsigned long int const * const',parameters:[{name:'s',type:'char const *'},{name:'h',type:'HANDLE'},
+        {name:'a',type:'int[4]'},{name:'u',type:null}]})]};
+const typed=run(typeFixture,{},typeContract),bare=run(typeFixture);
+check(typed.version===5 && typed.declarationTypeGrammar==='c11-scalar-pointer-v1','annotation grammar and evidence schema are versioned');
+check(typed.declarationTypes[0].returnType.canonical==='const unsigned long int * const','parsed return annotation is separate');
+check(typed.declarationTypes[0].parameters.map(t=>t.status).join(',')==='parsed,unsupported,unsupported,unknown','mixed type results retained');
+assert.deepEqual(typed.contract,typeContract);checks++;
+for(const key of ['arguments','returns','callers','conflicts','stackArguments','work','observations']) {assert.deepEqual(typed[key],bare[key]);checks++;}
+for(const options of [{},{work:0}]) {
+    const result=run(typeFixture,options,{...typeContract,profile:options.work===0?ABI.PROFILE.id:null});
+    check(result.status===(options.work===0?'budget_exceeded':'default'),'type parsing independent of machine evidence status');
+    assert.deepEqual(result.declarationTypes,typed.declarationTypes);checks++;
+}
+const typeInvalid=run(typeFixture,{}, {...typeContract,declarations:[...typeContract.declarations,decl('bad',{returnType:3})]});
+check(typeInvalid.status==='invalid' && !typeInvalid.declarationTypes.length,'invalid whole contract exposes no partial type annotations');
+const spelling=run(typeFixture,{}, {...typeContract,declarations:[decl('a',{returnType:'unsigned'}),decl('b',{returnType:'unsigned int'})]});
+check(spelling.declarationTypes[0].returnType.canonical===spelling.declarationTypes[1].returnType.canonical && spelling.declarationConflicts[0].fields.includes('returnType'),
+    'normalized spellings do not silently remove existing textual disagreements');
 console.log(`PASS: ${checks} function-ABI graph checks`);

@@ -3,6 +3,7 @@
 // Offline text/JSON export using exactly the model embedded in HTML reports.
 const fs = require('node:fs');
 const model = require('../web/pseudocode-model.js');
+const types = require('../web/declaration-types.js');
 function main() {
     const [path, entry, ...args] = process.argv.slice(2);
     let format, calls, contract, simplified = false, clean = false;
@@ -45,6 +46,10 @@ function main() {
     else if (format === '--abi') {
         const a = result.functionABI;
         for (const d of a.contract?.declarations || []) console.log('Analyst declaration (not recovered): ' + JSON.stringify(d));
+        for (const d of a.declarationTypes || []) {
+            console.log('Type annotation ' + d.declaration + ' return: ' + types.describe(d.returnType));
+            d.parameters.forEach((t,n) => console.log('Type annotation ' + d.declaration + ' parameter ' + (n+1) + ': ' + types.describe(t)));
+        }
         for (const c of a.declarationConflicts || []) console.log('Declaration disagreement ' + c.declarations.join(' / ') + ': ' + c.fields.join(', ') + '; ' + c.reason);
         for (const r of a.declarationReviews || []) console.log('Declaration review ' + r.declaration + ': ' + r.reason + ' @ ' + r.sources.join(', '));
         if (a.status !== 'available') {console.log('// Function ABI evidence unavailable: ' + a.reason); process.exitCode = 2; return;}

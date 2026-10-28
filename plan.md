@@ -458,6 +458,18 @@ passed; all eight published reports match the committed model/view sources,
 and the 52-check ABI browser suite passed with the downloaded published demo.
 [Validation record](docs/function-abi.md#p11-hosted-validation-2026-10-28).
 
+#### P12. Parsed analyst types — completed syntax subset
+
+- [x] Parse a reviewed C11 subset of built-in scalar/void annotations, const/volatile qualifiers and up to four pointer levels; preserve the qualifier at each level.
+- [x] Retain exact imported labels and distinguish parsed, unsupported and unknown results; leave typedefs, named types, arrays, function pointers and extensions unresolved.
+- [x] Expose the same versioned syntax trees and canonical forms in the inspector and CLI/JSON without altering machine evidence, code, textual disagreements or call assumptions.
+- [x] Validate all grammar bounds, unsupported/hostile text, independent result trees, profile/budget independence, export/CLI parity and phone layout. [Contract and validation](docs/declaration-types.md).
+
+Local validation: 204 syntax checks, 357 ABI graph checks, 132 decoder/CLI
+checks, 28 CTest targets per backend, 58 Capstone / 3 LLVM ABI browser checks and 112
+independent ABI executions. Parsing supplies no machine widths or complete
+prototype compatibility decision. Full M7.4 remains open.
+
 ### M7. Function recovery and stronger entry-role recognition
 
 **Goal:** turn verified low-level effects into readable, inspectable function-level code.
@@ -474,7 +486,7 @@ and the 52-check ABI browser suite passed with the downloaded published demo.
   Completed for the bounded P2/P7 normal-flow subset: [physical stack locations](docs/bounded-values.md) plus [storage-role evidence](docs/stack-storage.md). Matching entry-register save/reload pairs are proven within the documented alias/lifetime rules; spill, outgoing-argument and local roles remain candidates. ABI call areas require explicit call assumptions. No independent C locals, original types, actual parameter counts or whole-function register-preservation guarantee are inferred. Incoming function ABI regions, copy-chain restores and broader lifetime splitting remain deferred.
 - [ ] **M7.4** Infer arguments and return candidates from supported ABI profiles and callers. Preserve conflicting prototypes, varargs uncertainty, hidden parameters, and analyst-supplied types.
 
-  P8 completes the explicit Windows x64 register-evidence subset: possible entry GPR reads, per-RET RAX alternatives and bounded direct-caller observations. P9/P11 add incoming stack reads and exact caller-store evidence across bounded normal-flow joins and loops with alias/lifetime barriers. P10 adds analyst type labels, textual disagreements and explicit hidden/variadic uncertainty. Full M7.4 stays unchecked: broader stack recovery, parsed types, semantic prototype reconciliation and actual hidden/aggregate argument mapping remain open. [Scope and validation](docs/function-abi.md).
+  P8 completes the explicit Windows x64 register-evidence subset: possible entry GPR reads, per-RET RAX alternatives and bounded direct-caller observations. P9/P11 add incoming stack reads and exact caller-store evidence across bounded normal-flow joins and loops with alias/lifetime barriers. P10/P12 add analyst labels, bounded scalar/pointer type syntax, textual disagreements and explicit hidden/variadic uncertainty. Full M7.4 stays unchecked: broader stack recovery, typedef/complex-type resolution, semantic prototype reconciliation and actual hidden/aggregate argument mapping remain open. [Scope and validation](docs/function-abi.md).
 - [ ] **M7.5** Emit readable labeled low-level pseudocode first. Preserve `goto` for unsupported or irreducible structure; recover `if`, loops, and supported switches only when the graph/effects justify the transformation.
 - [ ] **M7.6** Link each pseudocode expression to all contributing instructions, including transformations that combine multiple instructions. Renaming must update displays without rewriting the evidence.
 - [ ] **M7.7** Revisit application-entry recognition using call arguments, return-value use, matched symbols, and versioned CRT profiles. Cover console/GUI and narrow/wide variants separately; retain custom entry and no-candidate outcomes.
@@ -526,7 +538,8 @@ Keep changes small enough to review independently. Items 1–9 have implementati
 | 17 | M7.4 block-local incoming stack arguments | Done for P9 | Explicit ABI, untouched entry-block reads and covering stores in the call block; unknown aliases, overlaps and deallocation break proofs. [Scope](docs/function-abi.md#p9-bounded-incoming-stack-arguments-and-caller-stores) |
 | 18 | M7.4 analyst prototype annotations | Done for P10 | Versioned source-labeled declarations, textual disagreements, cautious evidence reviews; no parsed types or inferred signature. [Contract](docs/function-abi.md#p10-analyst-declarations-and-explicit-disagreements) |
 | 19 | M7.4 stack argument evidence across CFG joins | Done for P11 | Every-path incoming identity and same-store caller proofs through bounded joins/loops; ambiguous stores and contents remain unknown. [Scope and validation](docs/function-abi.md#p11-stack-evidence-across-joins-and-loops) |
-| 20 | M7.4 bounded analyst type parsing | Next | Define a reviewed scalar/pointer grammar; preserve unsupported labels, typedef ambiguity and variadic/hidden-parameter uncertainty without changing machine effects. |
+| 20 | M7.4 bounded analyst type parsing | Done for P12 | Reviewed scalar/pointer grammar with qualifier levels and hard limits; original labels, unsupported syntax and uncertainty retained. [Contract and validation](docs/declaration-types.md) |
+| 21 | M7.4 supported parsed-type comparisons | Next | Compare parsed annotation forms with explicit uncertainty; retain every source declaration and textual disagreement without inferring full prototype or machine compatibility. |
 
 Items 5 and 6 can proceed independently once the shared identities/reference contract is stable. Broader `main` recovery is deliberately not a prerequisite for discovering or browsing functions.
 
@@ -634,7 +647,7 @@ A task is complete only when its implementation, relevant tests, limitations, an
 
 When priorities change, update this document and explain why. Keep completed evidence, split overly broad tasks, and move experiments to section 8 until there is a bounded implementation proposal. Owners, issue numbers, and dates should be added when actually assigned, not invented in advance.
 
-**Recommended next work:** bounded parsing of analyst-supplied scalar/pointer types (queue item 20 / M7.4). P11 extends incoming-stack and same-store caller evidence across bounded CFG joins and loops. P10 preserves analyst declarations and disagreements without changing recovery. P8 completes the explicit Windows x64 GPR evidence subset. Keep incoming function contracts separate from call-site assumptions, support only reviewed profiles, and retain prototype conflicts and varargs uncertainty. P1 provides scalar/memory/branch/loop recovery and the nested-loop demo; P2 adds bounded facts and physical stack aliases; P3 adds register SSA; P4 adds explicit Windows x64 normal-return summaries; P5/P6 complete the block-local M7.2 expression/cleanup subset; P7 adds bounded physical storage roles without rewriting memory effects. Actual outgoing parameter counts, copy-chain restores, broader lifetime splitting, cross-block/PHI substitution, other ABI profiles, original for/while spelling, recovered C types, I/O signatures and full function completeness remain pending. Indirect discovery and product dynamic analysis remain deferred.
+**Recommended next work:** compare supported parsed annotation types with explicit uncertainty (queue item 21 / M7.4). P12 parses a bounded scalar/pointer grammar while retaining original labels and unresolved names. P11 extends incoming-stack and same-store caller evidence across bounded CFG joins and loops. P10 preserves analyst declarations and disagreements without changing recovery. P8 completes the explicit Windows x64 GPR evidence subset. Keep incoming function contracts separate from call-site assumptions, support only reviewed profiles, and retain prototype conflicts and varargs uncertainty. P1 provides scalar/memory/branch/loop recovery and the nested-loop demo; P2 adds bounded facts and physical stack aliases; P3 adds register SSA; P4 adds explicit Windows x64 normal-return summaries; P5/P6 complete the block-local M7.2 expression/cleanup subset; P7 adds bounded physical storage roles without rewriting memory effects. Actual outgoing parameter counts, copy-chain restores, broader lifetime splitting, cross-block/PHI substitution, other ABI profiles, original for/while spelling, recovered C types, I/O signatures and full function completeness remain pending. Indirect discovery and product dynamic analysis remain deferred.
 
 ## 12. References
 

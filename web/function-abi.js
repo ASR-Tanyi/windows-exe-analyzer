@@ -2,6 +2,7 @@
 // Read-only function ABI evidence and supplied declarations. No inferred prototype or
 // permission to change CALL effects, memory, machine exits or rendered code.
 (function (root) {
+    const TYPES = typeof module === 'object' && module.exports ? require('./declaration-types.js') : root.WEADeclarationTypes;
     const PROFILE = Object.freeze({id: 'windows-x64-gpr-v1', arguments: Object.freeze(['rcx', 'rdx', 'r8', 'r9']), returnRegister: 'rax'});
     const LIMITS = Object.freeze({work: 131072, sources: 64, observations: 256, stackSlots: 256, stackVisits: 4096, callers: 8, sites: 32, moduleItems: 131072, fileBytes: 65536});
     const notice = 'Analyst-selected Windows x64 function convention. Register/stack reads and RAX values are candidates, not a recovered C signature. Unused arguments, floating-point arguments and broader stack recovery, varargs, hidden parameters and original types remain unknown. Caller observations do not assert a normal return or enable call summaries. No machine effects are changed.';
@@ -38,14 +39,14 @@
                 if (a.parameters[n].type !== null && b.parameters[n].type !== null && a.parameters[n].type !== b.parameters[n].type) fields.push('parameter['+(n+1)+'].type');
             for (const key of ['variadic','hiddenParameters']) if (a[key] !== 'unknown' && b[key] !== 'unknown' && a[key] !== b[key]) fields.push(key);
             if (fields.length) conflicts.push({declarations:[a.id,b.id],fields,
-                reason:'Analyst declarations differ. Type labels are not parsed; aliases may be equivalent. Neither declaration is selected as authoritative.'});
+                reason:'Textual annotations differ. Parsed type forms do not resolve typedefs or establish prototype compatibility. Neither declaration is selected as authoritative.'});
         }
         return conflicts;
     }
     function analyze(report, graph, lifted, entry, manifest, loadCaller, options = {}, valueAnalysis = null) {
         const contract = emptyContract(report, entry);
         const eligible = report.module.architecture.startsWith('x64') && graph.status === 'available';
-        const base = {version: 4, complete: false, eligible, contract, notice, arguments: [], stackArguments: [], stackScope: 'Bounded discovered normal-flow paths, including joins and loops. Aligned 1/2/4/8-byte incoming reads must remain untouched on every incoming path. Caller matches require the same covering store on every predecessor; differing stores stay unknown.', returns: [], callers: [], conflicts: [], declarationConflicts: [], declarationReviews: [], assumptionSources: []};
+        const base = {version: 5, complete: false, eligible, contract, notice, arguments: [], stackArguments: [], stackScope: 'Bounded discovered normal-flow paths, including joins and loops. Aligned 1/2/4/8-byte incoming reads must remain untouched on every incoming path. Caller matches require the same covering store on every predecessor; differing stores stay unknown.', returns: [], callers: [], conflicts: [], declarationConflicts: [], declarationReviews: [], declarationTypes: [], declarationTypeGrammar:TYPES.GRAMMAR, assumptionSources: []};
         const fail = (status, reason) => ({...base, status, reason});
         const limits = Object.fromEntries(Object.entries(LIMITS).map(([k,v]) =>
             [k, Number.isSafeInteger(options[k]) ? Math.max(0, Math.min(v, options[k])) : v]));
@@ -60,6 +61,7 @@
                 contract.version = manifest.version; contract.profile = manifest.profile;
                 if (declarations) contract.declarations = declarations;
                 base.declarationConflicts = declarationConflicts(declarations || []);
+                base.declarationTypes = TYPES.declarations(declarations || []);
             } catch (e) {return fail('invalid',e.message);}
         }
         if (!eligible) return fail('unavailable', 'Function ABI evidence requires x64 and available register SSA with unambiguous ownership.');

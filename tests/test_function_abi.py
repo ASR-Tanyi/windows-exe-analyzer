@@ -64,7 +64,7 @@ def main():
             check(cli.returncode == 2, 'unavailable ABI CLI returns failure')
             print(f'PASS: {checks} function-ABI decoder/CLI contracts (backend unavailable)'); return
         abi = model['functionABI']
-        check(model['version'] == 8 and abi['version'] == 4 and abi['status'] == 'available', 'versioned opt-in evidence')
+        check(model['version'] == 8 and abi['version'] == 5 and abi['status'] == 'available', 'versioned opt-in evidence')
         check([x['register'] for x in abi['arguments']] == ['rcx','rdx'], 'callee uses two ABI register locations')
         check(abi['returns'][0]['alternatives'][0]['slice']['width'] == 32, 'observed return write width is retained')
         caller = abi['callers'][0]
@@ -144,6 +144,26 @@ def main():
         annotated_file=root/'annotated.json'; annotated_file.write_text(json.dumps(annotated_contract))
         cli=subprocess.run(['node',str(ROOT/'scripts/pseudocode.js'),str(doc),hex(callee['rva']),'--function-contract',str(annotated_file),'--abi'],capture_output=True,text=True)
         check(cli.returncode==0 and 'Analyst declaration (not recovered)' in cli.stdout and 'Declaration review header' in cli.stdout,'CLI labels declarations and reviews')
+        typed_contract=copy.deepcopy(annotated_contract)
+        typed_contract['declarations'][0].update(returnType='unsigned long int const * const',parameters=[
+            {'name':'s','type':'char const *'},{'name':'n','type':'size_t'},{'name':'cb','type':'int (*)(void)'},{'name':'u','type':None}])
+        typed=recover(data,callee['id'],contract=typed_contract)
+        parsed=typed['functionABI']['declarationTypes'][0]
+        check(parsed['returnType']['canonical']=='const unsigned long int * const','decoded model preserves parsed pointer levels')
+        check([p['status'] for p in parsed['parameters']]==['parsed','unsupported','unsupported','unknown'],'typedef and complex syntax stay unparsed')
+        check(typed['functionABI']['contract']==typed_contract,'derived types do not rewrite imported labels')
+        for key in ['instructions','lines','simplifiedLines','cleanLines','simplifiedCleanLines','valueAnalysis','registerSSA','stackStorage','registerExpressions','registerCleanup','callAnalysis']:
+            check(typed[key]==model[key],'parsed annotations do not alter '+key)
+        for key in ['arguments','stackArguments','returns','callers','conflicts']:
+            check(typed['functionABI'][key]==abi[key],'parsed annotations do not alter ABI '+key)
+        annotated_file.write_text(json.dumps(typed_contract))
+        cli=subprocess.run(['node',str(ROOT/'scripts/pseudocode.js'),str(doc),hex(callee['rva']),'--function-contract',str(annotated_file),'--abi'],capture_output=True,text=True)
+        check(cli.returncode==0 and 'Parsed annotation: const unsigned long int * const' in cli.stdout and 'Unparsed annotation:' in cli.stdout and 'No type annotation supplied.' in cli.stdout,'CLI distinguishes parsed, unsupported and unspecified annotations')
+        cli=subprocess.run(['node',str(ROOT/'scripts/pseudocode.js'),str(doc),hex(callee['rva']),'--function-contract',str(annotated_file),'--json'],capture_output=True,text=True,check=True)
+        check(json.loads(cli.stdout)==typed,'typed annotations have exact CLI JSON parity')
+        typed_contract['profile']=None;annotated_file.write_text(json.dumps(typed_contract))
+        cli=subprocess.run(['node',str(ROOT/'scripts/pseudocode.js'),str(doc),hex(callee['rva']),'--function-contract',str(annotated_file),'--abi'],capture_output=True,text=True)
+        check(cli.returncode==2 and 'Parsed annotation:' in cli.stdout,'unknown convention retains annotations without activating evidence')
         own = recover(data)
         check(own['callAnalysis']['applied'] == 0 and any(i['status']=='barrier' for i in own['instructions']), 'function contract never enables own call summaries')
         for suffix, expected in [('b80700000089c14883c428c3', 0), ('b00189c14883c428c3', 1), ('4883c428c3', 0)]:
