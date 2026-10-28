@@ -1,5 +1,7 @@
 # Bounded analyst type annotations
 
+Implementation: [070bc88](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/070bc88b9c805a3db30a6a1bb91d342dced6f867).
+
 P12 adds a shared syntax parser for supplied return and parameter type labels.
 Open **C-like → Analysis details → Function contract and candidates → Analyst
 declarations**. Each original label remains visible beside its parsed form or
@@ -124,3 +126,30 @@ evidence counts remain identical to P11. The local recovery binaries are the
 existing Zig 0.13.0 corpus, reanalyzed with the new report bundle; hosted CI
 also generates its Clang fixtures and runs the full browser/semantic matrix.
 Existing C-like browser checks pass on both backends: 90 Capstone and 13 LLVM.
+
+## Hosted validation (2026-10-28)
+
+The [hosted matrix](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40652011489)
+passed all 30 CTest targets per backend and every browser suite. Capstone
+passed 58 function-ABI and 90 C-like browser checks; LLVM passed its 3 ABI and
+13 C-like fallback checks. The unsupported LLVM semantic suites remain
+explicitly skipped. The new syntax test is registered for both backends.
+
+Capstone also passed 1,260 recovery cases across all four presentations,
+36 call executions across 108 boundaries and 112 ABI executions. The ABI
+counts remain 226 input reads, 112 returns, 308 caller values, 84 call-result
+reads, 60 incoming stack reads and 32 matching stores. Its storage corpus
+checked 133 reloads, including 41 saved entry-register values.
+
+The [Pages build and deployment](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40652011557)
+passed. The live manifest identifies `070bc88`; all eight downloaded reports
+embed the exact committed type parser and ABI/pseudocode models/views. The
+58-check ABI suite also passed with the downloaded published x64 O1 report
+(its authored stack/declaration case is generated separately).
+
+Ten additional interactions applied annotations directly in that published
+report and verified normalized qualifier levels, explicit unresolved/unknown
+results, unchanged code, exact original-label export, versioned syntax trees,
+CLI JSON parity, retention with an unknown convention, phone layout and no
+JavaScript errors. Original declarations remain the exported source of truth;
+derived syntax is recomputed on import.

@@ -460,6 +460,8 @@ and the 52-check ABI browser suite passed with the downloaded published demo.
 
 #### P12. Parsed analyst types — completed syntax subset
 
+Implementation: [070bc88](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/070bc88b9c805a3db30a6a1bb91d342dced6f867).
+
 - [x] Parse a reviewed C11 subset of built-in scalar/void annotations, const/volatile qualifiers and up to four pointer levels; preserve the qualifier at each level.
 - [x] Retain exact imported labels and distinguish parsed, unsupported and unknown results; leave typedefs, named types, arrays, function pointers and extensions unresolved.
 - [x] Expose the same versioned syntax trees and canonical forms in the inspector and CLI/JSON without altering machine evidence, code, textual disagreements or call assumptions.
@@ -469,6 +471,15 @@ Local validation: 204 syntax checks, 357 ABI graph checks, 132 decoder/CLI
 checks, 28 CTest targets per backend, 58 Capstone / 3 LLVM ABI browser checks and 112
 independent ABI executions. Parsing supplies no machine widths or complete
 prototype compatibility decision. Full M7.4 remains open.
+
+The [P12 hosted matrix](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40652011489)
+passed all 30 targets per backend and every browser suite, plus 1,260 recovery
+cases, 36 call executions and 112 ABI executions. [Pages deployment](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40652011557)
+passed; all eight reports contain the committed parser/model/view sources.
+The 58-check ABI suite passed with the downloaded published demo, and 10
+additional published-report interactions verified type parsing, fallback,
+unchanged code, exact export/CLI parity and phone layout.
+[Validation record](docs/declaration-types.md#hosted-validation-2026-10-28).
 
 ### M7. Function recovery and stronger entry-role recognition
 
