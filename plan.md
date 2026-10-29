@@ -508,6 +508,8 @@ export/CLI parity and readable phone columns.
 
 #### P14. Explicit analyst type aliases — completed bounded subset
 
+Implementation: [decd5fb](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/decd5fbc7b8e8a05a93e5989ae5822dd0b054ed7).
+
 - [x] Accept source-labeled aliases in version 3 function contracts while preserving version 1/2 imports and exact original labels.
 - [x] Resolve scalar/pointer aliases with correct outer qualifier placement, forward references and fixed definition, byte, dependency, token and pointer limits.
 - [x] Retain undefined names, cycles and unsupported definitions without partial trees; preserve all declarations, textual disagreements and supplied alias provenance.
@@ -518,6 +520,15 @@ Local validation: 100 alias checks, 204 syntax checks, 165 comparison checks,
 93 Capstone / 3 LLVM ABI browser checks, 90 Capstone / 13 LLVM C-like checks
 and 112 independent ABI executions. Full prototype compatibility, automatic
 typedef discovery and M7.4 remain open.
+
+The [P14 hosted matrix](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40849596521)
+passed all 32 CTest targets per backend and every browser suite, plus 1,260
+recovery cases, 36 call executions and 112 ABI executions. The
+[Pages deployment](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40849596707)
+passed; all eight reports match the committed models/views. Fourteen direct
+published-report interactions verify alias assumptions, unresolved cycles,
+retained disagreements, version 3 export/CLI parity and phone layout.
+[Validation record](docs/declaration-aliases.md#hosted-validation-2026-10-29).
 
 ### M7. Function recovery and stronger entry-role recognition
 

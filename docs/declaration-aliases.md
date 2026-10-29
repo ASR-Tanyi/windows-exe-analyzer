@@ -1,5 +1,7 @@
 # Explicit analyst type aliases
 
+Implementation: [decd5fb](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/decd5fbc7b8e8a05a93e5989ae5822dd0b054ed7).
+
 P14 adds source-labeled alias definitions to the bounded scalar/pointer annotation
 grammar. Open **C-like → Analysis details → Function contract and candidates →
 Analyst declarations → Type alias definitions**. The editor applies one explicit
@@ -126,3 +128,27 @@ The independent ABI oracle passes 112 executions with unchanged evidence counts:
 226 input reads, 112 returns, 308 caller values, 84 call-result reads, 60 incoming
 stack reads and 32 matching stores. Local C fixtures are the existing Zig 0.13.0
 corpus; hosted CI additionally rebuilds the Clang fixtures and full test matrix.
+
+## Hosted validation (2026-10-29)
+
+The [hosted matrix](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40849596521)
+passed all 32 CTest targets per backend and every browser suite. Capstone passed
+93 ABI and 90 C-like browser checks; LLVM passed its 3 ABI and 13 C-like fallback
+checks. Both backends run the focused alias, syntax and comparison tests. LLVM's
+unsupported semantic suites remain explicitly skipped.
+
+Capstone passed 1,260 recovery cases across all four presentations, 36 call
+executions across 108 boundaries and 112 ABI executions. Evidence counts remain
+226 input reads, 112 returns, 308 caller values, 84 call-result reads, 60 incoming
+stack reads and 32 matched stores. The storage corpus checked 133 reloads,
+including 41 saved entry-register values.
+
+The [Pages build and deployment](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40849596707)
+passed. The live manifest identifies `decd5fb`; all eight downloaded reports
+embed the exact committed annotation, ABI and pseudocode models/views. Fourteen
+direct interactions in the published x64 O1 report verify pointer qualifiers,
+cycle fallback, mixed comparison results, explicit alias dependencies, retained
+textual disagreements, unchanged code, preserved panel state, version 3 export,
+exact browser/CLI JSON parity, phone layout, clear/import behavior and retention
+with an unknown function convention. The published alias inspector was also
+visually checked at a 390-pixel viewport; no JavaScript errors occurred.
