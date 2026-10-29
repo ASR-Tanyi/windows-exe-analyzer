@@ -126,8 +126,11 @@ join stay unknown. **Analyst declarations**
 retains supplied type labels and multiple declarations, displays disagreements
 and source-linked review hints, and preserves variadic/hidden-parameter uncertainty.
 Supported scalar and pointer annotations show a parsed form beside the original
-label; typedef names and complex syntax remain explicitly unparsed. See the
-[bounded type grammar](docs/declaration-types.md).
+label; typedef names and complex syntax remain explicitly unparsed. Pairwise
+comparisons show matching forms, precise qualifier/base/pointer differences and
+unknown fields while retaining every declaration and textual disagreement.
+These comparisons do not establish prototype compatibility. See the
+[bounded type grammar and comparison policy](docs/declaration-types.md).
 Unknown values and conflicting return cleanup stay visible. None of these
 annotations infers a C signature or changes code effects. See the
 [function ABI contract](docs/function-abi.md).

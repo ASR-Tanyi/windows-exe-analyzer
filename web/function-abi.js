@@ -46,7 +46,7 @@
     function analyze(report, graph, lifted, entry, manifest, loadCaller, options = {}, valueAnalysis = null) {
         const contract = emptyContract(report, entry);
         const eligible = report.module.architecture.startsWith('x64') && graph.status === 'available';
-        const base = {version: 5, complete: false, eligible, contract, notice, arguments: [], stackArguments: [], stackScope: 'Bounded discovered normal-flow paths, including joins and loops. Aligned 1/2/4/8-byte incoming reads must remain untouched on every incoming path. Caller matches require the same covering store on every predecessor; differing stores stay unknown.', returns: [], callers: [], conflicts: [], declarationConflicts: [], declarationReviews: [], declarationTypes: [], declarationTypeGrammar:TYPES.GRAMMAR, assumptionSources: []};
+        const base = {version: 6, complete: false, eligible, contract, notice, arguments: [], stackArguments: [], stackScope: 'Bounded discovered normal-flow paths, including joins and loops. Aligned 1/2/4/8-byte incoming reads must remain untouched on every incoming path. Caller matches require the same covering store on every predecessor; differing stores stay unknown.', returns: [], callers: [], conflicts: [], declarationConflicts: [], declarationReviews: [], declarationTypes: [], declarationTypeGrammar:TYPES.GRAMMAR, declarationComparisons:[], declarationComparisonPolicy:TYPES.COMPARISON_POLICY, assumptionSources: []};
         const fail = (status, reason) => ({...base, status, reason});
         const limits = Object.fromEntries(Object.entries(LIMITS).map(([k,v]) =>
             [k, Number.isSafeInteger(options[k]) ? Math.max(0, Math.min(v, options[k])) : v]));
@@ -57,11 +57,13 @@
                     ![null, PROFILE.id].includes(manifest.profile)) throw Error('Function contract must match this module, function and version 1 or 2 schema.');
                 if (manifest.profile && !eligible) throw Error('This profile requires x64 and available register SSA with unambiguous ownership.');
                 const declarations = manifest.version === 2 ? normalizeDeclarations(manifest.declarations) : null;
+                const types = TYPES.declarations(declarations || []), comparisons = TYPES.compareDeclarations(declarations || [],types);
                 // Commit only after validation of the entire document.
                 contract.version = manifest.version; contract.profile = manifest.profile;
                 if (declarations) contract.declarations = declarations;
                 base.declarationConflicts = declarationConflicts(declarations || []);
-                base.declarationTypes = TYPES.declarations(declarations || []);
+                base.declarationTypes = types;
+                base.declarationComparisons = comparisons;
             } catch (e) {return fail('invalid',e.message);}
         }
         if (!eligible) return fail('unavailable', 'Function ABI evidence requires x64 and available register SSA with unambiguous ownership.');

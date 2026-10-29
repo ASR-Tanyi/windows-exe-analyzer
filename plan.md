@@ -481,6 +481,19 @@ additional published-report interactions verified type parsing, fallback,
 unchanged code, exact export/CLI parity and phone layout.
 [Validation record](docs/declaration-types.md#hosted-validation-2026-10-28).
 
+#### P13. Parsed declaration comparisons — completed bounded subset
+
+- [x] Compare every unordered declaration pair under a versioned parsed-form policy; retain exact qualifiers, pointer levels and built-in names.
+- [x] Preserve unknown results for missing, unspecified or unsupported annotations, including identical unresolved names; compare supplied record counts and explicit flags separately.
+- [x] Expose field results and precise differences in the inspector and CLI/JSON without an overall compatibility verdict, selected declaration or altered machine evidence.
+- [x] Validate all 28 pairs / 1,008 rows at the real contract bounds, independent result arrays, profile/budget independence, escaping, keyboard expansion, retained panel state, export/CLI parity and phone layout. [Contract and validation](docs/declaration-types.md#p13-comparisons-of-parsed-annotation-forms).
+
+Local validation: 165 comparison checks, 204 syntax checks, 384 ABI graph checks,
+136 decoder/CLI checks, 29 CTest targets per backend, 72 Capstone / 3 LLVM ABI
+browser checks and 112 independent ABI executions. C-like browser checks also
+pass: 90 Capstone / 13 LLVM. Textual disagreements remain retained even for
+matching parsed forms. Full prototype compatibility and M7.4 remain open.
+
 ### M7. Function recovery and stronger entry-role recognition
 
 **Goal:** turn verified low-level effects into readable, inspectable function-level code.
@@ -497,7 +510,7 @@ unchanged code, exact export/CLI parity and phone layout.
   Completed for the bounded P2/P7 normal-flow subset: [physical stack locations](docs/bounded-values.md) plus [storage-role evidence](docs/stack-storage.md). Matching entry-register save/reload pairs are proven within the documented alias/lifetime rules; spill, outgoing-argument and local roles remain candidates. ABI call areas require explicit call assumptions. No independent C locals, original types, actual parameter counts or whole-function register-preservation guarantee are inferred. Incoming function ABI regions, copy-chain restores and broader lifetime splitting remain deferred.
 - [ ] **M7.4** Infer arguments and return candidates from supported ABI profiles and callers. Preserve conflicting prototypes, varargs uncertainty, hidden parameters, and analyst-supplied types.
 
-  P8 completes the explicit Windows x64 register-evidence subset: possible entry GPR reads, per-RET RAX alternatives and bounded direct-caller observations. P9/P11 add incoming stack reads and exact caller-store evidence across bounded normal-flow joins and loops with alias/lifetime barriers. P10/P12 add analyst labels, bounded scalar/pointer type syntax, textual disagreements and explicit hidden/variadic uncertainty. Full M7.4 stays unchecked: broader stack recovery, typedef/complex-type resolution, semantic prototype reconciliation and actual hidden/aggregate argument mapping remain open. [Scope and validation](docs/function-abi.md).
+  P8 completes the explicit Windows x64 register-evidence subset: possible entry GPR reads, per-RET RAX alternatives and bounded direct-caller observations. P9/P11 add incoming stack reads and exact caller-store evidence across bounded normal-flow joins and loops with alias/lifetime barriers. P10/P12/P13 add analyst labels, bounded scalar/pointer type syntax, field-level parsed-form comparisons, retained textual disagreements and explicit hidden/variadic uncertainty. Full M7.4 stays unchecked: broader stack recovery, typedef/complex-type resolution, semantic prototype reconciliation and actual hidden/aggregate argument mapping remain open. [Scope and validation](docs/function-abi.md).
 - [ ] **M7.5** Emit readable labeled low-level pseudocode first. Preserve `goto` for unsupported or irreducible structure; recover `if`, loops, and supported switches only when the graph/effects justify the transformation.
 - [ ] **M7.6** Link each pseudocode expression to all contributing instructions, including transformations that combine multiple instructions. Renaming must update displays without rewriting the evidence.
 - [ ] **M7.7** Revisit application-entry recognition using call arguments, return-value use, matched symbols, and versioned CRT profiles. Cover console/GUI and narrow/wide variants separately; retain custom entry and no-candidate outcomes.
@@ -550,7 +563,8 @@ Keep changes small enough to review independently. Items 1–9 have implementati
 | 18 | M7.4 analyst prototype annotations | Done for P10 | Versioned source-labeled declarations, textual disagreements, cautious evidence reviews; no parsed types or inferred signature. [Contract](docs/function-abi.md#p10-analyst-declarations-and-explicit-disagreements) |
 | 19 | M7.4 stack argument evidence across CFG joins | Done for P11 | Every-path incoming identity and same-store caller proofs through bounded joins/loops; ambiguous stores and contents remain unknown. [Scope and validation](docs/function-abi.md#p11-stack-evidence-across-joins-and-loops) |
 | 20 | M7.4 bounded analyst type parsing | Done for P12 | Reviewed scalar/pointer grammar with qualifier levels and hard limits; original labels, unsupported syntax and uncertainty retained. [Contract and validation](docs/declaration-types.md) |
-| 21 | M7.4 supported parsed-type comparisons | Next | Compare parsed annotation forms with explicit uncertainty; retain every source declaration and textual disagreement without inferring full prototype or machine compatibility. |
+| 21 | M7.4 supported parsed-type comparisons | Done for P13 | Bounded pairwise field comparisons with precise qualifier/base/shape differences and explicit unknowns; retain every declaration and textual disagreement without inferring full prototype or machine compatibility. [Contract and validation](docs/declaration-types.md#p13-comparisons-of-parsed-annotation-forms) |
+| 22 | M7.4 explicit analyst type aliases | Next | Bounded source-labeled alias definitions for the supported scalar/pointer grammar; preserve original labels, detect cycles and expansion limits, leave unresolved names unknown, and keep machine effects unchanged. No automatic header discovery. |
 
 Items 5 and 6 can proceed independently once the shared identities/reference contract is stable. Broader `main` recovery is deliberately not a prerequisite for discovering or browsing functions.
 

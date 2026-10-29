@@ -50,6 +50,14 @@ function main() {
             console.log('Type annotation ' + d.declaration + ' return: ' + types.describe(d.returnType));
             d.parameters.forEach((t,n) => console.log('Type annotation ' + d.declaration + ' parameter ' + (n+1) + ': ' + types.describe(t)));
         }
+        for (const c of a.declarationComparisons || []) {
+            console.log('Annotation comparison ' + c.declarations.join(' / ') + ': ' + types.comparisonSummary(c) + ' (not a prototype-compatibility verdict)');
+            for (const f of c.fields) {
+                const side = s => f.kind === 'type' ? JSON.stringify(s.label) + ' [' + s.status + (s.canonical ? ': ' + s.canonical : '') + ']' : JSON.stringify(s);
+                console.log('  ' + f.field + ': ' + types.comparisonLabel(f) + '; ' + side(f.left) + ' / ' + side(f.right) + '; ' + f.reason);
+                for (const d of f.differences || []) console.log('    ' + types.describeDifference(d));
+            }
+        }
         for (const c of a.declarationConflicts || []) console.log('Declaration disagreement ' + c.declarations.join(' / ') + ': ' + c.fields.join(', ') + '; ' + c.reason);
         for (const r of a.declarationReviews || []) console.log('Declaration review ' + r.declaration + ': ' + r.reason + ' @ ' + r.sources.join(', '));
         if (a.status !== 'available') {console.log('// Function ABI evidence unavailable: ' + a.reason); process.exitCode = 2; return;}

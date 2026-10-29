@@ -1,4 +1,4 @@
-# Bounded analyst type annotations
+# Bounded analyst type annotations and comparisons
 
 Implementation: [070bc88](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/070bc88b9c805a3db30a6a1bb91d342dced6f867).
 
@@ -62,7 +62,8 @@ unsupported syntax and unresolved names. Type syntax failure does not reject
 an otherwise valid contract. Existing contract shape, text and file limits
 still apply transactionally; invalid contracts expose no partial type results.
 
-`functionABI.version` advances to 5 with additive fields:
+P12 introduced `functionABI.version: 5`; P13 advances it to 6. The syntax
+fields remain unchanged:
 
 - `declarationTypeGrammar`: `c11-scalar-pointer-v1`.
 - `declarationTypes`: one record per declaration, with `declaration` (its ID),
@@ -88,9 +89,77 @@ an unknown convention, then returns 2 for unavailable machine ABI evidence.
 Textual declaration disagreements remain unchanged: `unsigned` and `unsigned
 int` can have equal parsed forms while their original spelling difference
 remains recorded. Existing source-linked declaration reviews also retain their
-original rules. Semantic declaration reconciliation is a separate next slice.
+original rules. P13 compares parsed forms separately, as described below.
 No full signature or parameter-list validity is asserted, including for a
 `void` annotation inside a supplied parameter record.
+
+## P13: comparisons of parsed annotation forms
+
+Open **Analyst declarations → Parsed declaration comparisons** to inspect every
+unordered pair of declarations. Each pair retains both IDs and shows separate
+rows for the return annotation, supplied parameter-record count, each parameter
+position and the variadic/hidden-parameter flags. Source labels and parameter
+names do not participate. The inspector, CLI and JSON share the same results.
+Expanded comparison panels survive contract edits, import and convention changes
+within the report session; reload clears session annotations as before.
+
+The policy ID is `parsed-annotation-forms-v1`. This is a structural comparison of
+supported annotations, not a C prototype-compatibility or machine-compatibility
+decision. There is deliberately no overall pair verdict. Per-field results are:
+
+| Inputs | Result |
+| --- | --- |
+| `unsigned` / `unsigned int` | Same parsed form; original spelling disagreement remains |
+| `const int *` / `int *` | Different parsed form: pointee qualifiers at depth 1 |
+| `int * const` / `int *` | Different parsed form: outer qualifiers at depth 0 |
+| `char` / `signed char` | Different parsed base, regardless of machine representation |
+| `int *` / `int **` | Different shape at depth 1 |
+| `size_t` / `size_t` | Unknown: identical unresolved names do not establish agreement |
+| A missing parameter record or null/unsupported type on either side | Unknown, with both original states retained |
+| Explicit `yes` / `no` flag values | Different supplied flag |
+| `unknown` on either side of a flag | Unknown, even when both flags say `unknown` |
+
+Parsed type comparisons retain qualifiers at every written level; no parameter
+adjustments or top-level qualifier erasure occur. Pointer nesting, built-in names
+and qualifiers are compared independently. A shape difference stops further
+descent at that position. If either whole annotation is unparsed, no matching
+prefix or partial difference is reported. Supplied parameter counts compare
+record lengths only; neither a count match nor a mismatch infers machine arity.
+Even all matching rows do not validate a declaration or establish a full signature.
+
+Version 6 adds `declarationComparisonPolicy` and `declarationComparisons`. Each
+comparison contains `declarations: [leftId, rightId]`, field counts
+`{same, different, unknown}`, and ordered `fields`. A field contains `field`,
+`kind` (`type`, `count` or `flag`), `status`, `left`, `right` and `reason`.
+Type sides retain `{label, status, canonical, reason}`; a missing parameter
+record has side status `missing`, distinct from an unspecified (`unknown`) label.
+Type fields additionally contain `differences`, whose entries have `kind`
+(`base`, `shape` or `qualifiers`), `depth`, `left` and `right`. Depth zero is
+the outer type; each successive pointer increases it by one. Side parse status
+`unsupported` produces comparison status `unknown`.
+
+At most eight declarations produce 28 pairs. At most 32 parameters produce
+36 fields per pair, for a hard bound of 1,008 comparison rows. Type comparison
+is iterative and stops within the parser's four-pointer bound. These separate
+annotation bounds do not consume or relax machine-evidence budgets. Comparisons
+remain available with an unknown convention or exhausted machine-evidence budget;
+invalid contracts expose no partial comparisons. The original contract stays
+unchanged, and comparisons are recomputed from its labels on import. No comparison
+changes textual conflicts, source-linked reviews, ABI candidates, register/stack
+facts, calls, memory effects or rendered code.
+
+Local validation on 2026-10-29 passes 165 focused comparison checks, 204 syntax
+checks, 384 ABI graph checks and 136 Capstone decoder/CLI checks. All 29 local
+CTest targets pass on each backend. Browser checks pass: 72 Capstone / 3 LLVM
+ABI checks and 90 Capstone / 13 LLVM C-like checks. They cover mixed results,
+escaping, native keyboard expansion, retained panel state, exact original-label
+export, browser/CLI JSON parity, clearing and expanded phone layout.
+
+The independent ABI oracle still passes 112 executions with 226 input reads,
+112 returns, 308 caller values, 84 call-result reads, 60 incoming stack reads
+and 32 matching stores. Local C fixtures are the existing Zig 0.13.0 corpus,
+reanalyzed with this report bundle. Hosted CI additionally generates its Clang
+fixtures and runs the complete browser and recovery matrix.
 
 ## Limits and validation
 
@@ -105,6 +174,7 @@ Run the focused checks with:
 
 ```sh
 node tests/test_declaration_types.js
+node tests/test_declaration_comparisons.js
 node tests/test_function_abi.js
 python3 tests/test_function_abi.py build/windows-exe-analyzer
 python3 tests/test_function_abi_browser.py build/windows-exe-analyzer --fixtures build/recovery-fixtures

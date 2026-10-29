@@ -25,11 +25,24 @@
         const declarations = analysis.contract.declarations || [];
         const types = new Map((analysis.declarationTypes || []).map(d => [d.declaration,d]));
         const syntax = t => t ? '<span class="pseudo-type-annotation" data-type-status="' + E(t.status) + '">' + E(WEADeclarationTypes.describe(t)) + '</span>' : '';
+        const comparisonField = field => ({returnType:'Return annotation',parameterCount:'Supplied parameter records',variadic:'Variadic',hiddenParameters:'Hidden parameters'}[field] ||
+            field.replace(/^parameter\[(\d+)\]\.type$/, 'Parameter $1 annotation'));
+        const comparisonSide = (field,side) => field.kind === 'type' ?
+            '<code>' + E(side.status === 'missing' ? '(no supplied record)' : side.label ?? 'unknown') + '</code><br>' + E(side.canonical ? 'Parsed: ' + side.canonical : side.reason) : E(String(side));
+        const comparisons = (analysis.declarationComparisons || []).length ?
+            '<details id="pseudoDeclarationComparisons"><summary>Parsed declaration comparisons (' + analysis.declarationComparisons.length + ')</summary>' +
+            '<p>Fields compare supplied annotations. Same parsed forms do not verify a prototype; different forms do not prove machine incompatibility. Qualifiers are compared at every written level. Parameter adjustments and typedef resolution are outside this comparison. Every declaration and textual disagreement remains retained.</p>' +
+            analysis.declarationComparisons.map(c => '<details id="pseudoComparison_' + E(c.declarations.join(':')) + '" class="pseudo-declaration-comparison"><summary>' + E(c.declarations.join(' / ')) + ' · ' + E(WEADeclarationTypes.comparisonSummary(c)) + '</summary>' +
+                '<div class="pseudo-flow-table"><table><thead><tr><th>Field</th><th>' + E(c.declarations[0]) + '</th><th>' + E(c.declarations[1]) + '</th><th>Comparison</th></tr></thead><tbody>' +
+                c.fields.map(f => '<tr data-comparison-status="' + E(f.status) + '"><td>' + E(comparisonField(f.field)) + '</td><td>' + comparisonSide(f,f.left) + '</td><td>' + comparisonSide(f,f.right) + '</td><td>' +
+                    E(WEADeclarationTypes.comparisonLabel(f)) + '<br>' + E(f.reason) + (f.differences || []).map(d => '<br>' + E(WEADeclarationTypes.describeDifference(d))).join('') + '</td></tr>').join('') +
+                '</tbody></table></div></details>').join('') + '</details>' : '';
         h += '<details id="pseudoDeclarations" style="overflow-wrap:anywhere"><summary>Analyst declarations (' + declarations.length + ')</summary>' +
             '<p>These are supplied annotations, not recovered C signatures. All original labels are retained. Supported scalar and pointer forms are parsed below; named types and complex declarations remain unparsed. Parsing does not infer widths, ABI locations or memory behavior. Unknown variadic/hidden-parameter status prevents fixed-count review hints.</p>' +
             declarations.map(d => '<section class="pseudo-declaration"><h4>' + E(d.id) + '</h4><p>Source: ' + E(d.source) + '</p><p>Return annotation: <code>' + E(d.returnType ?? 'unknown') + '</code><br>' + syntax(types.get(d.id)?.returnType) + '</p>' +
                 '<p>Variadic: ' + E(d.variadic) + '; hidden parameters: ' + E(d.hiddenParameters) + '</p>' +
                 '<ol>' + d.parameters.map((p,n) => '<li><code>' + E(p.name || '(unnamed)') + ': ' + E(p.type ?? 'unknown') + '</code><br>' + syntax(types.get(d.id)?.parameters[n]) + '</li>').join('') + '</ol></section>').join('') +
+            comparisons +
             (analysis.declarationConflicts || []).map(c => '<p class="datawarning pseudo-declaration-conflict">' + E(c.declarations.join(' / ')) + ': ' + E(c.fields.join(', ')) + '. ' + E(c.reason) + '</p>').join('') +
             (analysis.declarationReviews || []).map(c => '<div class="pseudo-declaration-review"><p>' + E(c.declaration) + ': ' + E(c.reason) + '</p>' + evidence(c.sources) + '</div>').join('') +
             '<p>No disagreement or review hint does not verify a declaration.</p><label for="pseudoDeclarationEditor">Edit declarations as JSON (maximum 8)</label>' +

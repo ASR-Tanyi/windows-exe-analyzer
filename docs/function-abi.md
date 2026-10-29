@@ -1,14 +1,14 @@
 # Explicit function ABI evidence
 
-Preview v8 adds an opt-in, read-only `functionABI.version: 5` inspector. Open a
+Preview v8 adds an opt-in, read-only `functionABI.version: 6` inspector. Open a
 Capstone x64 function's **C-like → Analysis details → Function contract and
 candidates**, then select **Assume Windows x64**. The existing `transform_demo`
 in `recovery64-o0.html` and `recovery64-o1.html` exercises all four integer
 register locations, loops, arrays, branches, and a direct caller.
 
-This includes **P8 register evidence, P9/P11 stack evidence across bounded control flow, and P10/P12 analyst declarations and bounded type syntax of M7.4**. It identifies possible machine
+This includes **P8 register evidence, P9/P11 stack evidence across bounded control flow, and P10/P12/P13 analyst declarations, bounded type syntax and parsed-form comparisons of M7.4**. It identifies possible machine
 inputs and outputs, not a C prototype. Broader stack recovery, floating-point parameters, hidden
-parameters, recovered varargs/source types and semantic prototype reconciliation remain open. Supplied annotations are represented separately in P10 and parsed by the [P12 bounded grammar](declaration-types.md).
+parameters, recovered varargs/source types and semantic prototype reconciliation remain open. Supplied annotations are represented separately in P10, parsed by P12 and compared by P13 under the [bounded annotation contract](declaration-types.md).
 No original effects, stack aliases, call summaries, exits, or code presentations
 change when the profile is selected. Code opens first; the new inspector stays
 inside Analysis details. Source links open the owning function's exact assembly,
@@ -285,6 +285,10 @@ without activating ABI evidence. LLVM's unavailable recovery remains unchanged.
 P12 additionally parses the supported scalar/pointer subset into separate
 annotation records, while retaining the exact original labels; see the
 [grammar and compatibility contract](declaration-types.md).
+P13 adds pairwise field comparisons with explicit same/different/unknown
+results. Qualifier levels and unresolved names remain explicit; every original
+textual disagreement is retained. These are parsed-form comparisons, not full
+prototype-compatibility verdicts. [Comparison policy and validation](declaration-types.md#p13-comparisons-of-parsed-annotation-forms).
 
 Declaration IDs must be unique ASCII letters/digits/underscore/hyphen (1–64
 characters). Source labels allow 1–256 characters; type labels 1–128; parameter
@@ -439,11 +443,12 @@ code; the published C ladder remains the existing register-oriented showcase.
 
 ## Next slice
 
-P12 implements [bounded parsing of supplied scalar/pointer annotations](declaration-types.md),
-with explicit unknown/unsupported results and unchanged machine evidence.
-M7.4 remains open. Next compare supported parsed annotations with explicit
-uncertainty while retaining every source declaration and textual disagreement.
-Full prototype compatibility, typedef resolution, aggregate arguments,
-hidden-parameter mapping and automatic signature recovery remain deferred.
+P12/P13 implement [bounded parsing and comparison of supplied scalar/pointer
+annotations](declaration-types.md), with explicit unknown/unsupported results
+and unchanged machine evidence. M7.4 remains open. Next support bounded explicit
+analyst alias definitions for this grammar, with source provenance and rejection
+of cycles or excessive expansion. Keep unresolved names and all original labels.
+Automatic header/typedef discovery, full prototype compatibility, aggregate
+arguments, hidden-parameter mapping and automatic signature recovery remain deferred.
 Do not promote register locations or access widths into automatic parameter
 counts, source names, types or a C signature.

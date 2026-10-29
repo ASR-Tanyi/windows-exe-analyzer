@@ -64,7 +64,7 @@ def main():
             check(cli.returncode == 2, 'unavailable ABI CLI returns failure')
             print(f'PASS: {checks} function-ABI decoder/CLI contracts (backend unavailable)'); return
         abi = model['functionABI']
-        check(model['version'] == 8 and abi['version'] == 5 and abi['status'] == 'available', 'versioned opt-in evidence')
+        check(model['version'] == 8 and abi['version'] == 6 and abi['status'] == 'available', 'versioned opt-in evidence')
         check([x['register'] for x in abi['arguments']] == ['rcx','rdx'], 'callee uses two ABI register locations')
         check(abi['returns'][0]['alternatives'][0]['slice']['width'] == 32, 'observed return write width is retained')
         caller = abi['callers'][0]
@@ -147,11 +147,16 @@ def main():
         typed_contract=copy.deepcopy(annotated_contract)
         typed_contract['declarations'][0].update(returnType='unsigned long int const * const',parameters=[
             {'name':'s','type':'char const *'},{'name':'n','type':'size_t'},{'name':'cb','type':'int (*)(void)'},{'name':'u','type':None}])
+        typed_contract['declarations'].append(dict(typed_contract['declarations'][0],id='notes',source='analyst notes',
+            returnType='const unsigned long * const',parameters=[{'name':'s','type':'char *'},{'name':'n','type':'size_t'}],variadic='unknown'))
         typed=recover(data,callee['id'],contract=typed_contract)
         parsed=typed['functionABI']['declarationTypes'][0]
         check(parsed['returnType']['canonical']=='const unsigned long int * const','decoded model preserves parsed pointer levels')
         check([p['status'] for p in parsed['parameters']]==['parsed','unsupported','unsupported','unknown'],'typedef and complex syntax stay unparsed')
         check(typed['functionABI']['contract']==typed_contract,'derived types do not rewrite imported labels')
+        comparison=typed['functionABI']['declarationComparisons'][0]
+        check(comparison['fields'][0]['status']=='same' and comparison['counts']['unknown']>0 and comparison['counts']['different']>0,'same return form, known differences and unknown fields coexist')
+        check(typed['functionABI']['declarationConflicts'][0]['fields'][0]=='returnType','raw return disagreement is retained despite equal forms')
         for key in ['instructions','lines','simplifiedLines','cleanLines','simplifiedCleanLines','valueAnalysis','registerSSA','stackStorage','registerExpressions','registerCleanup','callAnalysis']:
             check(typed[key]==model[key],'parsed annotations do not alter '+key)
         for key in ['arguments','stackArguments','returns','callers','conflicts']:
@@ -159,11 +164,13 @@ def main():
         annotated_file.write_text(json.dumps(typed_contract))
         cli=subprocess.run(['node',str(ROOT/'scripts/pseudocode.js'),str(doc),hex(callee['rva']),'--function-contract',str(annotated_file),'--abi'],capture_output=True,text=True)
         check(cli.returncode==0 and 'Parsed annotation: const unsigned long int * const' in cli.stdout and 'Unparsed annotation:' in cli.stdout and 'No type annotation supplied.' in cli.stdout,'CLI distinguishes parsed, unsupported and unspecified annotations')
+        check('Annotation comparison header / notes:' in cli.stdout and 'Same parsed form' in cli.stdout and 'Different parsed form' in cli.stdout and 'pointee depth 1' in cli.stdout and 'Unknown' in cli.stdout,'CLI exposes comparisons and precise differences')
         cli=subprocess.run(['node',str(ROOT/'scripts/pseudocode.js'),str(doc),hex(callee['rva']),'--function-contract',str(annotated_file),'--json'],capture_output=True,text=True,check=True)
         check(json.loads(cli.stdout)==typed,'typed annotations have exact CLI JSON parity')
         typed_contract['profile']=None;annotated_file.write_text(json.dumps(typed_contract))
         cli=subprocess.run(['node',str(ROOT/'scripts/pseudocode.js'),str(doc),hex(callee['rva']),'--function-contract',str(annotated_file),'--abi'],capture_output=True,text=True)
         check(cli.returncode==2 and 'Parsed annotation:' in cli.stdout,'unknown convention retains annotations without activating evidence')
+        check('Annotation comparison header / notes:' in cli.stdout,'comparisons remain with an unknown convention')
         own = recover(data)
         check(own['callAnalysis']['applied'] == 0 and any(i['status']=='barrier' for i in own['instructions']), 'function contract never enables own call summaries')
         for suffix, expected in [('b80700000089c14883c428c3', 0), ('b00189c14883c428c3', 1), ('4883c428c3', 0)]:

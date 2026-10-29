@@ -195,7 +195,7 @@ const typeContract={...ABI.emptyContract(typeFixture.report,'A'),version:2,profi
     returnType:'unsigned long int const * const',parameters:[{name:'s',type:'char const *'},{name:'h',type:'HANDLE'},
         {name:'a',type:'int[4]'},{name:'u',type:null}]})]};
 const typed=run(typeFixture,{},typeContract),bare=run(typeFixture);
-check(typed.version===5 && typed.declarationTypeGrammar==='c11-scalar-pointer-v1','annotation grammar and evidence schema are versioned');
+check(typed.version===6 && typed.declarationTypeGrammar==='c11-scalar-pointer-v1','annotation grammar and evidence schema are versioned');
 check(typed.declarationTypes[0].returnType.canonical==='const unsigned long int * const','parsed return annotation is separate');
 check(typed.declarationTypes[0].parameters.map(t=>t.status).join(',')==='parsed,unsupported,unsupported,unknown','mixed type results retained');
 assert.deepEqual(typed.contract,typeContract);checks++;
@@ -210,4 +210,21 @@ check(typeInvalid.status==='invalid' && !typeInvalid.declarationTypes.length,'in
 const spelling=run(typeFixture,{}, {...typeContract,declarations:[decl('a',{returnType:'unsigned'}),decl('b',{returnType:'unsigned int'})]});
 check(spelling.declarationTypes[0].returnType.canonical===spelling.declarationTypes[1].returnType.canonical && spelling.declarationConflicts[0].fields.includes('returnType'),
     'normalized spellings do not silently remove existing textual disagreements');
+check(spelling.declarationComparisonPolicy==='parsed-annotation-forms-v1' && spelling.declarationComparisons[0].fields[0].status==='same','matching forms coexist with textual disagreement');
+const comparedContract={...typeContract,declarations:[...typeContract.declarations,decl('other',{
+    returnType:'unsigned long int * const',parameters:[{name:'s',type:'char const *'},{name:'h',type:'HANDLE'}],variadic:'unknown'})]};
+const compared=run(typeFixture,{},comparedContract),beforeCompare=run(typeFixture,{},typeContract);
+check(compared.declarationComparisons[0].counts.different>0 && compared.declarationComparisons[0].counts.unknown>0,'known differences never hide unresolved annotations');
+for(const key of ['arguments','returns','callers','conflicts','stackArguments','declarationReviews','work','observations']) {
+    assert.deepEqual(compared[key],beforeCompare[key]);checks++;
+}
+for(const options of [{},{work:0}]) {
+    const result=run(typeFixture,options,{...comparedContract,profile:options.work===0?ABI.PROFILE.id:null});
+    assert.deepEqual(result.declarationComparisons,compared.declarationComparisons);checks++;
+    assert.deepEqual(result.contract.declarations,comparedContract.declarations);checks++;
+}
+check(!typeInvalid.declarationComparisons.length && !typed.declarationComparisons.length,'invalid or single declarations expose no pairwise results');
+const saturated=run(typeFixture,{}, {...typeContract,declarations:Array.from({length:8},(_,n)=>decl('d'+n,{
+    parameters:Array.from({length:32},()=>({name:'',type:n%2?'const int ****':'int ****'}))}))});
+check(saturated.status==='available' && saturated.declarationComparisons.length===28 && saturated.declarationComparisons.every(p=>p.fields.length===36),'real comparison bound is independent of the machine observation budget');
 console.log(`PASS: ${checks} function-ABI graph checks`);
