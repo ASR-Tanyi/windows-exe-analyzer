@@ -1,6 +1,7 @@
 # Bounded analyst type annotations and comparisons
 
-Implementation: [070bc88](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/070bc88b9c805a3db30a6a1bb91d342dced6f867).
+Type parser (P12): [070bc88](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/070bc88b9c805a3db30a6a1bb91d342dced6f867).
+Parsed-form comparisons (P13): [ff81e96](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/ff81e96d49739b6f6ae6ec48695ed7a826df4cbb).
 
 P12 adds a shared syntax parser for supplied return and parameter type labels.
 Open **C-like → Analysis details → Function contract and candidates → Analyst
@@ -150,10 +151,12 @@ facts, calls, memory effects or rendered code.
 
 Local validation on 2026-10-29 passes 165 focused comparison checks, 204 syntax
 checks, 384 ABI graph checks and 136 Capstone decoder/CLI checks. All 29 local
-CTest targets pass on each backend. Browser checks pass: 72 Capstone / 3 LLVM
+CTest targets pass on each backend. Browser checks pass: 73 Capstone / 3 LLVM
 ABI checks and 90 Capstone / 13 LLVM C-like checks. They cover mixed results,
 escaping, native keyboard expansion, retained panel state, exact original-label
-export, browser/CLI JSON parity, clearing and expanded phone layout.
+export, browser/CLI JSON parity, clearing and expanded phone layout. Comparison
+columns retain a readable minimum width and scroll within a keyboard-focusable
+region on narrow screens; a visual check covers both sides of that region.
 
 The independent ABI oracle still passes 112 executions with 226 input reads,
 112 returns, 308 caller values, 84 call-result reads, 60 incoming stack reads

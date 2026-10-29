@@ -483,13 +483,15 @@ unchanged code, exact export/CLI parity and phone layout.
 
 #### P13. Parsed declaration comparisons — completed bounded subset
 
+Implementation: [ff81e96](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/ff81e96d49739b6f6ae6ec48695ed7a826df4cbb).
+
 - [x] Compare every unordered declaration pair under a versioned parsed-form policy; retain exact qualifiers, pointer levels and built-in names.
 - [x] Preserve unknown results for missing, unspecified or unsupported annotations, including identical unresolved names; compare supplied record counts and explicit flags separately.
 - [x] Expose field results and precise differences in the inspector and CLI/JSON without an overall compatibility verdict, selected declaration or altered machine evidence.
 - [x] Validate all 28 pairs / 1,008 rows at the real contract bounds, independent result arrays, profile/budget independence, escaping, keyboard expansion, retained panel state, export/CLI parity and phone layout. [Contract and validation](docs/declaration-types.md#p13-comparisons-of-parsed-annotation-forms).
 
 Local validation: 165 comparison checks, 204 syntax checks, 384 ABI graph checks,
-136 decoder/CLI checks, 29 CTest targets per backend, 72 Capstone / 3 LLVM ABI
+136 decoder/CLI checks, 29 CTest targets per backend, 73 Capstone / 3 LLVM ABI
 browser checks and 112 independent ABI executions. C-like browser checks also
 pass: 90 Capstone / 13 LLVM. Textual disagreements remain retained even for
 matching parsed forms. Full prototype compatibility and M7.4 remain open.
@@ -634,7 +636,7 @@ F01 and F11 can be pulled forward as narrow enhancements if they unlock a real a
 
 `main` contains authored source, tests, fixture generators, build/workflow configuration, and documentation. Generated EXEs/DLLs, downloaded inputs, reports, compiler intermediates, and dependencies remain ignored. `demo_exe` is only for deliberately curated showcase artifacts; routine Actions output remains in artifacts/Pages rather than commits.
 
-Use focused, reviewable commits. For the current implementation work, commit directly to `main` as requested; a pull request is not required. A documentation request does not authorize implementing all roadmap items, creating every issue, changing repository settings, or rewriting history. Prefer additive commits; history rewriting needs a separate explicit request.
+Use focused, reviewable commits. For this project's ongoing implementation work, always commit and push directly to `main` as requested; do not open a pull request unless explicitly requested. A documentation request does not authorize implementing all roadmap items, creating every issue, changing repository settings, or rewriting history. Prefer additive commits; history rewriting needs a separate explicit request.
 
 For each milestone, record the implementation commits, relevant CI runs, supported cases, known limitations, and a source-known HTML demonstration. Keep an old capability clearly marked partial until its acceptance criteria are met.
 

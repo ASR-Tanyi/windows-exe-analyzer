@@ -191,6 +191,7 @@ def main():
             check(page.locator('.pseudo-declaration-conflict').count()==1,'textual differences are retained alongside matching parsed forms')
             check(page.locator('.pseudo-code tbody tr td:nth-child(2) code').all_text_contents()==before,'comparisons do not rewrite code')
             check(page.evaluate('document.documentElement.scrollWidth <= innerWidth'),'expanded comparison table fits phone layout')
+            check(page.locator('.pseudo-declaration-comparison .pseudo-flow-table').evaluate('(e)=>e.scrollWidth>e.clientWidth && e.querySelector("td").getBoundingClientRect().width>=100'),'phone comparison keeps readable columns inside its scroll region')
             with page.expect_download() as dl:page.click('#pseudoFunctionExport')
             compared_file=Path(temp)/'comparisons.json';dl.value.save_as(compared_file);saved=json.loads(compared_file.read_text())
             check(saved['declarations']==pair and saved['profile'] is None,'comparison export retains original declarations with unknown convention')

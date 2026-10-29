@@ -33,7 +33,7 @@
             '<details id="pseudoDeclarationComparisons"><summary>Parsed declaration comparisons (' + analysis.declarationComparisons.length + ')</summary>' +
             '<p>Fields compare supplied annotations. Same parsed forms do not verify a prototype; different forms do not prove machine incompatibility. Qualifiers are compared at every written level. Parameter adjustments and typedef resolution are outside this comparison. Every declaration and textual disagreement remains retained.</p>' +
             analysis.declarationComparisons.map(c => '<details id="pseudoComparison_' + E(c.declarations.join(':')) + '" class="pseudo-declaration-comparison"><summary>' + E(c.declarations.join(' / ')) + ' · ' + E(WEADeclarationTypes.comparisonSummary(c)) + '</summary>' +
-                '<div class="pseudo-flow-table"><table><thead><tr><th>Field</th><th>' + E(c.declarations[0]) + '</th><th>' + E(c.declarations[1]) + '</th><th>Comparison</th></tr></thead><tbody>' +
+                '<div class="pseudo-flow-table" tabindex="0" role="region" aria-label="Parsed comparison ' + E(c.declarations.join(' / ')) + '"><table><thead><tr><th>Field</th><th>' + E(c.declarations[0]) + '</th><th>' + E(c.declarations[1]) + '</th><th>Comparison</th></tr></thead><tbody>' +
                 c.fields.map(f => '<tr data-comparison-status="' + E(f.status) + '"><td>' + E(comparisonField(f.field)) + '</td><td>' + comparisonSide(f,f.left) + '</td><td>' + comparisonSide(f,f.right) + '</td><td>' +
                     E(WEADeclarationTypes.comparisonLabel(f)) + '<br>' + E(f.reason) + (f.differences || []).map(d => '<br>' + E(WEADeclarationTypes.describeDifference(d))).join('') + '</td></tr>').join('') +
                 '</tbody></table></div></details>').join('') + '</details>' : '';
