@@ -2,6 +2,7 @@
 
 Type parser (P12): [070bc88](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/070bc88b9c805a3db30a6a1bb91d342dced6f867).
 Parsed-form comparisons (P13): [ff81e96](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/ff81e96d49739b6f6ae6ec48695ed7a826df4cbb).
+Readable phone columns: [1e62340](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/1e62340ded29f256884da8236aa14cd7abf71e9e).
 
 P12 adds a shared syntax parser for supplied return and parameter type labels.
 Open **C-like → Analysis details → Function contract and candidates → Analyst
@@ -226,3 +227,31 @@ results, unchanged code, exact original-label export, versioned syntax trees,
 CLI JSON parity, retention with an unknown convention, phone layout and no
 JavaScript errors. Original declarations remain the exported source of truth;
 derived syntax is recomputed on import.
+
+## P13 hosted validation (2026-10-29)
+
+The final [hosted matrix](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40809989414)
+passed all 31 CTest targets per backend and every browser suite. Capstone
+passed 73 function-ABI and 90 C-like browser checks; LLVM passed its 3 ABI and
+13 C-like fallback checks. Both backends run the focused syntax and comparison
+tests. LLVM's unsupported semantic suites remain explicitly skipped.
+
+Capstone passed 1,260 recovery cases across all four presentations, 36 call
+executions across 108 boundaries and 112 ABI executions. ABI evidence counts
+remain 226 input reads, 112 returns, 308 caller values, 84 call-result reads,
+60 incoming stack reads and 32 matched stores. The storage corpus checked
+133 reloads, including 41 saved entry-register values.
+
+The [Pages build and deployment](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40809988854)
+passed. The live manifest identifies `1e62340`; all eight downloaded reports
+embed the exact committed parser/comparison, ABI and pseudocode models/views.
+Twelve direct interactions in the published x64 O1 report verified matching
+forms alongside retained textual conflicts, precise qualifier differences,
+unknown typedefs/flags, unchanged code, preserved expanded panels, original-label
+export, versioned comparison records, exact CLI JSON parity, convention independence,
+readable phone columns, clearing and no JavaScript errors.
+
+Visual inspection caught cramped columns that the original overflow-only check
+missed. The follow-up fixes their minimum width inside a keyboard-focusable scroll
+region, and the browser regression now checks a readable field-column width.
+Both sides of the narrow-screen table were inspected after the fix.

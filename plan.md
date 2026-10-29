@@ -484,6 +484,7 @@ unchanged code, exact export/CLI parity and phone layout.
 #### P13. Parsed declaration comparisons — completed bounded subset
 
 Implementation: [ff81e96](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/ff81e96d49739b6f6ae6ec48695ed7a826df4cbb).
+Phone readability follow-up: [1e62340](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/1e62340ded29f256884da8236aa14cd7abf71e9e).
 
 - [x] Compare every unordered declaration pair under a versioned parsed-form policy; retain exact qualifiers, pointer levels and built-in names.
 - [x] Preserve unknown results for missing, unspecified or unsupported annotations, including identical unresolved names; compare supplied record counts and explicit flags separately.
@@ -495,6 +496,15 @@ Local validation: 165 comparison checks, 204 syntax checks, 384 ABI graph checks
 browser checks and 112 independent ABI executions. C-like browser checks also
 pass: 90 Capstone / 13 LLVM. Textual disagreements remain retained even for
 matching parsed forms. Full prototype compatibility and M7.4 remain open.
+
+The final [P13 hosted matrix](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40809989414)
+passed all 31 CTest targets per backend and every browser suite, plus 1,260
+recovery cases, 36 call executions and 112 ABI executions. The
+[Pages deployment](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40809988854)
+passed; all eight reports match the committed models/views, and 12 direct
+published-report interactions verify comparison results, retained disagreements,
+export/CLI parity and readable phone columns.
+[Validation record](docs/declaration-types.md#p13-hosted-validation-2026-10-29).
 
 ### M7. Function recovery and stronger entry-role recognition
 
