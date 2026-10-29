@@ -39,31 +39,37 @@
                 if (a.parameters[n].type !== null && b.parameters[n].type !== null && a.parameters[n].type !== b.parameters[n].type) fields.push('parameter['+(n+1)+'].type');
             for (const key of ['variadic','hiddenParameters']) if (a[key] !== 'unknown' && b[key] !== 'unknown' && a[key] !== b[key]) fields.push(key);
             if (fields.length) conflicts.push({declarations:[a.id,b.id],fields,
-                reason:'Textual annotations differ. Parsed type forms do not resolve typedefs or establish prototype compatibility. Neither declaration is selected as authoritative.'});
+                reason:'Textual annotations differ. Parsed forms and supplied aliases do not establish full prototype compatibility. Neither declaration is selected as authoritative.'});
         }
         return conflicts;
     }
     function analyze(report, graph, lifted, entry, manifest, loadCaller, options = {}, valueAnalysis = null) {
         const contract = emptyContract(report, entry);
         const eligible = report.module.architecture.startsWith('x64') && graph.status === 'available';
-        const base = {version: 6, complete: false, eligible, contract, notice, arguments: [], stackArguments: [], stackScope: 'Bounded discovered normal-flow paths, including joins and loops. Aligned 1/2/4/8-byte incoming reads must remain untouched on every incoming path. Caller matches require the same covering store on every predecessor; differing stores stay unknown.', returns: [], callers: [], conflicts: [], declarationConflicts: [], declarationReviews: [], declarationTypes: [], declarationTypeGrammar:TYPES.GRAMMAR, declarationComparisons:[], declarationComparisonPolicy:TYPES.COMPARISON_POLICY, assumptionSources: []};
+        const base = {version: 7, complete: false, eligible, contract, notice, arguments: [], stackArguments: [], stackScope: 'Bounded discovered normal-flow paths, including joins and loops. Aligned 1/2/4/8-byte incoming reads must remain untouched on every incoming path. Caller matches require the same covering store on every predecessor; differing stores stay unknown.', returns: [], callers: [], conflicts: [], declarationConflicts: [], declarationReviews: [], declarationTypes: [], declarationTypeGrammar:TYPES.GRAMMAR, declarationComparisons:[], declarationComparisonPolicy:TYPES.COMPARISON_POLICY, declarationAliases:[], declarationAliasPolicy:TYPES.ALIAS_POLICY, assumptionSources: []};
         const fail = (status, reason) => ({...base, status, reason});
         const limits = Object.fromEntries(Object.entries(LIMITS).map(([k,v]) =>
             [k, Number.isSafeInteger(options[k]) ? Math.max(0, Math.min(v, options[k])) : v]));
         if (manifest !== undefined && manifest !== null) {
             try {
-                const keys = manifest?.version === 2 ? 'declarations,functionId,moduleId,profile,version' : 'functionId,moduleId,profile,version';
-                if (!exact(manifest,keys) || ![1,2].includes(manifest.version) || manifest.moduleId !== report.module.id || manifest.functionId !== entry ||
-                    ![null, PROFILE.id].includes(manifest.profile)) throw Error('Function contract must match this module, function and version 1 or 2 schema.');
+                const keys = manifest?.version === 3 ? 'declarations,functionId,moduleId,profile,typeAliases,version' :
+                    manifest?.version === 2 ? 'declarations,functionId,moduleId,profile,version' : 'functionId,moduleId,profile,version';
+                if (!exact(manifest,keys) || ![1,2,3].includes(manifest.version) || manifest.moduleId !== report.module.id || manifest.functionId !== entry ||
+                    ![null, PROFILE.id].includes(manifest.profile)) throw Error('Function contract must match this module, function and version 1, 2 or 3 schema.');
                 if (manifest.profile && !eligible) throw Error('This profile requires x64 and available register SSA with unambiguous ownership.');
-                const declarations = manifest.version === 2 ? normalizeDeclarations(manifest.declarations) : null;
-                const types = TYPES.declarations(declarations || []), comparisons = TYPES.compareDeclarations(declarations || [],types);
+                const declarations = manifest.version >= 2 ? normalizeDeclarations(manifest.declarations) : null;
+                const aliases = manifest.version === 3 ? TYPES.aliasContext(manifest.typeAliases) : null;
+                if (aliases && new TextEncoder().encode(JSON.stringify({...contract,version:3,profile:manifest.profile,declarations,typeAliases:aliases.definitions},null,2)+'\n').length > LIMITS.fileBytes)
+                    throw Error('Normalized function contract exceeds 64 KiB.');
+                const types = TYPES.declarations(declarations || [],aliases), comparisons = TYPES.compareDeclarations(declarations || [],types);
                 // Commit only after validation of the entire document.
                 contract.version = manifest.version; contract.profile = manifest.profile;
                 if (declarations) contract.declarations = declarations;
+                if (aliases) contract.typeAliases = aliases.definitions;
                 base.declarationConflicts = declarationConflicts(declarations || []);
                 base.declarationTypes = types;
                 base.declarationComparisons = comparisons;
+                base.declarationAliases = aliases ? aliases.results : [];
             } catch (e) {return fail('invalid',e.message);}
         }
         if (!eligible) return fail('unavailable', 'Function ABI evidence requires x64 and available register SSA with unambiguous ownership.');

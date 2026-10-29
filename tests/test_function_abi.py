@@ -64,7 +64,7 @@ def main():
             check(cli.returncode == 2, 'unavailable ABI CLI returns failure')
             print(f'PASS: {checks} function-ABI decoder/CLI contracts (backend unavailable)'); return
         abi = model['functionABI']
-        check(model['version'] == 8 and abi['version'] == 6 and abi['status'] == 'available', 'versioned opt-in evidence')
+        check(model['version'] == 8 and abi['version'] == 7 and abi['status'] == 'available', 'versioned opt-in evidence')
         check([x['register'] for x in abi['arguments']] == ['rcx','rdx'], 'callee uses two ABI register locations')
         check(abi['returns'][0]['alternatives'][0]['slice']['width'] == 32, 'observed return write width is retained')
         caller = abi['callers'][0]
@@ -171,6 +171,21 @@ def main():
         cli=subprocess.run(['node',str(ROOT/'scripts/pseudocode.js'),str(doc),hex(callee['rva']),'--function-contract',str(annotated_file),'--abi'],capture_output=True,text=True)
         check(cli.returncode==2 and 'Parsed annotation:' in cli.stdout,'unknown convention retains annotations without activating evidence')
         check('Annotation comparison header / notes:' in cli.stdout,'comparisons remain with an unknown convention')
+        alias_contract=copy.deepcopy(typed_contract)
+        alias_contract.update(version=3,typeAliases=[dict(name='Pointer',type='int *',source='header.h')])
+        alias_contract['declarations'][0]['returnType']='const Pointer'
+        alias_contract['declarations'][1]['returnType']='int * const'
+        resolved=recover(data,callee['id'],contract=alias_contract)
+        check(resolved['functionABI']['declarationTypes'][0]['returnType']['canonical']=='int * const','decoded model resolves explicit pointer alias qualifiers')
+        check(resolved['functionABI']['declarationComparisons'][0]['fields'][0]['status']=='same' and resolved['functionABI']['declarationConflicts'],'resolved aliases retain textual conflicts')
+        check(resolved['functionABI']['contract']==alias_contract,'version 3 preserves alias definitions and original labels')
+        for key in ['instructions','lines','simplifiedLines','cleanLines','simplifiedCleanLines','valueAnalysis','registerSSA','stackStorage','callAnalysis']:
+            check(resolved[key]==model[key],'alias resolution does not alter '+key)
+        annotated_file.write_text(json.dumps(alias_contract))
+        cli=subprocess.run(['node',str(ROOT/'scripts/pseudocode.js'),str(doc),hex(callee['rva']),'--function-contract',str(annotated_file),'--json'],capture_output=True,text=True,check=True)
+        check(json.loads(cli.stdout)==resolved,'version 3 alias context has exact CLI JSON parity')
+        cli=subprocess.run(['node',str(ROOT/'scripts/pseudocode.js'),str(doc),hex(callee['rva']),'--function-contract',str(annotated_file),'--abi'],capture_output=True,text=True)
+        check(cli.returncode==2 and 'Alias resolution Pointer:' in cli.stdout and 'Supplied aliases: Pointer' in cli.stdout,'CLI shows alias assumptions with unknown machine convention')
         own = recover(data)
         check(own['callAnalysis']['applied'] == 0 and any(i['status']=='barrier' for i in own['instructions']), 'function contract never enables own call summaries')
         for suffix, expected in [('b80700000089c14883c428c3', 0), ('b00189c14883c428c3', 1), ('4883c428c3', 0)]:

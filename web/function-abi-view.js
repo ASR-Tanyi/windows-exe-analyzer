@@ -25,20 +25,27 @@
         const declarations = analysis.contract.declarations || [];
         const types = new Map((analysis.declarationTypes || []).map(d => [d.declaration,d]));
         const syntax = t => t ? '<span class="pseudo-type-annotation" data-type-status="' + E(t.status) + '">' + E(WEADeclarationTypes.describe(t)) + '</span>' : '';
+        const aliasDefinitions=analysis.contract.typeAliases || [], aliasResults=new Map((analysis.declarationAliases || []).map(a=>[a.name,a.result]));
+        const aliasMarkup='<details id="pseudoTypeAliases"><summary>Type alias definitions (' + aliasDefinitions.length + ')</summary>' +
+            '<p>These supplied definitions apply to every declaration in this function contract. Source labels are analyst provenance. No headers are searched. Missing definitions, cycles and excessive expansion remain unparsed. Qualifiers apply to the aliased type: if P means int *, const P means int * const.</p>' +
+            aliasDefinitions.map(a=>'<section class="pseudo-type-alias"><h4>' + E(a.name) + '</h4><p>Definition: <code>' + E(a.type) + '</code><br>Source: ' + E(a.source) + '<br>' + syntax(aliasResults.get(a.name)) + '</p></section>').join('') +
+            '<label for="pseudoAliasEditor">Edit type aliases as JSON (maximum 32)</label><textarea id="pseudoAliasEditor" rows="8" style="width:100%;box-sizing:border-box" spellcheck="false">' + E(JSON.stringify(aliasDefinitions,null,2)) + '</textarea>' +
+            '<p><button id="pseudoAliasExample">Add example alias</button> <button id="pseudoAliasApply">Apply type aliases</button> <button id="pseudoAliasClear">Clear type aliases</button></p></details>';
         const comparisonField = field => ({returnType:'Return annotation',parameterCount:'Supplied parameter records',variadic:'Variadic',hiddenParameters:'Hidden parameters'}[field] ||
             field.replace(/^parameter\[(\d+)\]\.type$/, 'Parameter $1 annotation'));
         const comparisonSide = (field,side) => field.kind === 'type' ?
-            '<code>' + E(side.status === 'missing' ? '(no supplied record)' : side.label ?? 'unknown') + '</code><br>' + E(side.canonical ? 'Parsed: ' + side.canonical : side.reason) : E(String(side));
+            '<code>' + E(side.status === 'missing' ? '(no supplied record)' : side.label ?? 'unknown') + '</code><br>' + E(side.canonical ? 'Parsed: ' + side.canonical : side.reason) +
+            (side.aliases?.length ? '<br>' + E(WEADeclarationTypes.aliasDescription(side)) : '') : E(String(side));
         const comparisons = (analysis.declarationComparisons || []).length ?
             '<details id="pseudoDeclarationComparisons"><summary>Parsed declaration comparisons (' + analysis.declarationComparisons.length + ')</summary>' +
-            '<p>Fields compare supplied annotations. Same parsed forms do not verify a prototype; different forms do not prove machine incompatibility. Qualifiers are compared at every written level. Parameter adjustments and typedef resolution are outside this comparison. Every declaration and textual disagreement remains retained.</p>' +
+            '<p>Fields compare supplied annotations. Same parsed forms do not verify a prototype; different forms do not prove machine incompatibility. Qualifiers are compared at every written level. Only supplied aliases are expanded; other names and parameter adjustments remain outside this comparison. Every declaration and textual disagreement remains retained.</p>' +
             analysis.declarationComparisons.map(c => '<details id="pseudoComparison_' + E(c.declarations.join(':')) + '" class="pseudo-declaration-comparison"><summary>' + E(c.declarations.join(' / ')) + ' · ' + E(WEADeclarationTypes.comparisonSummary(c)) + '</summary>' +
                 '<div class="pseudo-flow-table" tabindex="0" role="region" aria-label="Parsed comparison ' + E(c.declarations.join(' / ')) + '"><table><thead><tr><th>Field</th><th>' + E(c.declarations[0]) + '</th><th>' + E(c.declarations[1]) + '</th><th>Comparison</th></tr></thead><tbody>' +
                 c.fields.map(f => '<tr data-comparison-status="' + E(f.status) + '"><td>' + E(comparisonField(f.field)) + '</td><td>' + comparisonSide(f,f.left) + '</td><td>' + comparisonSide(f,f.right) + '</td><td>' +
                     E(WEADeclarationTypes.comparisonLabel(f)) + '<br>' + E(f.reason) + (f.differences || []).map(d => '<br>' + E(WEADeclarationTypes.describeDifference(d))).join('') + '</td></tr>').join('') +
                 '</tbody></table></div></details>').join('') + '</details>' : '';
         h += '<details id="pseudoDeclarations" style="overflow-wrap:anywhere"><summary>Analyst declarations (' + declarations.length + ')</summary>' +
-            '<p>These are supplied annotations, not recovered C signatures. All original labels are retained. Supported scalar and pointer forms are parsed below; named types and complex declarations remain unparsed. Parsing does not infer widths, ABI locations or memory behavior. Unknown variadic/hidden-parameter status prevents fixed-count review hints.</p>' +
+            '<p>These are supplied annotations, not recovered C signatures. All original labels are retained. Supported scalar and pointer forms are parsed below; undefined names and complex declarations remain unparsed. Parsing does not infer widths, ABI locations or memory behavior. Unknown variadic/hidden-parameter status prevents fixed-count review hints.</p>' + aliasMarkup +
             declarations.map(d => '<section class="pseudo-declaration"><h4>' + E(d.id) + '</h4><p>Source: ' + E(d.source) + '</p><p>Return annotation: <code>' + E(d.returnType ?? 'unknown') + '</code><br>' + syntax(types.get(d.id)?.returnType) + '</p>' +
                 '<p>Variadic: ' + E(d.variadic) + '; hidden parameters: ' + E(d.hiddenParameters) + '</p>' +
                 '<ol>' + d.parameters.map((p,n) => '<li><code>' + E(p.name || '(unnamed)') + ': ' + E(p.type ?? 'unknown') + '</code><br>' + syntax(types.get(d.id)?.parameters[n]) + '</li>').join('') + '</ol></section>').join('') +
@@ -83,6 +90,28 @@
     }
     function bind(analysis,onChange,message) {
         const $ = id => document.getElementById(id); if (!$('pseudoFunctionABI')) return;
+        const applyAnnotations = patch => {
+            const value={...analysis.contract,...patch};
+            if (new TextEncoder().encode(JSON.stringify(value,null,2)+'\n').length>WEAFunctionABI.LIMITS.fileBytes) throw Error('Function contract exceeds 64 KiB.');
+            onChange(value);
+        };
+        const aliasPatch = typeAliases => ({version:3,declarations:analysis.contract.declarations || [],typeAliases});
+        $('pseudoAliasExample').onclick = () => {
+            try {
+                const list=WEADeclarationTypes.normalizeAliases(JSON.parse($('pseudoAliasEditor').value));
+                let n=1; while (list.some(a=>a.name==='Pointer'+n)) n++;
+                list.push({name:'Pointer'+n,source:'Analyst note',type:'int *'}); WEADeclarationTypes.normalizeAliases(list);
+                $('pseudoAliasEditor').value=JSON.stringify(list,null,2);
+            } catch (e) {message('Type aliases unchanged: '+e.message);}
+        };
+        $('pseudoAliasApply').onclick = () => {
+            try {
+                const input=$('pseudoAliasEditor').value;
+                if (new TextEncoder().encode(input).length>WEAFunctionABI.LIMITS.fileBytes) throw Error('Type aliases exceed 64 KiB.');
+                applyAnnotations(aliasPatch(WEADeclarationTypes.normalizeAliases(JSON.parse(input))));
+            } catch (e) {message('Type aliases unchanged: '+e.message);}
+        };
+        $('pseudoAliasClear').onclick = () => applyAnnotations(aliasPatch([]));
         $('pseudoDeclarationExample').onclick = () => {
             try {
                 const list = WEAFunctionABI.normalizeDeclarations(JSON.parse($('pseudoDeclarationEditor').value));
@@ -97,10 +126,10 @@
                 const input=$('pseudoDeclarationEditor').value;
                 if (new TextEncoder().encode(input).length > WEAFunctionABI.LIMITS.fileBytes) throw Error('Declarations exceed 64 KiB.');
                 const declarations=WEAFunctionABI.normalizeDeclarations(JSON.parse(input));
-                onChange({...analysis.contract,version:2,declarations});
+                applyAnnotations({version:Math.max(2,analysis.contract.version),declarations});
             } catch (e) {message('Declarations unchanged: ' + e.message);}
         };
-        $('pseudoDeclarationClear').onclick = () => onChange({...analysis.contract,version:2,declarations:[]});
+        $('pseudoDeclarationClear').onclick = () => applyAnnotations({version:Math.max(2,analysis.contract.version),declarations:[]});
         $('pseudoFunctionProfile').onchange = e => onChange({...analysis.contract,profile:e.target.value || null});
         $('pseudoFunctionReset').onclick = () => onChange(null);
         $('pseudoFunctionExport').onclick = () => {

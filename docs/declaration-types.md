@@ -10,11 +10,15 @@ declarations**. Each original label remains visible beside its parsed form or
 an explicit reason it remains unparsed. The same results are exported in JSON
 and printed by `scripts/pseudocode.js --abi`.
 
+P14 adds [explicit source-labeled alias definitions](declaration-aliases.md) in
+version 3 function contracts. Undefined names still remain unresolved; no header
+lookup or type discovery is performed.
+
 These are annotations, not types recovered from instructions. Parsing does not
 choose an authoritative declaration, establish prototype compatibility, infer
 sizes/alignment, map ABI arguments, modify call summaries or change memory
 effects. In particular, `const` and `volatile` never authorize deleting a load
-or store, and a pointer annotation supplies no alias or dereference assumptions.
+or store, and a pointer annotation supplies no memory-alias or dereference assumptions.
 
 ## Reviewed grammar
 
@@ -64,8 +68,8 @@ unsupported syntax and unresolved names. Type syntax failure does not reject
 an otherwise valid contract. Existing contract shape, text and file limits
 still apply transactionally; invalid contracts expose no partial type results.
 
-P12 introduced `functionABI.version: 5`; P13 advances it to 6. The syntax
-fields remain unchanged:
+P12 introduced `functionABI.version: 5`; P13 advanced it to 6 and P14 to 7.
+The base syntax fields remain unchanged:
 
 - `declarationTypeGrammar`: `c11-scalar-pointer-v1`.
 - `declarationTypes`: one record per declaration, with `declaration` (its ID),

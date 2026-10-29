@@ -45,6 +45,8 @@ function main() {
     else if (result.status === 'unavailable') console.log('// ' + result.reason);
     else if (format === '--abi') {
         const a = result.functionABI;
+        for (const alias of a.contract?.typeAliases || []) console.log('Supplied type alias (all declarations): ' + JSON.stringify(alias));
+        for (const alias of a.declarationAliases || []) console.log('Alias resolution ' + alias.name + ': ' + types.describe(alias.result));
         for (const d of a.contract?.declarations || []) console.log('Analyst declaration (not recovered): ' + JSON.stringify(d));
         for (const d of a.declarationTypes || []) {
             console.log('Type annotation ' + d.declaration + ' return: ' + types.describe(d.returnType));
@@ -53,7 +55,7 @@ function main() {
         for (const c of a.declarationComparisons || []) {
             console.log('Annotation comparison ' + c.declarations.join(' / ') + ': ' + types.comparisonSummary(c) + ' (not a prototype-compatibility verdict)');
             for (const f of c.fields) {
-                const side = s => f.kind === 'type' ? JSON.stringify(s.label) + ' [' + s.status + (s.canonical ? ': ' + s.canonical : '') + ']' : JSON.stringify(s);
+                const side = s => f.kind === 'type' ? JSON.stringify(s.label) + ' [' + s.status + (s.canonical ? ': ' + s.canonical : '') + ']' + (s.aliases?.length ? ' (' + types.aliasDescription(s) + ')' : '') : JSON.stringify(s);
                 console.log('  ' + f.field + ': ' + types.comparisonLabel(f) + '; ' + side(f.left) + ' / ' + side(f.right) + '; ' + f.reason);
                 for (const d of f.differences || []) console.log('    ' + types.describeDifference(d));
             }

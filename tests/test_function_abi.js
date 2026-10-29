@@ -195,7 +195,7 @@ const typeContract={...ABI.emptyContract(typeFixture.report,'A'),version:2,profi
     returnType:'unsigned long int const * const',parameters:[{name:'s',type:'char const *'},{name:'h',type:'HANDLE'},
         {name:'a',type:'int[4]'},{name:'u',type:null}]})]};
 const typed=run(typeFixture,{},typeContract),bare=run(typeFixture);
-check(typed.version===6 && typed.declarationTypeGrammar==='c11-scalar-pointer-v1','annotation grammar and evidence schema are versioned');
+check(typed.version===7 && typed.declarationTypeGrammar==='c11-scalar-pointer-v1','annotation grammar and evidence schema are versioned');
 check(typed.declarationTypes[0].returnType.canonical==='const unsigned long int * const','parsed return annotation is separate');
 check(typed.declarationTypes[0].parameters.map(t=>t.status).join(',')==='parsed,unsupported,unsupported,unknown','mixed type results retained');
 assert.deepEqual(typed.contract,typeContract);checks++;
@@ -227,4 +227,27 @@ check(!typeInvalid.declarationComparisons.length && !typed.declarationComparison
 const saturated=run(typeFixture,{}, {...typeContract,declarations:Array.from({length:8},(_,n)=>decl('d'+n,{
     parameters:Array.from({length:32},()=>({name:'',type:n%2?'const int ****':'int ****'}))}))});
 check(saturated.status==='available' && saturated.declarationComparisons.length===28 && saturated.declarationComparisons.every(p=>p.fields.length===36),'real comparison bound is independent of the machine observation budget');
+const aliasContract={...typeContract,version:3,typeAliases:[{name:'Count',type:'unsigned',source:'header.h'},{name:'P',type:'int *',source:'notes'}],
+    declarations:[decl('a',{returnType:'Count',parameters:[{name:'p',type:'const P'}]}),decl('b',{returnType:'unsigned int',parameters:[{name:'p',type:'int * const'}]})]};
+const withAliases=run(typeFixture,{},aliasContract),withoutAliases=run(typeFixture,{}, {...aliasContract,typeAliases:[]});
+check(withAliases.version===7 && withAliases.declarationAliasPolicy==='explicit-scalar-pointer-aliases-v1','alias interpretation is versioned');
+assert.deepEqual(withAliases.contract,aliasContract);checks++;
+check(withAliases.declarationAliases.length===2 && withAliases.declarationTypes[0].parameters[0].canonical==='int * const','pointer alias qualifier is preserved in the model');
+check(withAliases.declarationComparisons[0].counts.same===5 && withAliases.declarationConflicts.length===1,'alias agreement retains original textual disagreements');
+for(const key of ['arguments','returns','callers','conflicts','stackArguments','declarationReviews','work','observations','declarationConflicts']) {
+    assert.deepEqual(withAliases[key],withoutAliases[key]);checks++;
+}
+for(const [options,profile] of [[{},null],[{work:0},ABI.PROFILE.id],[{observations:0},ABI.PROFILE.id]]) {
+    const r=run(typeFixture,options,{...aliasContract,profile});
+    assert.deepEqual(r.declarationTypes,withAliases.declarationTypes);checks++;
+    assert.deepEqual(r.declarationComparisons,withAliases.declarationComparisons);checks++;
+    assert.deepEqual(r.contract.typeAliases,aliasContract.typeAliases);checks++;
+}
+for(const patch of [{version:2},{typeAliases:null},{typeAliases:[...aliasContract.typeAliases,aliasContract.typeAliases[0]]},{extra:1}]) {
+    const r=run(typeFixture,{}, {...aliasContract,...patch});
+    check(r.status==='invalid' && !r.declarationAliases.length && !r.declarationTypes.length && !r.contract.typeAliases,'invalid alias contract commits no partial state');
+}
+const cyclicAlias=run(typeFixture,{}, {...aliasContract,typeAliases:[{name:'P',source:'notes',type:'P'}]});
+check(cyclicAlias.status==='available' && cyclicAlias.declarationTypes[0].parameters[0].status==='unsupported' && cyclicAlias.contract.typeAliases[0].type==='P','cyclic source remains retained without successful expansion');
+check(run(typeFixture,{}, {...typeContract,version:3,typeAliases:[]}).contract.version===3,'empty version 3 aliases retain explicit schema');
 console.log(`PASS: ${checks} function-ABI graph checks`);

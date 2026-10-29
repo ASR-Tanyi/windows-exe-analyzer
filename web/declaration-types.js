@@ -24,43 +24,95 @@
         ['float',['float']],['double',['double']],['long double',['long double']]
     ]) for (const form of forms) builtins.set(form.split(' ').sort().join(' '),name);
 
-    function parse(label) {
-        const empty = (status,reason) => ({status,canonical:null,type:null,reason});
-        if (label === null) return empty('unknown','No type annotation supplied.');
+    const ALIAS_POLICY = 'explicit-scalar-pointer-aliases-v1';
+    const ALIAS_LIMITS = Object.freeze({definitions:32,bytes:8192,depth:8,tokens:128});
+    const keywords = new Set(('auto break case char const continue default do double else enum extern float for goto if inline int long register restrict return short signed sizeof static struct switch typedef union unsigned void volatile while ' +
+        '_Alignas _Alignof _Atomic _Bool _Complex _Generic _Imaginary _Noreturn _Static_assert _Thread_local').split(' '));
+    const uniqueQualifiers = list => [...new Set(list.filter(t => qualifiers.has(t)))].sort();
+    const empty = (status,reason) => ({status,canonical:null,type:null,reason});
+    function form(label,allowAlias=false) {
+        const fail = reason => ({error:empty('unsupported',reason)});
+        if (label === null) return {error:empty('unknown','No type annotation supplied.')};
         if (typeof label !== 'string' || !label.length || label.length > LIMITS.characters || /[\x00-\x1f\x7f]/.test(label))
-            return empty('unsupported','Type syntax requires a nonempty label of at most 128 characters without control characters.');
-        // Consume every non-space character. No comments, macros, escapes,
-        // identifier lookup, implicit int or partial parse of complex types.
+            return fail('Type syntax requires a nonempty label of at most 128 characters without control characters.');
         const tokens = label.match(/[A-Za-z_][A-Za-z0-9_]*|\*|[^ ]/g) || [];
-        if (tokens.length > LIMITS.tokens) return empty('unsupported','Type syntax exceeds the 32-token limit.');
-        const depth = tokens.filter(t => t === '*').length;
-        if (depth > LIMITS.pointers) return empty('unsupported','Type syntax exceeds four pointer levels.');
+        if (tokens.length > LIMITS.tokens) return fail('Type syntax exceeds the 32-token limit.');
+        if (tokens.filter(t => t === '*').length > LIMITS.pointers) return fail('Type syntax exceeds four pointer levels.');
         if (!tokens.length || tokens.some(t => !/^[A-Za-z_][A-Za-z0-9_]*$/.test(t) && t !== '*'))
-            return empty('unsupported','Only scalar specifiers, const/volatile and plain pointer stars are supported.');
-        if (tokens.some(t => t !== '*' && !specifiers.has(t) && !qualifiers.has(t)))
-            return empty('unsupported','Unrecognized name or specifier; typedefs, declarator names and extensions are not resolved.');
+            return fail('Only scalar specifiers, const/volatile and plain pointer stars are supported.');
         const first = tokens.indexOf('*'), base = first < 0 ? tokens : tokens.slice(0,first);
-        const name = builtins.get(base.filter(t => !qualifiers.has(t)).sort().join(' '));
-        if (!name) return empty('unsupported','Missing or unsupported combination of scalar specifiers.');
-        const uniqueQualifiers = list => [...new Set(list.filter(t => qualifiers.has(t)))].sort();
-        let type = {kind:'builtin',name,qualifiers:uniqueQualifiers(base)};
-        let canonical = [...type.qualifiers,name].join(' ');
+        const words = base.filter(t => !qualifiers.has(t)), name = builtins.get([...words].sort().join(' '));
+        const alias = !name && allowAlias && words.length === 1 && !keywords.has(words[0]) ? words[0] : null;
+        if (!name && !alias) return fail(words.some(t => !specifiers.has(t)) ?
+            'Unrecognized name or specifier; typedefs, declarator names and extensions are not resolved.' : 'Missing or unsupported combination of scalar specifiers.');
+        const pointers = [];
         if (first >= 0) for (let n = first; n < tokens.length;) {
-            if (tokens[n++] !== '*') return empty('unsupported','Each pointer level accepts only const/volatile after its star.');
+            if (tokens[n++] !== '*') return fail('Each pointer level accepts only const/volatile after its star.');
             const q = [];
             while (n < tokens.length && tokens[n] !== '*') {
-                if (!qualifiers.has(tokens[n])) return empty('unsupported','Each pointer level accepts only const/volatile after its star.');
+                if (!qualifiers.has(tokens[n])) return fail('Each pointer level accepts only const/volatile after its star.');
                 q.push(tokens[n++]);
             }
-            type = {kind:'pointer',qualifiers:uniqueQualifiers(q),to:type};
-            canonical += ' *' + (type.qualifiers.length ? ' ' + type.qualifiers.join(' ') : '');
+            pointers.push(uniqueQualifiers(q));
         }
-        return {status:'parsed',canonical,type,reason:null};
+        return {name,alias,qualifiers:uniqueQualifiers(base),pointers,tokens:tokens.length};
     }
-    function declarations(list) {
-        // Called only after full contract validation (8 declarations, 32
-        // parameters each). Syntax failure never rejects or rewrites a label.
-        return list.map(d => ({declaration:d.id,returnType:parse(d.returnType),parameters:d.parameters.map(p => parse(p.type))}));
+    function applyForm(f,type=null) {
+        // N1570 6.7.6.1 p4: qualifiers on a pointer typedef qualify that
+        // pointer, not its pointee. Never substitute the definition as text.
+        if (!type) type = {kind:'builtin',name:f.name,qualifiers:[]};
+        type.qualifiers = uniqueQualifiers([...type.qualifiers,...f.qualifiers]);
+        for (const q of f.pointers) type = {kind:'pointer',qualifiers:[...q],to:type};
+        return type;
+    }
+    function parsed(type) {
+        const pointers=[]; let base=type;
+        while (base.kind === 'pointer') {pointers.push(' *' + (base.qualifiers.length ? ' ' + base.qualifiers.join(' ') : '')); base=base.to;}
+        return {status:'parsed',canonical:[...base.qualifiers,base.name].join(' ') + pointers.reverse().join(''),type,reason:null};
+    }
+    function parse(label) {
+        const f=form(label); return f.error || parsed(applyForm(f));
+    }
+    function normalizeAliases(list) {
+        if (!Array.isArray(list) || list.length > ALIAS_LIMITS.definitions) throw Error('Type aliases must be an array of at most 32 definitions.');
+        const seen=new Set(), validText=(s,n)=>typeof s==='string' && s.length<=n && s.trim().length>0 && !/[\x00-\x1f\x7f]/.test(s);
+        const result=list.map(a=>{
+            if (!a || Array.isArray(a) || Object.keys(a).sort().join(',')!=='name,source,type' ||
+                !validText(a.name,64) || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(a.name) || keywords.has(a.name) || seen.has(a.name) ||
+                !validText(a.source,256) || !validText(a.type,128)) throw Error('Each type alias requires a unique non-keyword ASCII name, source label and type label.');
+            seen.add(a.name); return {name:a.name,source:a.source,type:a.type};
+        });
+        if (new TextEncoder().encode(JSON.stringify(result,null,2)).length > ALIAS_LIMITS.bytes) throw Error('Normalized type aliases exceed 8 KiB.');
+        return result;
+    }
+    function aliasContext(list) {
+        const definitions=normalizeAliases(list), byName=new Map(definitions.map(a=>[a.name,{...a}]));
+        function resolve(label) {
+            const aliases=[], frames=[]; let current=label, tokens=0, pointers=0;
+            const fail=reason=>({...empty('unsupported',reason),aliases});
+            for (;;) {
+                const f=form(current,true);
+                if (f.error) return {...f.error,aliases};
+                tokens+=f.tokens; pointers+=f.pointers.length;
+                if (tokens>ALIAS_LIMITS.tokens) return fail('Alias expansion exceeds 128 total tokens.');
+                if (pointers>LIMITS.pointers) return fail('Expanded type exceeds four pointer levels.');
+                frames.push(f);
+                if (f.name) break;
+                if (!byName.has(f.alias)) return fail('No supplied definition for type alias '+f.alias+'.');
+                if (aliases.includes(f.alias)) return fail('Type alias cycle: '+[...aliases,f.alias].join(' → ')+'.');
+                if (aliases.length>=ALIAS_LIMITS.depth) return fail('Alias expansion exceeds eight definitions.');
+                aliases.push(f.alias); current=byName.get(f.alias).type;
+            }
+            let type=null;
+            for (const f of frames.reverse()) type=applyForm(f,type);
+            return {...parsed(type),aliases};
+        }
+        return {definitions,parse:resolve,results:definitions.map(a=>({name:a.name,result:resolve(a.name)}))};
+    }
+    function declarations(list,context=null) {
+        // Full contract validation bounds this to 264 independently resolved labels.
+        const read=context ? context.parse : parse;
+        return list.map(d => ({declaration:d.id,returnType:read(d.returnType),parameters:d.parameters.map(p => read(p.type))}));
     }
     function compareDeclarations(list, parsed = null) {
         // The caller validates the entire contract first. Repeat its cardinality
@@ -68,7 +120,7 @@
         if (!Array.isArray(list) || list.length > 8 || list.some(d => !Array.isArray(d?.parameters) || d.parameters.length > 32))
             throw Error('Declaration comparisons require at most 8 declarations with at most 32 parameters each.');
         const types = parsed || declarations(list), result = [];
-        const side = (label,t) => t ? {label,status:t.status,canonical:t.canonical,reason:t.reason} :
+        const side = (label,t) => t ? {label,status:t.status,canonical:t.canonical,reason:t.reason,...(t.aliases ? {aliases:[...t.aliases]} : {})} :
             {label:null,status:'missing',canonical:null,reason:'No supplied parameter record at this position.'};
         function typeField(field,leftLabel,rightLabel,a,b) {
             const row = {field,kind:'type',status:'unknown',left:side(leftLabel,a),right:side(rightLabel,b),differences:[],
@@ -91,7 +143,7 @@
             }
             row.status = row.differences.length ? 'different' : 'same';
             row.reason = row.differences.length ? 'Parsed annotation forms differ; this is not a prototype or machine-compatibility verdict.' :
-                'Same parsed annotation form under the reviewed grammar; full prototype compatibility is not established.';
+                'Same parsed annotation form under the reviewed grammar and any supplied alias assumptions; full prototype compatibility is not established.';
             return row;
         }
         for (let i=0;i<list.length;i++) for (let j=i+1;j<list.length;j++) {
@@ -120,9 +172,10 @@
         const value = x => Array.isArray(x) ? x.join(' ') || 'unqualified' : x;
         return d.kind + ' at ' + at + ': ' + value(d.left) + ' / ' + value(d.right);
     };
-    const describe = result => result.status === 'parsed' ? 'Parsed annotation: ' + result.canonical :
-        result.status === 'unknown' ? result.reason : 'Unparsed annotation: ' + result.reason;
-    const api = {GRAMMAR,COMPARISON_POLICY,LIMITS,parse,declarations,describe,compareDeclarations,comparisonSummary,comparisonLabel,describeDifference};
+    const aliasDescription = result => result.aliases?.length ? 'Supplied aliases: ' + result.aliases.join(' → ') : '';
+    const describe = result => (result.status === 'parsed' ? 'Parsed annotation: ' + result.canonical :
+        result.status === 'unknown' ? result.reason : 'Unparsed annotation: ' + result.reason) + (result.aliases?.length ? ' · ' + aliasDescription(result) : '');
+    const api = {GRAMMAR,COMPARISON_POLICY,LIMITS,ALIAS_POLICY,ALIAS_LIMITS,normalizeAliases,aliasContext,aliasDescription,parse,declarations,describe,compareDeclarations,comparisonSummary,comparisonLabel,describeDifference};
     if (typeof module === 'object' && module.exports) module.exports = api;
     else root.WEADeclarationTypes = api;
 })(globalThis);

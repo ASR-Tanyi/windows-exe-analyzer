@@ -131,6 +131,11 @@ comparisons show matching forms, precise qualifier/base/pointer differences and
 unknown fields while retaining every declaration and textual disagreement.
 These comparisons do not establish prototype compatibility. See the
 [bounded type grammar and comparison policy](docs/declaration-types.md).
+**Type alias definitions** accepts explicit source-labeled scalar/pointer aliases
+for all declarations in the function contract. Qualifier levels, dependency paths,
+undefined names, cycles and expansion limits stay visible. Definitions and original
+labels round-trip in version 3 contracts; older contracts remain accepted. See the
+[alias contract](docs/declaration-aliases.md).
 Unknown values and conflicting return cleanup stay visible. None of these
 annotations infers a C signature or changes code effects. See the
 [function ABI contract](docs/function-abi.md).

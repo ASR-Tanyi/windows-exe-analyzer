@@ -1,12 +1,12 @@
 # Explicit function ABI evidence
 
-Preview v8 adds an opt-in, read-only `functionABI.version: 6` inspector. Open a
+Preview v8 adds an opt-in, read-only `functionABI.version: 7` inspector. Open a
 Capstone x64 function's **C-like → Analysis details → Function contract and
 candidates**, then select **Assume Windows x64**. The existing `transform_demo`
 in `recovery64-o0.html` and `recovery64-o1.html` exercises all four integer
 register locations, loops, arrays, branches, and a direct caller.
 
-This includes **P8 register evidence, P9/P11 stack evidence across bounded control flow, and P10/P12/P13 analyst declarations, bounded type syntax and parsed-form comparisons of M7.4**. It identifies possible machine
+This includes **P8 register evidence, P9/P11 stack evidence across bounded control flow, and P10/P12/P13/P14 analyst declarations, bounded type syntax, explicit aliases and parsed-form comparisons of M7.4**. It identifies possible machine
 inputs and outputs, not a C prototype. Broader stack recovery, floating-point parameters, hidden
 parameters, recovered varargs/source types and semantic prototype reconciliation remain open. Supplied annotations are represented separately in P10, parsed by P12 and compared by P13 under the [bounded annotation contract](declaration-types.md).
 No original effects, stack aliases, call summaries, exits, or code presentations
@@ -84,7 +84,7 @@ Export/import is scoped to this exact module and function:
 
 Export from the UI for real IDs. `profile: null` clears the selection. Extra
 fields, wrong identities, unsupported profiles, nonobjects and invalid versions
-reject the entire document. Version 1 does not accept declarations; version 2 adds the bounded `declarations` array documented below. Neither schema interprets type labels as machine semantics. Display annotations remain
+reject the entire document. Version 1 does not accept declarations; version 2 adds the bounded `declarations` array documented below; version 3 adds explicit `typeAliases`. None interprets type labels as machine semantics. Display annotations remain
 separate. Files are capped at 64 KiB. Browser parse/size errors clear the previous
 selection; schema errors display a rejection with no candidates. Reload clears
 session selections. CLI parse/size errors return 1 and invalid bindings return 2.
@@ -289,6 +289,9 @@ P13 adds pairwise field comparisons with explicit same/different/unknown
 results. Qualifier levels and unresolved names remain explicit; every original
 textual disagreement is retained. These are parsed-form comparisons, not full
 prototype-compatibility verdicts. [Comparison policy and validation](declaration-types.md#p13-comparisons-of-parsed-annotation-forms).
+P14 adds version 3 contracts with [explicit analyst type aliases](declaration-aliases.md).
+Only supplied definitions are expanded; their provenance, original labels and
+unresolved results stay visible. All version 1/2 contracts remain compatible.
 
 Declaration IDs must be unique ASCII letters/digits/underscore/hyphen (1–64
 characters). Source labels allow 1–256 characters; type labels 1–128; parameter
@@ -443,11 +446,11 @@ code; the published C ladder remains the existing register-oriented showcase.
 
 ## Next slice
 
-P12/P13 implement [bounded parsing and comparison of supplied scalar/pointer
-annotations](declaration-types.md), with explicit unknown/unsupported results
-and unchanged machine evidence. M7.4 remains open. Next support bounded explicit
-analyst alias definitions for this grammar, with source provenance and rejection
-of cycles or excessive expansion. Keep unresolved names and all original labels.
+P12/P13 implement [bounded parsing and comparison](declaration-types.md), and
+P14 adds [explicit source-labeled aliases](declaration-aliases.md). M7.4 remains
+open. Next show reviewed Windows x64 locations for explicitly declared integer
+and pointer types, keeping uncertain variadic/hidden-parameter cases unresolved.
+These would be declared placements, not automatically recovered parameters.
 Automatic header/typedef discovery, full prototype compatibility, aggregate
 arguments, hidden-parameter mapping and automatic signature recovery remain deferred.
 Do not promote register locations or access widths into automatic parameter
