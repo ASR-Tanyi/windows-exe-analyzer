@@ -1,6 +1,6 @@
 # Explicit function ABI evidence
 
-Preview v8 adds an opt-in, read-only `functionABI.version: 8` inspector. Open a
+Preview v8 adds an opt-in, read-only `functionABI.version: 9` inspector. Open a
 Capstone x64 function's **C-like → Analysis details → Function contract and
 candidates**, then select **Assume Windows x64**. The existing `transform_demo`
 in `recovery64-o0.html` and `recovery64-o1.html` exercises all four integer
@@ -450,8 +450,9 @@ P12/P13 implement [bounded parsing and comparison](declaration-types.md), and
 P14 adds [explicit source-labeled aliases](declaration-aliases.md). M7.4 remains
 open. P15 adds [conditional declared integer/pointer locations](declaration-abi.md),
 with whole-declaration fallback for uncertain variadic/hidden-parameter cases.
-Next associate these placements with source-linked observed evidence, retaining
-uncertainty and avoiding signature or compatibility verdicts.
+P16 adds [source-linked callee-entry read associations](declaration-evidence.md),
+retaining per-read overlap and uncertainty. Next associate bounded direct-caller
+observations, without signature or compatibility verdicts.
 Automatic header/typedef discovery, full prototype compatibility, aggregate
 arguments, hidden-parameter mapping and automatic signature recovery remain deferred.
 Do not promote register locations or access widths into automatic parameter

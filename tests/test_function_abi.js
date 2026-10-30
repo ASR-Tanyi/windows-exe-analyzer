@@ -195,7 +195,7 @@ const typeContract={...ABI.emptyContract(typeFixture.report,'A'),version:2,profi
     returnType:'unsigned long int const * const',parameters:[{name:'s',type:'char const *'},{name:'h',type:'HANDLE'},
         {name:'a',type:'int[4]'},{name:'u',type:null}]})]};
 const typed=run(typeFixture,{},typeContract),bare=run(typeFixture);
-check(typed.version===8 && typed.declarationTypeGrammar==='c11-scalar-pointer-v1','annotation grammar and evidence schema are versioned');
+check(typed.version===9 && typed.declarationTypeGrammar==='c11-scalar-pointer-v1','annotation grammar and evidence schema are versioned');
 check(typed.declarationTypes[0].returnType.canonical==='const unsigned long int * const','parsed return annotation is separate');
 check(typed.declarationTypes[0].parameters.map(t=>t.status).join(',')==='parsed,unsupported,unsupported,unknown','mixed type results retained');
 assert.deepEqual(typed.contract,typeContract);checks++;
@@ -230,7 +230,7 @@ check(saturated.status==='available' && saturated.declarationComparisons.length=
 const aliasContract={...typeContract,version:3,typeAliases:[{name:'Count',type:'unsigned',source:'header.h'},{name:'P',type:'int *',source:'notes'}],
     declarations:[decl('a',{returnType:'Count',parameters:[{name:'p',type:'const P'}]}),decl('b',{returnType:'unsigned int',parameters:[{name:'p',type:'int * const'}]})]};
 const withAliases=run(typeFixture,{},aliasContract),withoutAliases=run(typeFixture,{}, {...aliasContract,typeAliases:[]});
-check(withAliases.version===8 && withAliases.declarationAliasPolicy==='explicit-scalar-pointer-aliases-v1','alias interpretation is versioned');
+check(withAliases.version===9 && withAliases.declarationAliasPolicy==='explicit-scalar-pointer-aliases-v1','alias interpretation is versioned');
 assert.deepEqual(withAliases.contract,aliasContract);checks++;
 check(withAliases.declarationAliases.length===2 && withAliases.declarationTypes[0].parameters[0].canonical==='int * const','pointer alias qualifier is preserved in the model');
 check(withAliases.declarationComparisons[0].counts.same===5 && withAliases.declarationConflicts.length===1,'alias agreement retains original textual disagreements');
@@ -263,4 +263,20 @@ check(!typeInvalid.declarationLocations.length && !run(typeFixture).declarationL
 for(const key of ['arguments','returns','callers','conflicts','stackArguments','work','observations']) {
     assert.deepEqual(placements[key],bare[key]);checks++;
 }
+// P16 associates existing reads without changing machine budgets or effects.
+const evidenceFixture=fixture({A:[mov(reg('rcx',8),c(1)),mov(ax,cx),ret]});
+const evidenceContract={...ABI.emptyContract(evidenceFixture.report,'A'),version:2,profile:ABI.PROFILE.id,declarations:[decl('byte',{parameters:[{name:'x',type:'char'}]}),decl('wide',{parameters:[{name:'x',type:'long long'}]})]};
+const linked=run(evidenceFixture,{},evidenceContract),unlinked=run(evidenceFixture);
+check(linked.declarationEvidence.declarations[0].parameters[0].reads[0].relation==='disjoint','overwritten low byte leaves only disjoint upper entry bits');
+check(linked.declarationEvidence.declarations[1].parameters[0].reads[0].relation==='partial','wide competing declaration sees only partial entry bits');
+check(linked.declarationEvidence.declarations[0].parameters[0].reads[0].sources.includes('A_0'),'partial overwrite witness is retained with the actual read');
+for(const key of ['arguments','returns','callers','conflicts','stackArguments','work','observations','stackVisits']) {assert.deepEqual(linked[key],unlinked[key]);checks++;}
+const limited=run(evidenceFixture,{declarationEvidence:{links:0}},evidenceContract);
+check(limited.status==='available' && limited.declarationEvidence.status==='budget_exceeded' && limited.arguments.length===1,'association budget cannot discard machine evidence');
+assert.deepEqual(limited.declarationLocations,linked.declarationLocations);checks++;
+check(run(evidenceFixture,{work:0},evidenceContract).declarationEvidence.declarations[0].parameters[0].status==='unavailable','failed machine pass has no stale association');
+const absent=run(fixture({A:[mov(reg('rcx',32),c(1)),mov(ax,cx),ret]}),{},evidenceContract);
+check(absent.declarationEvidence.declarations[0].parameters[0].status==='no_observation','overwritten entry identity cannot become a type mismatch');
+check(run(evidenceFixture,{}, {...evidenceContract,profile:null}).declarationEvidence.declarations[0].parameters[0].status==='unresolved','clearing convention removes association coordinates');
+check(!typeInvalid.declarationEvidence.declarations.length,'invalid whole contract leaves no derived links');
 console.log(`PASS: ${checks} function-ABI graph checks`);

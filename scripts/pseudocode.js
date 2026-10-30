@@ -4,6 +4,7 @@
 const fs = require('node:fs');
 const model = require('../web/pseudocode-model.js');
 const types = require('../web/declaration-types.js');
+const declaredEvidence = require('../web/declaration-evidence.js');
 const declaredABI = require('../web/declaration-abi.js');
 function main() {
     const [path, entry, ...args] = process.argv.slice(2);
@@ -54,6 +55,17 @@ function main() {
             for (const b of d.blockers) console.log('  Unresolved '+b.field+': '+b.reason);
             const row=(label,r)=>console.log('  '+label+' '+JSON.stringify(r.label)+': '+declaredABI.describe(r)+'; '+r.reason+(r.aliases.length?' ('+types.aliasDescription(r)+')':''));
             row('Return',d.returnType);d.parameters.forEach(p=>row('Parameter '+p.position+' '+JSON.stringify(p.name),p));
+        }
+        if (a.declarationEvidence?.declarations.length) {
+            console.log('// '+declaredEvidence.NOTICE);
+            console.log('Declared entry evidence: '+a.declarationEvidence.status+'; '+a.declarationEvidence.reason);
+            for(const d of a.declarationEvidence.declarations) {
+                console.log('  '+d.declaration+' return: '+d.returnType.reason);
+                for(const p of d.parameters) {
+                    console.log('  '+d.declaration+' parameter '+p.position+': '+p.status+'; '+p.reason);
+                    for(const r of p.reads) console.log('    '+declaredEvidence.describe(r)+' @ '+r.source+'; sources '+r.sources.join(', '));
+                }
+            }
         }
         for (const d of a.contract?.declarations || []) console.log('Analyst declaration (not recovered): ' + JSON.stringify(d));
         for (const d of a.declarationTypes || []) {

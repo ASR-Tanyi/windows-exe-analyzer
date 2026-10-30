@@ -44,14 +44,23 @@
                 c.fields.map(f => '<tr data-comparison-status="' + E(f.status) + '"><td>' + E(comparisonField(f.field)) + '</td><td>' + comparisonSide(f,f.left) + '</td><td>' + comparisonSide(f,f.right) + '</td><td>' +
                     E(WEADeclarationTypes.comparisonLabel(f)) + '<br>' + E(f.reason) + (f.differences || []).map(d => '<br>' + E(WEADeclarationTypes.describeDifference(d))).join('') + '</td></tr>').join('') +
                 '</tbody></table></div></details>').join('') + '</details>' : '';
+        const associations=analysis.declarationEvidence;
+        const associated=new Map((associations?.declarations || []).map(d=>[d.declaration,d]));
+        const entryReads=(id,n)=>{
+            const d=associated.get(id),r=n?d?.parameters[n-1]:d?.returnType;
+            if(!r) return '';
+            return '<div class="pseudo-declared-evidence" data-evidence-status="'+E(r.status)+'"><p>'+E(r.reason)+'</p>'+r.reads.map(read=>
+                '<div class="pseudo-declared-read" data-overlap="'+E(read.relation)+'"><p>'+E(WEADeclarationEvidence.describe(read))+'<br>'+sourceLink(read.source)+'</p>'+evidence(read.sources)+'</div>').join('')+'</div>';
+        };
         const locations=(analysis.declarationLocations || []).length ?
-            '<details id="pseudoDeclaredLocations"><summary>Declared ABI locations ('+analysis.declarationLocations.length+')</summary><p>'+E(WEADeclarationABI.NOTICE)+'</p>'+
+            '<details id="pseudoDeclaredLocations"><summary>Declared ABI locations ('+analysis.declarationLocations.length+')</summary><p>'+E(WEADeclarationABI.NOTICE)+'</p><p>'+E(associations?.notice || '')+'</p>'+
+            (associations?.status==='budget_exceeded'?'<p class="datawarning">'+E(associations.reason)+'</p>':'')+
             analysis.declarationLocations.map(d=>'<details id="pseudoDeclaredABI_'+E(d.declaration)+'" class="pseudo-declaration-locations"><summary>'+E(d.declaration)+' · '+
                 (d.status==='mapped'?'conditional locations':'unresolved')+'</summary><p>Source: '+E(d.source)+'</p>'+
                 (d.blockers.length?'<ul class="pseudo-location-blockers">'+d.blockers.map(b=>'<li>'+E(comparisonField(b.field))+': '+E(b.reason)+'</li>').join('')+'</ul>':'')+
                 '<div class="pseudo-flow-table" tabindex="0" role="region" aria-label="Declared ABI locations '+E(d.declaration)+'"><table><thead><tr><th>Supplied annotation</th><th>Declared location</th><th>Basis</th></tr></thead><tbody>'+
                 [d.returnType,...d.parameters].map((r,n)=>'<tr data-location-status="'+E(r.status)+'"><td>'+E(n?'Parameter '+n+(r.name?' · '+r.name:''):'Return')+'<br><code>'+E(r.label ?? 'unknown')+'</code>'+
-                    (r.canonical?'<br>Parsed: '+E(r.canonical):'')+'</td><td>'+E(WEADeclarationABI.describe(r))+'</td><td>'+E(r.reason)+(r.aliases.length?'<br>'+E(WEADeclarationTypes.aliasDescription(r)):'')+'</td></tr>').join('')+
+                    (r.canonical?'<br>Parsed: '+E(r.canonical):'')+'</td><td>'+E(WEADeclarationABI.describe(r))+'</td><td>'+E(r.reason)+(r.aliases.length?'<br>'+E(WEADeclarationTypes.aliasDescription(r)):'')+entryReads(d.declaration,n)+'</td></tr>').join('')+
                 '</tbody></table></div></details>').join('')+'</details>' : '';
         h += '<details id="pseudoDeclarations" style="overflow-wrap:anywhere"><summary>Analyst declarations (' + declarations.length + ')</summary>' +
             '<p>These are supplied annotations, not recovered C signatures. All original labels are retained. Supported scalar and pointer forms are parsed below; undefined names and complex declarations remain unparsed. Parsing does not infer widths, ABI locations or memory behavior. Unknown variadic/hidden-parameter status prevents fixed-count review hints.</p>' + aliasMarkup +

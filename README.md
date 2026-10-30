@@ -139,7 +139,10 @@ labels round-trip in version 3 contracts; older contracts remain accepted. See t
 **Declared ABI locations** shows conditional integer/pointer register and stack
 placements under an explicit Windows x64 profile. Unsupported types or uncertain
 variadic/hidden parameters leave the whole declaration unresolved. These do not
-change machine effects or infer a signature. See the [location policy](docs/declaration-abi.md).
+change machine effects or infer a signature. Existing entry reads now appear with
+exact instruction links and per-read bit/byte overlap; missing observations remain
+unknown. See the [location policy](docs/declaration-abi.md) and
+[entry-evidence scope](docs/declaration-evidence.md).
 Unknown values and conflicting return cleanup stay visible. None of these
 annotations infers a C signature or changes code effects. See the
 [function ABI contract](docs/function-abi.md).

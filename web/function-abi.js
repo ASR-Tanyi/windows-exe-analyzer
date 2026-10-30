@@ -4,6 +4,7 @@
 (function (root) {
     const TYPES = typeof module === 'object' && module.exports ? require('./declaration-types.js') : root.WEADeclarationTypes;
     const DECLARED = typeof module === 'object' && module.exports ? require('./declaration-abi.js') : root.WEADeclarationABI;
+    const EVIDENCE = typeof module === 'object' && module.exports ? require('./declaration-evidence.js') : root.WEADeclarationEvidence;
     const PROFILE = Object.freeze({id: 'windows-x64-gpr-v1', arguments: Object.freeze(['rcx', 'rdx', 'r8', 'r9']), returnRegister: 'rax'});
     const LIMITS = Object.freeze({work: 131072, sources: 64, observations: 256, stackSlots: 256, stackVisits: 4096, callers: 8, sites: 32, moduleItems: 131072, fileBytes: 65536});
     const notice = 'Analyst-selected Windows x64 function convention. Register/stack reads and RAX values are candidates, not a recovered C signature. Unused arguments, floating-point arguments and broader stack recovery, varargs, hidden parameters and original types remain unknown. Caller observations do not assert a normal return or enable call summaries. No machine effects are changed.';
@@ -47,8 +48,9 @@
     function analyze(report, graph, lifted, entry, manifest, loadCaller, options = {}, valueAnalysis = null) {
         const contract = emptyContract(report, entry);
         const eligible = report.module.architecture.startsWith('x64') && graph.status === 'available';
-        const base = {version: 8, complete: false, eligible, contract, notice, arguments: [], stackArguments: [], stackScope: 'Bounded discovered normal-flow paths, including joins and loops. Aligned 1/2/4/8-byte incoming reads must remain untouched on every incoming path. Caller matches require the same covering store on every predecessor; differing stores stay unknown.', returns: [], callers: [], conflicts: [], declarationConflicts: [], declarationReviews: [], declarationTypes: [], declarationTypeGrammar:TYPES.GRAMMAR, declarationComparisons:[], declarationComparisonPolicy:TYPES.COMPARISON_POLICY, declarationAliases:[], declarationAliasPolicy:TYPES.ALIAS_POLICY, declarationLocations:[], declarationLocationPolicy:DECLARED.POLICY, assumptionSources: []};
-        const fail = (status, reason) => ({...base, status, reason});
+        const base = {version: 9, complete: false, eligible, contract, notice, arguments: [], stackArguments: [], stackScope: 'Bounded discovered normal-flow paths, including joins and loops. Aligned 1/2/4/8-byte incoming reads must remain untouched on every incoming path. Caller matches require the same covering store on every predecessor; differing stores stay unknown.', returns: [], callers: [], conflicts: [], declarationConflicts: [], declarationReviews: [], declarationTypes: [], declarationTypeGrammar:TYPES.GRAMMAR, declarationComparisons:[], declarationComparisonPolicy:TYPES.COMPARISON_POLICY, declarationAliases:[], declarationAliasPolicy:TYPES.ALIAS_POLICY, declarationLocations:[], declarationLocationPolicy:DECLARED.POLICY, assumptionSources: []};
+        const finish = result => ({...result,declarationEvidence:EVIDENCE.associate(result,options.declarationEvidence)});
+        const fail = (status, reason) => finish({...base, status, reason});
         const limits = Object.fromEntries(Object.entries(LIMITS).map(([k,v]) =>
             [k, Number.isSafeInteger(options[k]) ? Math.max(0, Math.min(v, options[k])) : v]));
         if (manifest !== undefined && manifest !== null) {
@@ -324,7 +326,7 @@
                         reason:'A caller reads call-produced RAX bits despite the void annotation. Incidental register activity is possible; no return type is inferred.'});
                 }
             }
-            return {...base,declarationReviews,status:'available',arguments:args,stackArguments:stackInputs.reads,stackStatus:stackInputs.status,stackReason:stackInputs.reason,returns,callers,conflicts,assumptionSources:[...(graph.assumptionSources || [])],work,observations,stackVisits};
+            return finish({...base,declarationReviews,status:'available',arguments:args,stackArguments:stackInputs.reads,stackStatus:stackInputs.status,stackReason:stackInputs.reason,returns,callers,conflicts,assumptionSources:[...(graph.assumptionSources || [])],work,observations,stackVisits});
         } catch (e) {
             return fail(e instanceof BudgetError ? 'budget_exceeded' : 'unavailable',e.message + ' Provisional ABI evidence discarded.');
         }

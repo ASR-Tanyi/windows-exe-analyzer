@@ -28,7 +28,7 @@ The mapping follows Microsoft's [x64 calling convention](https://learn.microsoft
 
 ## Model and presentation
 
-`functionABI.version` is 8. Additive `declarationLocationPolicy` is `windows-x64-declared-integer-pointer-v1`; `declarationLocations` contains each declaration's status, blockers, return and positional parameter rows. Row status is `declared`, `none` or `unknown`; widths and coordinates are null when unresolved. Register locations carry bit offset, width and container width. Stack locations carry `entry_rsp`, a decimal byte offset, value width and slot size.
+P15 introduced `functionABI.version` 8; [P16](declaration-evidence.md) advances it to 9 with separate entry-read associations. Additive `declarationLocationPolicy` is `windows-x64-declared-integer-pointer-v1`; `declarationLocations` contains each declaration's status, blockers, return and positional parameter rows. Row status is `declared`, `none` or `unknown`; widths and coordinates are null when unresolved. Register locations carry bit offset, width and container width. Stack locations carry `entry_rsp`, a decimal byte offset, value width and slot size.
 
 Native report schema 2, preview version 8 and contract versions 1/2/3 remain unchanged. Derived locations do not enter exported analyst contracts. The inspector's **Declared ABI locations** table, CLI `--abi` output and model JSON share the same mapping. Original annotations and sources are escaped and retained. Details support keyboard navigation and phone-width horizontal table scrolling.
 
@@ -40,7 +40,7 @@ The independent Unicorn oracle executes authored caller/callee bytes in six case
 
 ## Remaining work
 
-Next associate declared placements with source-linked observed register and stack evidence while retaining uncertainty. This must not select a winning declaration, infer a signature, or claim prototype compatibility. Full M7.4 remains open.
+[P16](declaration-evidence.md) now associates declared parameter placements with existing callee-entry register and stack reads. Direct-caller and return-bit associations remain deferred. This must not select a winning declaration, infer a signature, or claim prototype compatibility. Full M7.4 remains open.
 
 ## Hosted validation — 2026-10-30
 

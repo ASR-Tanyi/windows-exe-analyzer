@@ -64,7 +64,7 @@ def main():
             check(cli.returncode == 2, 'unavailable ABI CLI returns failure')
             print(f'PASS: {checks} function-ABI decoder/CLI contracts (backend unavailable)'); return
         abi = model['functionABI']
-        check(model['version'] == 8 and abi['version'] == 8 and abi['status'] == 'available', 'versioned opt-in evidence')
+        check(model['version'] == 8 and abi['version'] == 9 and abi['status'] == 'available', 'versioned opt-in evidence')
         check([x['register'] for x in abi['arguments']] == ['rcx','rdx'], 'callee uses two ABI register locations')
         check(abi['returns'][0]['alternatives'][0]['slice']['width'] == 32, 'observed return write width is retained')
         caller = abi['callers'][0]
@@ -195,10 +195,20 @@ def main():
         check(locations[1]['status']=='unknown' and all(p['location'] is None for p in locations[1]['parameters']),'uncertain competing declaration stays unresolved')
         for key in ['arguments','stackArguments','returns','callers','conflicts']:
             check(placed['functionABI'][key]==model['functionABI'][key],'declared locations do not change machine '+key)
+        associated=placed['functionABI']['declarationEvidence']
+        check(associated['policy']=='declared-entry-read-associations-v1' and associated['status']=='available','entry association policy is explicit')
+        check(associated['declarations'][0]['parameters'][0]['reads'][0]['relation']=='covers','32-bit RCX read covers the declared byte without narrowing observed evidence')
+        check(associated['declarations'][0]['parameters'][0]['reads'][0]['observedMask']=='0xffffffff','observed mask retains actual incoming bits')
+        check(associated['declarations'][0]['parameters'][2]['status']=='no_observation','missing R8 read remains unknown')
+        check(associated['declarations'][1]['parameters'][0]['status']=='unresolved','uncertain declaration cannot acquire links')
+        capped=recover(data,callee['id'],contract=placement_contract,limits={'declarationEvidence':{'links':0}})
+        check(capped['functionABI']['status']=='available' and capped['functionABI']['declarationEvidence']['status']=='budget_exceeded','association overflow preserves machine analysis')
+        check(capped['functionABI']['arguments']==abi['arguments'] and capped['functionABI']['declarationLocations']==locations,'association overflow preserves existing observations and declared coordinates')
         annotated_file.write_text(json.dumps(placement_contract))
         cli=subprocess.run(['node',str(ROOT/'scripts/pseudocode.js'),str(doc),hex(callee['rva']),'--function-contract',str(annotated_file),'--abi'],capture_output=True,text=True)
         check(cli.returncode==0 and 'Declared ABI locations header: mapped' in cli.stdout and 'entry RSP + 40 bytes' in cli.stdout and 'R8 bits 0–31' in cli.stdout,'CLI distinguishes declared coordinates and widths')
         cli=subprocess.run(['node',str(ROOT/'scripts/pseudocode.js'),str(doc),hex(callee['rva']),'--function-contract',str(annotated_file),'--json'],capture_output=True,text=True,check=True)
+        check('Declared entry evidence: available' in subprocess.run(['node',str(ROOT/'scripts/pseudocode.js'),str(doc),hex(callee['rva']),'--function-contract',str(annotated_file),'--abi'],capture_output=True,text=True,check=True).stdout,'CLI presents bounded associations')
         check(json.loads(cli.stdout)==placed,'declared locations have exact CLI JSON parity')
         own = recover(data)
         check(own['callAnalysis']['applied'] == 0 and any(i['status']=='barrier' for i in own['instructions']), 'function contract never enables own call summaries')
