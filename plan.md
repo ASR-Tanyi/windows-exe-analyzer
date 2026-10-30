@@ -539,6 +539,8 @@ retained disagreements, version 3 export/CLI parity and phone layout.
 
 Local validation: 31 CTest targets per backend, 178 placement checks, 454 ABI graph checks, 109/3 ABI browser checks and 90/13 C-like browser checks. Six independent executions check 48 parameters, five returns and one void return, with two incorrect-location controls rejected. Full M7.4 remains open.
 
+The [P15 hosted matrix](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40998578854) passed 33 CTest targets per backend and all browser/execution suites. The [Pages deployment](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40998578835) passed; all eight report bundles match [b354205](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/b354205afe0156dcb1b3f57c070a0bd840c93933), and the published x64 report passes 109 ABI browser checks. [Validation record](docs/declaration-abi.md#hosted-validation--2026-10-30).
+
 ### M7. Function recovery and stronger entry-role recognition
 
 **Goal:** turn verified low-level effects into readable, inspectable function-level code.

@@ -41,3 +41,11 @@ The independent Unicorn oracle executes authored caller/callee bytes in six case
 ## Remaining work
 
 Next associate declared placements with source-linked observed register and stack evidence while retaining uncertainty. This must not select a winning declaration, infer a signature, or claim prototype compatibility. Full M7.4 remains open.
+
+## Hosted validation — 2026-10-30
+
+Implementation: [b354205](https://github.com/ASR-Tanyi/windows-exe-analyzer/commit/b354205afe0156dcb1b3f57c070a0bd840c93933).
+
+The [hosted matrix](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40998578854) passed both Capstone and LLVM jobs, including 33 CTest targets per backend and all browser suites. Local decoder/CLI validation passed 161 checks. The independent execution suites retained their existing machine-semantics coverage and the new six-case declared-location oracle passed.
+
+The [Pages deployment](https://github.com/ASR-Tanyi/windows-exe-analyzer/actions/runs/40998578835) passed. Its manifest identifies the implementation commit. All eight downloaded HTML reports contain the exact committed declaration parser, location mapper, ABI model/view and pseudocode model/view. The published x64 O1 report passed the full 109-check ABI browser suite, including conditional locations, unknown prerequisites, alias clearing, unchanged code, export/CLI parity and phone layout. Authored synthetic caller cases within that suite remain separate from the published source demonstration.
