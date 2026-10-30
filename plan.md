@@ -530,6 +530,15 @@ published-report interactions verify alias assumptions, unresolved cycles,
 retained disagreements, version 3 export/CLI parity and phone layout.
 [Validation record](docs/declaration-aliases.md#hosted-validation-2026-10-29).
 
+#### P15. Declared integer/pointer ABI locations — completed bounded subset
+
+- [x] Map supported fixed declarations under the explicit Windows x64 profile, preserving LLP64 widths and callee-entry stack coordinates.
+- [x] Withhold every location in a declaration when any type, variadic or hidden-parameter prerequisite is unresolved; retain independent competing declarations and provenance.
+- [x] Show read-only locations in the inspector, CLI and JSON with unchanged machine effects and original contract exports.
+- [x] Validate bounds, keyboard/phone presentation, export parity and independent caller/callee executions. [Policy and validation](docs/declaration-abi.md).
+
+Local validation: 31 CTest targets per backend, 178 placement checks, 454 ABI graph checks, 109/3 ABI browser checks and 90/13 C-like browser checks. Six independent executions check 48 parameters, five returns and one void return, with two incorrect-location controls rejected. Full M7.4 remains open.
+
 ### M7. Function recovery and stronger entry-role recognition
 
 **Goal:** turn verified low-level effects into readable, inspectable function-level code.
@@ -601,7 +610,9 @@ Keep changes small enough to review independently. Items 1–9 have implementati
 | 20 | M7.4 bounded analyst type parsing | Done for P12 | Reviewed scalar/pointer grammar with qualifier levels and hard limits; original labels, unsupported syntax and uncertainty retained. [Contract and validation](docs/declaration-types.md) |
 | 21 | M7.4 supported parsed-type comparisons | Done for P13 | Bounded pairwise field comparisons with precise qualifier/base/shape differences and explicit unknowns; retain every declaration and textual disagreement without inferring full prototype or machine compatibility. [Contract and validation](docs/declaration-types.md#p13-comparisons-of-parsed-annotation-forms) |
 | 22 | M7.4 explicit analyst type aliases | Done for P14 | Version 3 source-labeled aliases with outer qualifier semantics, fixed expansion bounds, retained unresolved results and unchanged machine effects. [Contract and validation](docs/declaration-aliases.md) |
-| 23 | M7.4 declared scalar/pointer ABI locations | Next | Map explicitly declared integer/pointer types to reviewed Windows x64 locations under an explicit profile; keep unknown variadic/hidden-parameter cases unresolved and avoid automatic signature or call-summary inference. |
+| 23 | M7.4 declared scalar/pointer ABI locations | Done for P15 | Map explicitly declared integer/pointer types to reviewed Windows x64 locations under an explicit profile; keep unknown variadic/hidden-parameter cases unresolved and avoid automatic signature or call-summary inference. |
+
+| 24 | M7.4 source-linked declared-location evidence | Next | Associate conditional declared placements with observed register/stack evidence, retaining uncertainty and competing declarations without a signature or compatibility verdict. |
 
 Items 5 and 6 can proceed independently once the shared identities/reference contract is stable. Broader `main` recovery is deliberately not a prerequisite for discovering or browsing functions.
 
@@ -709,7 +720,7 @@ A task is complete only when its implementation, relevant tests, limitations, an
 
 When priorities change, update this document and explain why. Keep completed evidence, split overly broad tasks, and move experiments to section 8 until there is a bounded implementation proposal. Owners, issue numbers, and dates should be added when actually assigned, not invented in advance.
 
-**Recommended next work:** show reviewed Windows x64 locations for explicitly declared integer/pointer types (queue item 23 / M7.4), retaining unresolved variadic/hidden-parameter cases and unchanged machine effects. P14 resolves bounded explicit analyst aliases with provenance and cycle/expansion limits. P13 compares parsed forms while retaining every declaration and textual disagreement. P12 supplies the bounded scalar/pointer grammar. P11 extends incoming-stack and same-store caller evidence across bounded CFG joins and loops. P10 preserves analyst declarations and disagreements without changing recovery. P8 completes the explicit Windows x64 GPR evidence subset. Keep incoming function contracts separate from call-site assumptions, support only reviewed profiles, and retain prototype conflicts and varargs uncertainty. P1 provides scalar/memory/branch/loop recovery and the nested-loop demo; P2 adds bounded facts and physical stack aliases; P3 adds register SSA; P4 adds explicit Windows x64 normal-return summaries; P5/P6 complete the block-local M7.2 expression/cleanup subset; P7 adds bounded physical storage roles without rewriting memory effects. Actual outgoing parameter counts, copy-chain restores, broader lifetime splitting, cross-block/PHI substitution, other ABI profiles, original for/while spelling, recovered C types, I/O signatures and full function completeness remain pending. Indirect discovery and product dynamic analysis remain deferred.
+**Recommended next work:** associate conditional declared locations with source-linked observed register/stack evidence (queue item 24 / M7.4), retaining uncertainty and competing declarations without signature or compatibility verdicts. P15 adds reviewed integer/pointer placements with whole-declaration fallback and unchanged machine effects. P14 resolves bounded explicit analyst aliases with provenance and cycle/expansion limits. P13 compares parsed forms while retaining every declaration and textual disagreement. P12 supplies the bounded scalar/pointer grammar. P11 extends incoming-stack and same-store caller evidence across bounded CFG joins and loops. P10 preserves analyst declarations and disagreements without changing recovery. P8 completes the explicit Windows x64 GPR evidence subset. Keep incoming function contracts separate from call-site assumptions, support only reviewed profiles, and retain prototype conflicts and varargs uncertainty. P1 provides scalar/memory/branch/loop recovery and the nested-loop demo; P2 adds bounded facts and physical stack aliases; P3 adds register SSA; P4 adds explicit Windows x64 normal-return summaries; P5/P6 complete the block-local M7.2 expression/cleanup subset; P7 adds bounded physical storage roles without rewriting memory effects. Actual outgoing parameter counts, copy-chain restores, broader lifetime splitting, cross-block/PHI substitution, other ABI profiles, original for/while spelling, recovered C types, I/O signatures and full function completeness remain pending. Indirect discovery and product dynamic analysis remain deferred.
 
 ## 12. References
 

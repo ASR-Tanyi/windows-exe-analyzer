@@ -25,7 +25,7 @@ file(READ "${CMAKE_CURRENT_SOURCE_DIR}/web/tls-directory.js" TLS_DIRECTORY_SCRIP
 string(REPLACE "</body>" "<script>\n${TLS_DIRECTORY_SCRIPT}\n</script></body>" VIEWER_TEMPLATE "${VIEWER_TEMPLATE}")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_SOURCE_DIR}/web/tls-directory.js")
-foreach(WEA_FUNCTION_SCRIPT IN ITEMS string-model string-view function-model function-view cfg-model cfg-view operand-view bitvectors value-domain call-summaries value-analysis register-ssa register-expressions register-cleanup stack-storage declaration-types function-abi pseudocode-model register-flow-view call-summary-view function-abi-view pseudocode-view)
+foreach(WEA_FUNCTION_SCRIPT IN ITEMS string-model string-view function-model function-view cfg-model cfg-view operand-view bitvectors value-domain call-summaries value-analysis register-ssa register-expressions register-cleanup stack-storage declaration-types declaration-abi function-abi pseudocode-model register-flow-view call-summary-view function-abi-view pseudocode-view)
   file(READ "${CMAKE_CURRENT_SOURCE_DIR}/web/${WEA_FUNCTION_SCRIPT}.js" WEA_FUNCTION_CONTENT)
   string(REPLACE "</body>" "<script>\n${WEA_FUNCTION_CONTENT}\n</script></body>" VIEWER_TEMPLATE "${VIEWER_TEMPLATE}")
   set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
@@ -83,6 +83,7 @@ if(BUILD_TESTING)
     add_test(NAME declaration_types COMMAND "${WEA_NODE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_declaration_types.js")
     add_test(NAME declaration_comparisons COMMAND "${WEA_NODE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_declaration_comparisons.js")
     add_test(NAME declaration_aliases COMMAND "${WEA_NODE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_declaration_aliases.js")
+    add_test(NAME declaration_abi COMMAND "${WEA_NODE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_declaration_abi.js")
   else()
     message(STATUS "Node.js unavailable: function-model checks not registered; report generation is unaffected")
   endif()

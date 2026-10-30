@@ -76,6 +76,7 @@ jobs:
           build/browser-env/bin/python tests/test_pseudocode_oracle.py build/windows-exe-analyzer --fixtures build/recovery-fixtures
           build/browser-env/bin/python tests/test_call_oracle.py build/windows-exe-analyzer --fixtures build/recovery-fixtures
           build/browser-env/bin/python tests/test_function_abi_oracle.py build/windows-exe-analyzer --fixtures build/recovery-fixtures
+          build/browser-env/bin/python tests/test_declaration_abi_oracle.py build/windows-exe-analyzer
       - name: Retain test evidence and roadmap snapshot
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

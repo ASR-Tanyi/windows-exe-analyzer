@@ -64,7 +64,7 @@ def main():
             check(cli.returncode == 2, 'unavailable ABI CLI returns failure')
             print(f'PASS: {checks} function-ABI decoder/CLI contracts (backend unavailable)'); return
         abi = model['functionABI']
-        check(model['version'] == 8 and abi['version'] == 7 and abi['status'] == 'available', 'versioned opt-in evidence')
+        check(model['version'] == 8 and abi['version'] == 8 and abi['status'] == 'available', 'versioned opt-in evidence')
         check([x['register'] for x in abi['arguments']] == ['rcx','rdx'], 'callee uses two ABI register locations')
         check(abi['returns'][0]['alternatives'][0]['slice']['width'] == 32, 'observed return write width is retained')
         caller = abi['callers'][0]
@@ -186,6 +186,20 @@ def main():
         check(json.loads(cli.stdout)==resolved,'version 3 alias context has exact CLI JSON parity')
         cli=subprocess.run(['node',str(ROOT/'scripts/pseudocode.js'),str(doc),hex(callee['rva']),'--function-contract',str(annotated_file),'--abi'],capture_output=True,text=True)
         check(cli.returncode==2 and 'Alias resolution Pointer:' in cli.stdout and 'Supplied aliases: Pointer' in cli.stdout,'CLI shows alias assumptions with unknown machine convention')
+        placement_contract=copy.deepcopy(alias_contract);placement_contract['profile']=PROFILE
+        placement_contract['declarations'][0].update(returnType='Pointer',parameters=[dict(name='p'+str(n),type=t) for n,t in enumerate(['unsigned char','short','long','Pointer','unsigned short','unsigned long long'])])
+        placed=recover(data,callee['id'],contract=placement_contract);locations=placed['functionABI']['declarationLocations']
+        check(locations[0]['status']=='mapped' and locations[0]['returnType']['width']==64,'decoded declaration uses pointer return width under explicit profile')
+        check(locations[0]['parameters'][2]['location']['register']=='r8' and locations[0]['parameters'][2]['width']==32,'Windows long uses its declared 32-bit width')
+        check(locations[0]['parameters'][4]['location']['byteOffset']=='40' and locations[0]['parameters'][5]['location']['byteOffset']=='48','declared stack slots use callee-entry coordinates')
+        check(locations[1]['status']=='unknown' and all(p['location'] is None for p in locations[1]['parameters']),'uncertain competing declaration stays unresolved')
+        for key in ['arguments','stackArguments','returns','callers','conflicts']:
+            check(placed['functionABI'][key]==model['functionABI'][key],'declared locations do not change machine '+key)
+        annotated_file.write_text(json.dumps(placement_contract))
+        cli=subprocess.run(['node',str(ROOT/'scripts/pseudocode.js'),str(doc),hex(callee['rva']),'--function-contract',str(annotated_file),'--abi'],capture_output=True,text=True)
+        check(cli.returncode==0 and 'Declared ABI locations header: mapped' in cli.stdout and 'entry RSP + 40 bytes' in cli.stdout and 'R8 bits 0–31' in cli.stdout,'CLI distinguishes declared coordinates and widths')
+        cli=subprocess.run(['node',str(ROOT/'scripts/pseudocode.js'),str(doc),hex(callee['rva']),'--function-contract',str(annotated_file),'--json'],capture_output=True,text=True,check=True)
+        check(json.loads(cli.stdout)==placed,'declared locations have exact CLI JSON parity')
         own = recover(data)
         check(own['callAnalysis']['applied'] == 0 and any(i['status']=='barrier' for i in own['instructions']), 'function contract never enables own call summaries')
         for suffix, expected in [('b80700000089c14883c428c3', 0), ('b00189c14883c428c3', 1), ('4883c428c3', 0)]:

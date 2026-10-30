@@ -195,7 +195,7 @@ const typeContract={...ABI.emptyContract(typeFixture.report,'A'),version:2,profi
     returnType:'unsigned long int const * const',parameters:[{name:'s',type:'char const *'},{name:'h',type:'HANDLE'},
         {name:'a',type:'int[4]'},{name:'u',type:null}]})]};
 const typed=run(typeFixture,{},typeContract),bare=run(typeFixture);
-check(typed.version===7 && typed.declarationTypeGrammar==='c11-scalar-pointer-v1','annotation grammar and evidence schema are versioned');
+check(typed.version===8 && typed.declarationTypeGrammar==='c11-scalar-pointer-v1','annotation grammar and evidence schema are versioned');
 check(typed.declarationTypes[0].returnType.canonical==='const unsigned long int * const','parsed return annotation is separate');
 check(typed.declarationTypes[0].parameters.map(t=>t.status).join(',')==='parsed,unsupported,unsupported,unknown','mixed type results retained');
 assert.deepEqual(typed.contract,typeContract);checks++;
@@ -230,7 +230,7 @@ check(saturated.status==='available' && saturated.declarationComparisons.length=
 const aliasContract={...typeContract,version:3,typeAliases:[{name:'Count',type:'unsigned',source:'header.h'},{name:'P',type:'int *',source:'notes'}],
     declarations:[decl('a',{returnType:'Count',parameters:[{name:'p',type:'const P'}]}),decl('b',{returnType:'unsigned int',parameters:[{name:'p',type:'int * const'}]})]};
 const withAliases=run(typeFixture,{},aliasContract),withoutAliases=run(typeFixture,{}, {...aliasContract,typeAliases:[]});
-check(withAliases.version===7 && withAliases.declarationAliasPolicy==='explicit-scalar-pointer-aliases-v1','alias interpretation is versioned');
+check(withAliases.version===8 && withAliases.declarationAliasPolicy==='explicit-scalar-pointer-aliases-v1','alias interpretation is versioned');
 assert.deepEqual(withAliases.contract,aliasContract);checks++;
 check(withAliases.declarationAliases.length===2 && withAliases.declarationTypes[0].parameters[0].canonical==='int * const','pointer alias qualifier is preserved in the model');
 check(withAliases.declarationComparisons[0].counts.same===5 && withAliases.declarationConflicts.length===1,'alias agreement retains original textual disagreements');
@@ -250,4 +250,17 @@ for(const patch of [{version:2},{typeAliases:null},{typeAliases:[...aliasContrac
 const cyclicAlias=run(typeFixture,{}, {...aliasContract,typeAliases:[{name:'P',source:'notes',type:'P'}]});
 check(cyclicAlias.status==='available' && cyclicAlias.declarationTypes[0].parameters[0].status==='unsupported' && cyclicAlias.contract.typeAliases[0].type==='P','cyclic source remains retained without successful expansion');
 check(run(typeFixture,{}, {...typeContract,version:3,typeAliases:[]}).contract.version===3,'empty version 3 aliases retain explicit schema');
+check(withAliases.declarationLocationPolicy==='windows-x64-declared-integer-pointer-v1' && withAliases.declarationLocations.every(d=>d.status==='mapped'),'locations use a separate versioned policy');
+check(withAliases.declarationLocations[0].returnType.location.register==='rax' && withAliases.declarationLocations[0].parameters[0].location.register==='rcx','resolved declarations map independently of actual reads');
+const declaredStack={...typeContract,declarations:[decl('fixed',{returnType:'void',parameters:['char','short','long','void *','unsigned short'].map((type,n)=>({name:'p'+n,type}))})]};
+const placements=run(typeFixture,{},declaredStack);
+check(placements.declarationLocations[0].parameters[4].location.byteOffset==='40' && placements.declarationLocations[0].returnType.status==='none','declared stack offsets are relative to callee entry');
+for(const options of [{work:0},{observations:0}]) {
+    assert.deepEqual(run(typeFixture,options,declaredStack).declarationLocations,placements.declarationLocations);checks++;
+}
+check(run(typeFixture,{}, {...declaredStack,profile:null}).declarationLocations.every(d=>d.status==='unknown' && d.parameters.every(p=>p.location===null)),'unknown convention clears every declared coordinate');
+check(!typeInvalid.declarationLocations.length && !run(typeFixture).declarationLocations.length,'invalid and missing declarations expose no locations');
+for(const key of ['arguments','returns','callers','conflicts','stackArguments','work','observations']) {
+    assert.deepEqual(placements[key],bare[key]);checks++;
+}
 console.log(`PASS: ${checks} function-ABI graph checks`);

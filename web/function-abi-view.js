@@ -44,12 +44,21 @@
                 c.fields.map(f => '<tr data-comparison-status="' + E(f.status) + '"><td>' + E(comparisonField(f.field)) + '</td><td>' + comparisonSide(f,f.left) + '</td><td>' + comparisonSide(f,f.right) + '</td><td>' +
                     E(WEADeclarationTypes.comparisonLabel(f)) + '<br>' + E(f.reason) + (f.differences || []).map(d => '<br>' + E(WEADeclarationTypes.describeDifference(d))).join('') + '</td></tr>').join('') +
                 '</tbody></table></div></details>').join('') + '</details>' : '';
+        const locations=(analysis.declarationLocations || []).length ?
+            '<details id="pseudoDeclaredLocations"><summary>Declared ABI locations ('+analysis.declarationLocations.length+')</summary><p>'+E(WEADeclarationABI.NOTICE)+'</p>'+
+            analysis.declarationLocations.map(d=>'<details id="pseudoDeclaredABI_'+E(d.declaration)+'" class="pseudo-declaration-locations"><summary>'+E(d.declaration)+' · '+
+                (d.status==='mapped'?'conditional locations':'unresolved')+'</summary><p>Source: '+E(d.source)+'</p>'+
+                (d.blockers.length?'<ul class="pseudo-location-blockers">'+d.blockers.map(b=>'<li>'+E(comparisonField(b.field))+': '+E(b.reason)+'</li>').join('')+'</ul>':'')+
+                '<div class="pseudo-flow-table" tabindex="0" role="region" aria-label="Declared ABI locations '+E(d.declaration)+'"><table><thead><tr><th>Supplied annotation</th><th>Declared location</th><th>Basis</th></tr></thead><tbody>'+
+                [d.returnType,...d.parameters].map((r,n)=>'<tr data-location-status="'+E(r.status)+'"><td>'+E(n?'Parameter '+n+(r.name?' · '+r.name:''):'Return')+'<br><code>'+E(r.label ?? 'unknown')+'</code>'+
+                    (r.canonical?'<br>Parsed: '+E(r.canonical):'')+'</td><td>'+E(WEADeclarationABI.describe(r))+'</td><td>'+E(r.reason)+(r.aliases.length?'<br>'+E(WEADeclarationTypes.aliasDescription(r)):'')+'</td></tr>').join('')+
+                '</tbody></table></div></details>').join('')+'</details>' : '';
         h += '<details id="pseudoDeclarations" style="overflow-wrap:anywhere"><summary>Analyst declarations (' + declarations.length + ')</summary>' +
             '<p>These are supplied annotations, not recovered C signatures. All original labels are retained. Supported scalar and pointer forms are parsed below; undefined names and complex declarations remain unparsed. Parsing does not infer widths, ABI locations or memory behavior. Unknown variadic/hidden-parameter status prevents fixed-count review hints.</p>' + aliasMarkup +
             declarations.map(d => '<section class="pseudo-declaration"><h4>' + E(d.id) + '</h4><p>Source: ' + E(d.source) + '</p><p>Return annotation: <code>' + E(d.returnType ?? 'unknown') + '</code><br>' + syntax(types.get(d.id)?.returnType) + '</p>' +
                 '<p>Variadic: ' + E(d.variadic) + '; hidden parameters: ' + E(d.hiddenParameters) + '</p>' +
                 '<ol>' + d.parameters.map((p,n) => '<li><code>' + E(p.name || '(unnamed)') + ': ' + E(p.type ?? 'unknown') + '</code><br>' + syntax(types.get(d.id)?.parameters[n]) + '</li>').join('') + '</ol></section>').join('') +
-            comparisons +
+            comparisons + locations +
             (analysis.declarationConflicts || []).map(c => '<p class="datawarning pseudo-declaration-conflict">' + E(c.declarations.join(' / ')) + ': ' + E(c.fields.join(', ')) + '. ' + E(c.reason) + '</p>').join('') +
             (analysis.declarationReviews || []).map(c => '<div class="pseudo-declaration-review"><p>' + E(c.declaration) + ': ' + E(c.reason) + '</p>' + evidence(c.sources) + '</div>').join('') +
             '<p>No disagreement or review hint does not verify a declaration.</p><label for="pseudoDeclarationEditor">Edit declarations as JSON (maximum 8)</label>' +

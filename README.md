@@ -136,6 +136,10 @@ for all declarations in the function contract. Qualifier levels, dependency path
 undefined names, cycles and expansion limits stay visible. Definitions and original
 labels round-trip in version 3 contracts; older contracts remain accepted. See the
 [alias contract](docs/declaration-aliases.md).
+**Declared ABI locations** shows conditional integer/pointer register and stack
+placements under an explicit Windows x64 profile. Unsupported types or uncertain
+variadic/hidden parameters leave the whole declaration unresolved. These do not
+change machine effects or infer a signature. See the [location policy](docs/declaration-abi.md).
 Unknown values and conflicting return cleanup stay visible. None of these
 annotations infers a C signature or changes code effects. See the
 [function ABI contract](docs/function-abi.md).

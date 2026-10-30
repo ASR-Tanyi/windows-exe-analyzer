@@ -4,6 +4,7 @@
 const fs = require('node:fs');
 const model = require('../web/pseudocode-model.js');
 const types = require('../web/declaration-types.js');
+const declaredABI = require('../web/declaration-abi.js');
 function main() {
     const [path, entry, ...args] = process.argv.slice(2);
     let format, calls, contract, simplified = false, clean = false;
@@ -47,6 +48,13 @@ function main() {
         const a = result.functionABI;
         for (const alias of a.contract?.typeAliases || []) console.log('Supplied type alias (all declarations): ' + JSON.stringify(alias));
         for (const alias of a.declarationAliases || []) console.log('Alias resolution ' + alias.name + ': ' + types.describe(alias.result));
+        if (a.declarationLocations?.length) console.log('// '+declaredABI.NOTICE);
+        for (const d of a.declarationLocations || []) {
+            console.log('Declared ABI locations '+d.declaration+': '+d.status+'; source '+JSON.stringify(d.source));
+            for (const b of d.blockers) console.log('  Unresolved '+b.field+': '+b.reason);
+            const row=(label,r)=>console.log('  '+label+' '+JSON.stringify(r.label)+': '+declaredABI.describe(r)+'; '+r.reason+(r.aliases.length?' ('+types.aliasDescription(r)+')':''));
+            row('Return',d.returnType);d.parameters.forEach(p=>row('Parameter '+p.position+' '+JSON.stringify(p.name),p));
+        }
         for (const d of a.contract?.declarations || []) console.log('Analyst declaration (not recovered): ' + JSON.stringify(d));
         for (const d of a.declarationTypes || []) {
             console.log('Type annotation ' + d.declaration + ' return: ' + types.describe(d.returnType));

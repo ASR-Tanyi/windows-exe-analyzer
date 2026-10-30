@@ -3,6 +3,7 @@
 // permission to change CALL effects, memory, machine exits or rendered code.
 (function (root) {
     const TYPES = typeof module === 'object' && module.exports ? require('./declaration-types.js') : root.WEADeclarationTypes;
+    const DECLARED = typeof module === 'object' && module.exports ? require('./declaration-abi.js') : root.WEADeclarationABI;
     const PROFILE = Object.freeze({id: 'windows-x64-gpr-v1', arguments: Object.freeze(['rcx', 'rdx', 'r8', 'r9']), returnRegister: 'rax'});
     const LIMITS = Object.freeze({work: 131072, sources: 64, observations: 256, stackSlots: 256, stackVisits: 4096, callers: 8, sites: 32, moduleItems: 131072, fileBytes: 65536});
     const notice = 'Analyst-selected Windows x64 function convention. Register/stack reads and RAX values are candidates, not a recovered C signature. Unused arguments, floating-point arguments and broader stack recovery, varargs, hidden parameters and original types remain unknown. Caller observations do not assert a normal return or enable call summaries. No machine effects are changed.';
@@ -46,7 +47,7 @@
     function analyze(report, graph, lifted, entry, manifest, loadCaller, options = {}, valueAnalysis = null) {
         const contract = emptyContract(report, entry);
         const eligible = report.module.architecture.startsWith('x64') && graph.status === 'available';
-        const base = {version: 7, complete: false, eligible, contract, notice, arguments: [], stackArguments: [], stackScope: 'Bounded discovered normal-flow paths, including joins and loops. Aligned 1/2/4/8-byte incoming reads must remain untouched on every incoming path. Caller matches require the same covering store on every predecessor; differing stores stay unknown.', returns: [], callers: [], conflicts: [], declarationConflicts: [], declarationReviews: [], declarationTypes: [], declarationTypeGrammar:TYPES.GRAMMAR, declarationComparisons:[], declarationComparisonPolicy:TYPES.COMPARISON_POLICY, declarationAliases:[], declarationAliasPolicy:TYPES.ALIAS_POLICY, assumptionSources: []};
+        const base = {version: 8, complete: false, eligible, contract, notice, arguments: [], stackArguments: [], stackScope: 'Bounded discovered normal-flow paths, including joins and loops. Aligned 1/2/4/8-byte incoming reads must remain untouched on every incoming path. Caller matches require the same covering store on every predecessor; differing stores stay unknown.', returns: [], callers: [], conflicts: [], declarationConflicts: [], declarationReviews: [], declarationTypes: [], declarationTypeGrammar:TYPES.GRAMMAR, declarationComparisons:[], declarationComparisonPolicy:TYPES.COMPARISON_POLICY, declarationAliases:[], declarationAliasPolicy:TYPES.ALIAS_POLICY, declarationLocations:[], declarationLocationPolicy:DECLARED.POLICY, assumptionSources: []};
         const fail = (status, reason) => ({...base, status, reason});
         const limits = Object.fromEntries(Object.entries(LIMITS).map(([k,v]) =>
             [k, Number.isSafeInteger(options[k]) ? Math.max(0, Math.min(v, options[k])) : v]));
@@ -62,6 +63,7 @@
                 if (aliases && new TextEncoder().encode(JSON.stringify({...contract,version:3,profile:manifest.profile,declarations,typeAliases:aliases.definitions},null,2)+'\n').length > LIMITS.fileBytes)
                     throw Error('Normalized function contract exceeds 64 KiB.');
                 const types = TYPES.declarations(declarations || [],aliases), comparisons = TYPES.compareDeclarations(declarations || [],types);
+                const locations = DECLARED.declarations(declarations || [],types,manifest.profile);
                 // Commit only after validation of the entire document.
                 contract.version = manifest.version; contract.profile = manifest.profile;
                 if (declarations) contract.declarations = declarations;
@@ -70,6 +72,7 @@
                 base.declarationTypes = types;
                 base.declarationComparisons = comparisons;
                 base.declarationAliases = aliases ? aliases.results : [];
+                base.declarationLocations = locations;
             } catch (e) {return fail('invalid',e.message);}
         }
         if (!eligible) return fail('unavailable', 'Function ABI evidence requires x64 and available register SSA with unambiguous ownership.');
